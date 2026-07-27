@@ -1,0 +1,4 @@
+name: ShitBotSpigot
+version: '${project.version}'
+main: haaa.shitbotspigot.ShitBotSpigot
+authors: [ H_aaa ]

@@ -1,0 +1,9 @@
+{
+  "id": "shitbotvelocity",
+  "name": "ShitBotVelocity",
+  "version": "${version}",
+  "main": "ds.shitBotVelocity.ShitBotVelocity",
+  "authors": [
+    "DarkStation"
+  ]
+}
