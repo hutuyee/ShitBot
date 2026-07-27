@@ -2,3 +2,12 @@ name: ShitBotSpigot
 version: '${project.version}'
 main: haaa.shitbotspigot.ShitBotSpigot
 authors: [ H_aaa ]
+commands:
+  shitbot:
+    description: ShitBot management command
+    aliases: [ sbot ]
+    usage: /shitbot status|reload|image
+permissions:
+  shitbot.admin:
+    description: Allows ShitBot administration
+    default: op

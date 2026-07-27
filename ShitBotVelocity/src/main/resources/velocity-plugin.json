@@ -1,9 +1,7 @@
 {
   "id": "shitbotvelocity",
   "name": "ShitBotVelocity",
-  "version": "${version}",
+  "version": "${project.version}",
   "main": "ds.shitBotVelocity.ShitBotVelocity",
-  "authors": [
-    "DarkStation"
-  ]
+  "authors": ["DarkStation"]
 }

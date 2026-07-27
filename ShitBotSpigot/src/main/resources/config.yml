@@ -1,0 +1,94 @@
+config-version: 1
+
+onebot:
+  enabled: true
+  # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。
+  websocket-url: "ws://127.0.0.1:3001"
+  # 非空时会在 WebSocket 握手 Header 中发送：Authorization: Bearer <token>
+  access-token: ""
+  # 留空表示允许所有群；建议生产环境只填写自己的群号。
+  allowed-group-ids:
+    - 123456789
+  connect-timeout-seconds: 10
+  action-timeout-seconds: 15
+  heartbeat-timeout-seconds: 120
+  reconnect:
+    initial-seconds: 3
+    maximum-seconds: 60
+  command-cooldown-seconds: 2
+  reply-at-sender: true
+  commands:
+    bind:
+      enabled: true
+      aliases:
+        - "绑定"
+        - "/bind"
+      usage: "用法: 绑定 <游戏ID）> <验证码>"
+    online-image:
+      enabled: true
+      aliases:
+        - "服务器状态"
+        - "在线人数"
+      usage: "服务器状态"
+
+binding:
+  enabled: true
+  code-length: 6
+  expire-minutes: 10
+  maximum-attempts: 5
+  login-database-timeout-seconds: 8
+  # 去掉了容易混淆的 0/O、1/I。
+  code-alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+database:
+  # sqlite 或 mysql。三个版本使用完全相同的表结构。
+  type: "sqlite"
+  sqlite:
+    # 在插件数据目录内生成，可直接在三个版本之间迁移。
+    file: "shitbot.db"
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    database: "shitbot"
+    username: "shitbot"
+    password: "SHITBOTPASSWORD"
+    parameters: "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true"
+  pool:
+    maximum-pool-size: 10
+    minimum-idle: 2
+    connection-timeout-ms: 5000
+    validation-timeout-ms: 3000
+    idle-timeout-ms: 600000
+    maximum-lifetime-ms: 80000
+    keepalive-time-ms: 40000
+  # SQLite 会自动强制为 1，MySQL 可按负载调整。
+  async-threads: 2
+
+image:
+  title: "服务器在线状态"
+  server-name: "Server-Status"
+  font-name: "Microsoft YaHei"
+  width: 1200
+  players-per-row: 4
+  maximum-players: 200
+  cache-seconds: 8
+  output-file: "online.png"
+
+messages:
+  kick-unbound: |
+    &7欢迎 &a%player% &7加入服务器
+    &7请在QQ群发送 &6绑定 %player% %code%
+    &7验证码将在 &c%expire_minutes% 分钟 &7后失效
+  kick-database-unavailable: "&c绑定系统暂时不可用，请稍后重试。"
+  bind-usage: "用法: 绑定 <游戏ID> <验证码>"
+  bind-success: "%at% 绑定成功：%player% -> %qq%"
+  bind-invalid: "%at% 验证码错误。"
+  bind-expired: "%at% 验证码不存在、尝试次数过多或已经过期，请重新进入服务器获取。"
+  bind-qq-already-used: "%at% 该QQ已经绑定其他游戏ID。"
+  bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
+  bind-database-error: "%at% 数据库操作失败，请联系管理员。"
+  online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+  no-permission: "&c你没有权限使用此命令。"
+  reload-started: "&7正在重载 ShitBot..."
+  reload-success: "&aShitBot 已完成热重载。"
+  reload-failed: "&cShitBot 重载失败，旧配置仍在运行。"

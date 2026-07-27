@@ -1,0 +1,74 @@
+package haaa.shitbotbungee.platform;
+
+import haaa.shitbot.core.platform.PlatformBridge;
+import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.config.ServerInfo;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.plugin.Plugin;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
+public final class BungeePlatformBridge implements PlatformBridge {
+    private final Plugin plugin;
+
+    public BungeePlatformBridge(Plugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public Path getDataDirectory() {
+        return plugin.getDataFolder().toPath();
+    }
+
+    @Override
+    public String getPlatformName() {
+        return "BungeeCord";
+    }
+
+    @Override
+    public CompletableFuture<Map<String, List<String>>> captureOnlinePlayers() {
+        Map<String, List<String>> snapshot = new LinkedHashMap<String, List<String>>();
+        for (Map.Entry<String, ServerInfo> entry : ProxyServer.getInstance().getServers().entrySet()) {
+            List<String> players = new ArrayList<String>();
+            for (ProxiedPlayer player : entry.getValue().getPlayers()) {
+                if (player != null) {
+                    players.add(player.getName());
+                }
+            }
+            if (!players.isEmpty()) {
+                snapshot.put(entry.getKey(), players);
+            }
+        }
+        return CompletableFuture.completedFuture(snapshot);
+    }
+
+    @Override
+    public void executeOnPlatformThread(Runnable runnable) {
+        if (runnable != null) {
+            runnable.run();
+        }
+    }
+
+    @Override
+    public void info(String message) {
+        plugin.getLogger().info(message);
+    }
+
+    @Override
+    public void warn(String message) {
+        plugin.getLogger().warning(message);
+    }
+
+    @Override
+    public void error(String message, Throwable throwable) {
+        plugin.getLogger().severe(message + (throwable == null ? "" : ": " + throwable.getMessage()));
+        if (throwable != null) {
+            throwable.printStackTrace();
+        }
+    }
+}
