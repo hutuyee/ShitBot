@@ -17,6 +17,13 @@ public final class SettingsFactory {
                 listOrDefault(source.getStringList("onebot.commands.online-image.aliases"), "服务器状态", "在线人数"),
                 source.getString("onebot.commands.online-image.usage", "服务器状态"));
 
+        Settings.GroupJoinWelcome groupJoinWelcome = new Settings.GroupJoinWelcome(
+                source.getBoolean("onebot.notices.group-join-welcome.enabled", true),
+                source.getString("onebot.notices.group-join-welcome.message",
+                        "欢迎 %at% 加入群聊！"));
+        Settings.GroupLeaveUnbind groupLeaveUnbind = new Settings.GroupLeaveUnbind(
+                source.getBoolean("onebot.notices.group-leave-unbind.enabled", false));
+
         Settings.OneBot oneBot = new Settings.OneBot(
                 source.getBoolean("onebot.enabled", true),
                 source.getString("onebot.websocket-url", "ws://127.0.0.1:3001"),
@@ -30,7 +37,9 @@ public final class SettingsFactory {
                 source.getInt("onebot.command-cooldown-seconds", 2),
                 source.getBoolean("onebot.reply-at-sender", true),
                 bindCommand,
-                onlineCommand);
+                onlineCommand,
+                groupJoinWelcome,
+                groupLeaveUnbind);
 
         Settings.Binding binding = new Settings.Binding(
                 source.getBoolean("binding.enabled", true),

@@ -70,6 +70,24 @@ public final class BindingRepository {
         });
     }
 
+    /** Removes a binding by exact QQ number. */
+    public CompletableFuture<Integer> removeByQqId(final String qqId) {
+        if (!TextUtil.isValidQqId(qqId)) {
+            return CompletableFuture.completedFuture(Integer.valueOf(0));
+        }
+        final String cleanQq = qqId.trim();
+        return database.supplyAsync(new DatabaseManager.SqlFunction<Integer>() {
+            @Override
+            public Integer apply(Connection connection) throws SQLException {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM shitbot_bindings WHERE qq_id=?")) {
+                    statement.setString(1, cleanQq);
+                    return Integer.valueOf(statement.executeUpdate());
+                }
+            }
+        });
+    }
+
     public CompletableFuture<IssuedBindCode> issueCode(final String playerName) {
         if (!TextUtil.isValidPlayerName(playerName)) {
             CompletableFuture<IssuedBindCode> failed = new CompletableFuture<IssuedBindCode>();

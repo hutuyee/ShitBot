@@ -98,6 +98,8 @@ public final class Settings {
         private final boolean replyAtSender;
         private final Command bindCommand;
         private final Command onlineImageCommand;
+        private final GroupJoinWelcome groupJoinWelcome;
+        private final GroupLeaveUnbind groupLeaveUnbind;
 
         public OneBot(boolean enabled,
                       String websocketUrl,
@@ -111,7 +113,9 @@ public final class Settings {
                       int commandCooldownSeconds,
                       boolean replyAtSender,
                       Command bindCommand,
-                      Command onlineImageCommand) {
+                      Command onlineImageCommand,
+                      GroupJoinWelcome groupJoinWelcome,
+                      GroupLeaveUnbind groupLeaveUnbind) {
             this.enabled = enabled;
             this.websocketUrl = text(websocketUrl, "ws://127.0.0.1:3001");
             this.accessToken = accessToken == null ? "" : accessToken.trim();
@@ -127,6 +131,8 @@ public final class Settings {
             this.replyAtSender = replyAtSender;
             this.bindCommand = require(bindCommand, "bindCommand");
             this.onlineImageCommand = require(onlineImageCommand, "onlineImageCommand");
+            this.groupJoinWelcome = require(groupJoinWelcome, "groupJoinWelcome");
+            this.groupLeaveUnbind = require(groupLeaveUnbind, "groupLeaveUnbind");
         }
 
         public boolean isEnabled() {
@@ -181,6 +187,14 @@ public final class Settings {
             return onlineImageCommand;
         }
 
+        public GroupJoinWelcome getGroupJoinWelcome() {
+            return groupJoinWelcome;
+        }
+
+        public GroupLeaveUnbind getGroupLeaveUnbind() {
+            return groupLeaveUnbind;
+        }
+
         public boolean isGroupAllowed(long groupId) {
             return allowedGroupIds.isEmpty() || allowedGroupIds.contains(Long.valueOf(groupId));
         }
@@ -207,6 +221,36 @@ public final class Settings {
 
         public String getUsage() {
             return usage;
+        }
+    }
+
+    public static final class GroupJoinWelcome {
+        private final boolean enabled;
+        private final String message;
+
+        public GroupJoinWelcome(boolean enabled, String message) {
+            this.enabled = enabled;
+            this.message = text(message, "欢迎 %at% 加入群聊！");
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+
+    public static final class GroupLeaveUnbind {
+        private final boolean enabled;
+
+        public GroupLeaveUnbind(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
         }
     }
 

@@ -5,6 +5,7 @@ import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.DatabaseManager;
 import haaa.shitbot.core.onebot.OneBotClient;
 import haaa.shitbot.core.onebot.OneBotCommandHandler;
+import haaa.shitbot.core.onebot.OneBotNoticeHandler;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
 import haaa.shitbot.core.service.EasyBotMigrationService;
@@ -31,6 +32,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final OnlineImageService imageService;
     private final OneBotClient oneBotClient;
     private final OneBotCommandHandler commandHandler;
+    private final OneBotNoticeHandler noticeHandler;
     private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-maintenance", true));
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -48,10 +50,18 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.oneBotClient = new OneBotClient(settings.getOneBot(), platform);
         this.commandHandler = new OneBotCommandHandler(
                 settings, platform, bindingService, imageService, oneBotClient);
+        this.noticeHandler = new OneBotNoticeHandler(
+                settings, platform, bindingService, oneBotClient);
         this.oneBotClient.setGroupMessageConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupMessage>() {
             @Override
             public void accept(haaa.shitbot.core.onebot.GroupMessage message) {
                 commandHandler.handle(message);
+            }
+        });
+        this.oneBotClient.setGroupNoticeConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupNotice>() {
+            @Override
+            public void accept(haaa.shitbot.core.onebot.GroupNotice notice) {
+                noticeHandler.handle(notice);
             }
         });
     }

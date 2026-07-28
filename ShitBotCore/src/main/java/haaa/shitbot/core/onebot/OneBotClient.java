@@ -48,6 +48,7 @@ public final class OneBotClient implements AutoCloseable {
     private final AtomicInteger reconnectDelaySeconds;
     private final AtomicLong lastReceivedAt = new AtomicLong();
     private volatile Consumer<GroupMessage> groupMessageConsumer;
+    private volatile Consumer<GroupNotice> groupNoticeConsumer;
     private volatile Client client;
 
     public OneBotClient(Settings.OneBot settings, PlatformBridge platform) {
@@ -58,6 +59,10 @@ public final class OneBotClient implements AutoCloseable {
 
     public void setGroupMessageConsumer(Consumer<GroupMessage> consumer) {
         this.groupMessageConsumer = consumer;
+    }
+
+    public void setGroupNoticeConsumer(Consumer<GroupNotice> consumer) {
+        this.groupNoticeConsumer = consumer;
     }
 
     public void start() {
@@ -264,14 +269,24 @@ public final class OneBotClient implements AutoCloseable {
     }
 
     private void handleEvent(JsonNode root) {
-        if (!"message".equals(root.path("post_type").asText())
-                || !"group".equals(root.path("message_type").asText())) {
+        String postType = root.path("post_type").asText("");
+        if ("message".equalsIgnoreCase(postType)) {
+            handleGroupMessageEvent(root);
+            return;
+        }
+        if ("notice".equalsIgnoreCase(postType)) {
+            handleGroupNoticeEvent(root);
+        }
+    }
+
+    private void handleGroupMessageEvent(JsonNode root) {
+        if (!"group".equalsIgnoreCase(root.path("message_type").asText(""))) {
             return;
         }
         long groupId = root.path("group_id").asLong(0L);
         long userId = root.path("user_id").asLong(0L);
         long selfId = root.path("self_id").asLong(0L);
-        if (groupId <= 0L || userId <= 0L || userId == selfId || !settings.isGroupAllowed(groupId)) {
+        if (!isAcceptedGroupUser(groupId, userId, selfId)) {
             return;
         }
         String rawMessage = extractText(root, selfId);
@@ -286,6 +301,47 @@ public final class OneBotClient implements AutoCloseable {
                 platform.error("Unhandled OneBot group message error", throwable);
             }
         }
+    }
+
+    private void handleGroupNoticeEvent(JsonNode root) {
+        String noticeType = root.path("notice_type").asText("");
+        GroupNotice.Type type;
+        if ("group_increase".equalsIgnoreCase(noticeType)) {
+            type = GroupNotice.Type.INCREASE;
+        } else if ("group_decrease".equalsIgnoreCase(noticeType)) {
+            type = GroupNotice.Type.DECREASE;
+        } else {
+            return;
+        }
+
+        long groupId = root.path("group_id").asLong(0L);
+        long userId = root.path("user_id").asLong(0L);
+        long selfId = root.path("self_id").asLong(0L);
+        if (!isAcceptedGroupUser(groupId, userId, selfId)) {
+            return;
+        }
+
+        Consumer<GroupNotice> consumer = groupNoticeConsumer;
+        if (consumer != null) {
+            try {
+                consumer.accept(new GroupNotice(
+                        type,
+                        groupId,
+                        userId,
+                        selfId,
+                        root.path("operator_id").asLong(0L),
+                        root.path("sub_type").asText("")));
+            } catch (Throwable throwable) {
+                platform.error("Unhandled OneBot group notice error", throwable);
+            }
+        }
+    }
+
+    private boolean isAcceptedGroupUser(long groupId, long userId, long selfId) {
+        return groupId > 0L
+                && userId > 0L
+                && userId != selfId
+                && settings.isGroupAllowed(groupId);
     }
 
     private String extractText(JsonNode root, long selfId) {

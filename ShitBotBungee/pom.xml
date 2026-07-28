@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>haaa</groupId>
     <artifactId>ShitBotBungee</artifactId>
-    <version>1.0.1</version>
+    <version>${revision}</version>
     <packaging>jar</packaging>
     <name>ShitBotBungee</name>
     <properties>
@@ -74,7 +74,7 @@
         <dependency>
             <groupId>haaa</groupId>
             <artifactId>ShitBotCore</artifactId>
-            <version>1.0.1</version>
+            <version>${revision}</version>
         </dependency>
         <dependency>
             <groupId>net.md-5</groupId>

@@ -74,4 +74,8 @@ public final class BindingService {
     public CompletableFuture<Optional<BindingRecord>> findByQqId(String qqId) {
         return repository.findByQqId(qqId);
     }
+
+    public CompletableFuture<Integer> unbindByQqId(String qqId) {
+        return repository.removeByQqId(qqId);
+    }
 }

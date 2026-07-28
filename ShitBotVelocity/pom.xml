@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>ds</groupId>
     <artifactId>ShitBotVelocity</artifactId>
-    <version>1.0.1</version>
+    <version>${revision}</version>
     <packaging>jar</packaging>
     <name>ShitBotVelocity</name>
     <properties>
@@ -160,7 +160,7 @@
         <dependency>
             <groupId>haaa</groupId>
             <artifactId>ShitBotCore</artifactId>
-            <version>1.0.1</version>
+            <version>${revision}</version>
         </dependency>
         <dependency>
             <groupId>com.velocitypowered</groupId>
