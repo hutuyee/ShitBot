@@ -48,6 +48,16 @@ onebot:
 
 binding:
   enabled: true
+  # true：同一个 QQ 可以绑定多个大小写精确匹配的游戏 ID。
+  # false：同一个 QQ 只允许绑定一个游戏 ID。
+  # 修改后执行 /shitbot reload 即可生效。
+  allow-multiple-ids-per-qq: true
+
+  # 每个 QQ 最多可绑定的游戏 ID 数量，范围 1-1000。
+  # allow-multiple-ids-per-qq 为 false 时，本项会被强制视为 1。
+  # EasyBot 迁移前会先统计绑定 ID 最多的 QQ；若本值不足，整次迁移会直接取消。
+  maximum-ids-per-qq: 5
+
   code-length: 6
   expire-minutes: 10
   maximum-attempts: 5
@@ -100,6 +110,8 @@ messages:
   bind-invalid: "%at% 验证码错误。"
   bind-expired: "%at% 验证码不存在、尝试次数过多或已经过期，请重新进入服务器获取。"
   bind-qq-already-used: "%at% 该QQ已经绑定其他游戏ID。"
+  # 支持变量：%maximum_ids%。
+  bind-qq-limit-reached: "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"
   bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"

@@ -47,6 +47,8 @@ public final class SettingsFactory {
                 source.getInt("binding.expire-minutes", 10),
                 source.getInt("binding.maximum-attempts", 5),
                 source.getInt("binding.login-database-timeout-seconds", 8),
+                source.getBoolean("binding.allow-multiple-ids-per-qq", true),
+                source.getInt("binding.maximum-ids-per-qq", 5),
                 source.getString("binding.code-alphabet", "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"));
 
         Settings.Database database = new Settings.Database(
@@ -87,6 +89,8 @@ public final class SettingsFactory {
                 source.getString("messages.bind-invalid", "%at% 验证码错误。"),
                 source.getString("messages.bind-expired", "%at% 验证码不存在或已经过期，请重新进入服务器获取。"),
                 source.getString("messages.bind-qq-already-used", "%at% 该QQ已经绑定其他游戏ID。"),
+                source.getString("messages.bind-qq-limit-reached",
+                        "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"),
                 source.getString("messages.bind-player-already-used", "%at% 该游戏ID已经绑定其他QQ。"),
                 source.getString("messages.bind-database-error", "%at% 数据库操作失败，请联系管理员。"),
                 source.getString("messages.online-failed", "%at% 在线人数图片生成失败，请稍后重试。"),

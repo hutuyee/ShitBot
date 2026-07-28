@@ -88,6 +88,9 @@ public final class OneBotCommandHandler {
                             case QQ_ALREADY_BOUND:
                                 template = settings.getMessages().getBindQqAlreadyUsed();
                                 break;
+                            case QQ_BINDING_LIMIT_REACHED:
+                                template = settings.getMessages().getBindQqLimitReached();
+                                break;
                             case PLAYER_ALREADY_BOUND:
                                 template = settings.getMessages().getBindPlayerAlreadyUsed();
                                 break;
@@ -129,6 +132,7 @@ public final class OneBotCommandHandler {
         text = TextUtil.replace(text, "%player%", playerName == null ? "" : playerName);
         text = TextUtil.replace(text, "%qq%", qqId == null ? String.valueOf(message.getUserId()) : qqId);
         text = TextUtil.replace(text, "%expire_minutes%", Integer.valueOf(settings.getBinding().getExpireMinutes()));
+        text = TextUtil.replace(text, "%maximum_ids%", Integer.valueOf(settings.getBinding().getMaximumIdsPerQq()));
         Long at = templateRequestsAt || settings.getOneBot().isReplyAtSender()
                 ? Long.valueOf(message.getUserId())
                 : null;

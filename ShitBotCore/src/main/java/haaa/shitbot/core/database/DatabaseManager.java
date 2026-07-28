@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * moved from Spigot to BungeeCord or Velocity without conversion.
  */
 public final class DatabaseManager implements AutoCloseable {
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
 
     private static final String BINDINGS_TABLE = "shitbot_bindings";
     private static final String CODES_TABLE = "shitbot_bind_codes";
@@ -182,18 +182,21 @@ public final class DatabaseManager implements AutoCloseable {
         try (Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE IF NOT EXISTS shitbot_schema ("
                     + "schema_key VARCHAR(64) NOT NULL PRIMARY KEY, "
-                    + "version INTEGER NOT NULL, "
-                    + "applied_at BIGINT NOT NULL"
-                    + ")");
+                    + "version INTEGER NOT NULL, applied_at BIGINT NOT NULL)");
         }
-
         int currentVersion = readSchemaVersion(connection);
         if (currentVersion > SCHEMA_VERSION) {
             throw new SQLException("Database schema v" + currentVersion
                     + " is newer than this plugin supports (v" + SCHEMA_VERSION + ")");
         }
-
         if (currentVersion == 0) {
+            boolean bindingsExist = tableExists(connection, BINDINGS_TABLE);
+            boolean codesExist = tableExists(connection, CODES_TABLE);
+            if (!bindingsExist && !codesExist) {
+                createVersion3Schema(connection);
+                writeSchemaVersion(connection, 3);
+                return;
+            }
             boolean legacySchema = columnExists(connection, BINDINGS_TABLE, LEGACY_PLAYER_KEY_COLUMN)
                     || columnExists(connection, CODES_TABLE, LEGACY_PLAYER_KEY_COLUMN);
             if (legacySchema) {
@@ -201,14 +204,21 @@ public final class DatabaseManager implements AutoCloseable {
             } else {
                 createVersion2Schema(connection);
             }
-            writeSchemaVersion(connection, 2);
-            return;
+            currentVersion = 2;
+            writeSchemaVersion(connection, currentVersion);
         }
-
         if (currentVersion < 2) {
             migrateToVersion2(connection);
-            writeSchemaVersion(connection, 2);
+            currentVersion = 2;
+            writeSchemaVersion(connection, currentVersion);
         }
+        if (currentVersion < 3) {
+            migrateToVersion3(connection);
+            currentVersion = 3;
+            writeSchemaVersion(connection, currentVersion);
+        }
+        enforceCaseSensitivePlayerColumns(connection);
+        ensureCurrentIndexes(connection);
     }
 
     private int readSchemaVersion(Connection connection) throws SQLException {
@@ -251,6 +261,29 @@ public final class DatabaseManager implements AutoCloseable {
                 statement.executeUpdate();
             }
         }
+    }
+
+    /** Creates the current schema. QQ numbers are indexed but intentionally not unique. */
+    private void createVersion3Schema(Connection connection) throws SQLException {
+        String idColumn = settings.getType() == Settings.Database.Type.SQLITE
+                ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY";
+        String playerNameColumn = settings.getType() == Settings.Database.Type.MYSQL
+                ? "VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL" : "VARCHAR(16) NOT NULL";
+        String tableOptions = settings.getType() == Settings.Database.Type.MYSQL
+                ? " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci" : "";
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS " + BINDINGS_TABLE + " ("
+                    + "id " + idColumn + ", player_name " + playerNameColumn + ", "
+                    + "player_uuid VARCHAR(36) NULL, qq_id VARCHAR(20) NOT NULL, "
+                    + "created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, "
+                    + "CONSTRAINT uq_shitbot_bindings_player UNIQUE(player_name))" + tableOptions);
+            statement.execute("CREATE TABLE IF NOT EXISTS " + CODES_TABLE + " ("
+                    + "player_name " + playerNameColumn + " PRIMARY KEY, code_hash VARCHAR(64) NOT NULL, "
+                    + "code_salt VARCHAR(64) NOT NULL, expires_at BIGINT NOT NULL, attempts INTEGER NOT NULL, "
+                    + "created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)" + tableOptions);
+        }
+        enforceCaseSensitivePlayerColumns(connection);
+        ensureCurrentIndexes(connection);
     }
 
     private void createVersion2Schema(Connection connection) throws SQLException {
@@ -418,14 +451,52 @@ public final class DatabaseManager implements AutoCloseable {
         }
     }
 
+    /** Removes QQ uniqueness while keeping exact player-name uniqueness. */
+    private void migrateToVersion3(Connection connection) throws SQLException {
+        if (settings.getType() == Settings.Database.Type.SQLITE) {
+            migrateSqliteBindingsToVersion3(connection);
+        } else if (indexExists(connection, BINDINGS_TABLE, "uq_shitbot_bindings_qq")) {
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("ALTER TABLE " + BINDINGS_TABLE + " DROP INDEX uq_shitbot_bindings_qq");
+            }
+        }
+        ensureCurrentIndexes(connection);
+    }
+
+    private void migrateSqliteBindingsToVersion3(Connection connection) throws SQLException {
+        final String temporaryTable = "shitbot_bindings_v3_tmp";
+        boolean previousAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("DROP TABLE IF EXISTS " + temporaryTable);
+            statement.execute("CREATE TABLE " + temporaryTable + " ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, player_name VARCHAR(16) NOT NULL, "
+                    + "player_uuid VARCHAR(36) NULL, qq_id VARCHAR(20) NOT NULL, "
+                    + "created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, "
+                    + "CONSTRAINT uq_shitbot_bindings_player UNIQUE(player_name))");
+            statement.execute("INSERT INTO " + temporaryTable
+                    + "(id, player_name, player_uuid, qq_id, created_at, updated_at) "
+                    + "SELECT id, player_name, player_uuid, qq_id, created_at, updated_at FROM " + BINDINGS_TABLE);
+            statement.execute("DROP TABLE " + BINDINGS_TABLE);
+            statement.execute("ALTER TABLE " + temporaryTable + " RENAME TO " + BINDINGS_TABLE);
+            connection.commit();
+        } catch (SQLException exception) {
+            try { connection.rollback(); } catch (SQLException rollbackError) { exception.addSuppressed(rollbackError); }
+            throw exception;
+        } finally {
+            connection.setAutoCommit(previousAutoCommit);
+        }
+    }
+
     private void cleanupMigrationArtifacts(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             if (settings.getType() == Settings.Database.Type.MYSQL) {
                 statement.execute("DROP TABLE IF EXISTS shitbot_bindings_v2_tmp, shitbot_bind_codes_v2_tmp, "
-                        + "shitbot_bindings_v1_backup, shitbot_bind_codes_v1_backup");
+                        + "shitbot_bindings_v3_tmp, shitbot_bindings_v1_backup, shitbot_bind_codes_v1_backup");
             } else {
                 statement.execute("DROP TABLE IF EXISTS shitbot_bindings_v2_tmp");
                 statement.execute("DROP TABLE IF EXISTS shitbot_bind_codes_v2_tmp");
+                statement.execute("DROP TABLE IF EXISTS shitbot_bindings_v3_tmp");
             }
         }
     }
@@ -444,7 +515,19 @@ public final class DatabaseManager implements AutoCloseable {
 
     private void ensureCurrentIndexes(Connection connection) throws SQLException {
         ensureIndex(connection, BINDINGS_TABLE, "idx_shitbot_bindings_uuid", "player_uuid");
+        ensureIndex(connection, BINDINGS_TABLE, "idx_shitbot_bindings_qq", "qq_id");
         ensureIndex(connection, CODES_TABLE, "idx_shitbot_bind_codes_expires", "expires_at");
+    }
+
+    private boolean tableExists(Connection connection, String table) throws SQLException {
+        DatabaseMetaData metaData = connection.getMetaData();
+        String[] candidates = new String[]{table, table.toUpperCase(Locale.ROOT), table.toLowerCase(Locale.ROOT)};
+        for (String candidate : candidates) {
+            try (ResultSet resultSet = metaData.getTables(connection.getCatalog(), null, candidate, new String[]{"TABLE"})) {
+                if (resultSet.next()) return true;
+            }
+        }
+        return false;
     }
 
     private boolean columnExists(Connection connection, String table, String column) throws SQLException {

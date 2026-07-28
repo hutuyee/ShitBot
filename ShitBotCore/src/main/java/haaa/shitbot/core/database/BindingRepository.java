@@ -22,22 +22,28 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /** All SQL related to bindings and one-time verification codes. */
 public final class BindingRepository {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int BIND_LOCK_STRIPES = 64;
 
     private final DatabaseManager database;
     private final Settings.Binding settings;
+    private final Object[] bindLocks = new Object[BIND_LOCK_STRIPES];
 
     public BindingRepository(DatabaseManager database, Settings.Binding settings) {
         this.database = database;
         this.settings = settings;
+        for (int i = 0; i < bindLocks.length; i++) bindLocks[i] = new Object();
     }
 
     /**
@@ -70,7 +76,7 @@ public final class BindingRepository {
         });
     }
 
-    /** Removes a binding by exact QQ number. */
+    /** Removes every binding owned by the exact QQ number. */
     public CompletableFuture<Integer> removeByQqId(final String qqId) {
         if (!TextUtil.isValidQqId(qqId)) {
             return CompletableFuture.completedFuture(Integer.valueOf(0));
@@ -155,95 +161,108 @@ public final class BindingRepository {
         statement.setLong(6, now);
     }
 
-    public CompletableFuture<BindResult> bind(final String playerName,
-                                               final String qqId,
-                                               final String submittedCode) {
-        if (!TextUtil.isValidPlayerName(playerName)
-                || !TextUtil.isValidQqId(qqId)
-                || submittedCode == null
-                || submittedCode.trim().isEmpty()) {
+    public CompletableFuture<BindResult> bind(final String playerName, final String qqId, final String submittedCode) {
+        if (!TextUtil.isValidPlayerName(playerName) || !TextUtil.isValidQqId(qqId)
+                || submittedCode == null || submittedCode.trim().isEmpty()) {
             return CompletableFuture.completedFuture(BindResult.of(BindResult.Status.INVALID_INPUT));
         }
         final String cleanName = playerName.trim();
         final String cleanQq = qqId.trim();
-        final String cleanCode = submittedCode.trim().toUpperCase(java.util.Locale.ROOT);
-
+        final String cleanCode = submittedCode.trim().toUpperCase(Locale.ROOT);
+        final Object lock = bindLocks[(cleanQq.hashCode() & Integer.MAX_VALUE) % bindLocks.length];
         return database.transactionAsync(new DatabaseManager.SqlFunction<BindResult>() {
             @Override
             public BindResult apply(Connection connection) throws SQLException {
-                long now = System.currentTimeMillis();
-                CodeRow codeRow = readCode(connection, cleanName, database.getType() == Settings.Database.Type.MYSQL);
-                if (codeRow == null) {
-                    return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
+                synchronized (lock) {
+                    return bindInTransaction(connection, cleanName, cleanQq, cleanCode);
                 }
-                if (codeRow.expiresAt <= now) {
-                    deleteCode(connection, cleanName);
-                    return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
-                }
-                if (codeRow.attempts >= settings.getMaximumAttempts()) {
-                    deleteCode(connection, cleanName);
-                    return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
-                }
-
-                String submittedHash = HashUtil.sha256Hex(codeRow.salt, cleanCode);
-                if (!HashUtil.constantTimeEquals(codeRow.hash, submittedHash)) {
-                    int newAttempts = codeRow.attempts + 1;
-                    if (newAttempts >= settings.getMaximumAttempts()) {
-                        deleteCode(connection, cleanName);
-                        return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
-                    }
-                    try (PreparedStatement statement = connection.prepareStatement(
-                            "UPDATE shitbot_bind_codes SET attempts=?, updated_at=? WHERE player_name=?")) {
-                        statement.setInt(1, newAttempts);
-                        statement.setLong(2, now);
-                        statement.setString(3, cleanName);
-                        statement.executeUpdate();
-                    }
-                    return BindResult.of(BindResult.Status.INVALID_CODE);
-                }
-
-                Optional<BindingRecord> playerBinding = findByPlayerName(connection, cleanName);
-                Optional<BindingRecord> qqBinding = findByQqId(connection, cleanQq);
-                if (playerBinding.isPresent()) {
-                    BindingRecord existing = playerBinding.get();
-                    if (cleanQq.equals(existing.getQqId())) {
-                        deleteCode(connection, cleanName);
-                        return BindResult.success(BindResult.Status.ALREADY_BOUND_SAME, existing);
-                    }
-                    return BindResult.of(BindResult.Status.PLAYER_ALREADY_BOUND);
-                }
-                if (qqBinding.isPresent()) {
-                    return BindResult.of(BindResult.Status.QQ_ALREADY_BOUND);
-                }
-
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "INSERT INTO shitbot_bindings(player_name, player_uuid, qq_id, created_at, updated_at) "
-                                + "VALUES(?, ?, ?, ?, ?)")) {
-                    statement.setString(1, cleanName);
-                    statement.setNull(2, Types.VARCHAR);
-                    statement.setString(3, cleanQq);
-                    statement.setLong(4, now);
-                    statement.setLong(5, now);
-                    statement.executeUpdate();
-                } catch (SQLException conflict) {
-                    Optional<BindingRecord> playerAfterConflict = findByPlayerName(connection, cleanName);
-                    if (playerAfterConflict.isPresent()) {
-                        if (cleanQq.equals(playerAfterConflict.get().getQqId())) {
-                            deleteCode(connection, cleanName);
-                            return BindResult.success(BindResult.Status.ALREADY_BOUND_SAME, playerAfterConflict.get());
-                        }
-                        return BindResult.of(BindResult.Status.PLAYER_ALREADY_BOUND);
-                    }
-                    if (findByQqId(connection, cleanQq).isPresent()) {
-                        return BindResult.of(BindResult.Status.QQ_ALREADY_BOUND);
-                    }
-                    throw conflict;
-                }
-                deleteCode(connection, cleanName);
-                BindingRecord created = new BindingRecord(cleanName, null, cleanQq, now, now);
-                return BindResult.success(BindResult.Status.SUCCESS, created);
             }
         });
+    }
+
+    private BindResult bindInTransaction(Connection connection,
+                                             String playerName,
+                                             String qqId,
+                                             String submittedCode) throws SQLException {
+        long now = System.currentTimeMillis();
+        CodeRow codeRow = readCode(
+                connection,
+                playerName,
+                database.getType() == Settings.Database.Type.MYSQL);
+
+        if (codeRow == null) {
+            return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
+        }
+        if (codeRow.expiresAt <= now) {
+            deleteCode(connection, playerName);
+            return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
+        }
+        if (codeRow.attempts >= settings.getMaximumAttempts()) {
+            deleteCode(connection, playerName);
+            return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
+        }
+
+        String submittedHash = HashUtil.sha256Hex(codeRow.salt, submittedCode);
+        if (!HashUtil.constantTimeEquals(codeRow.hash, submittedHash)) {
+            int attempts = codeRow.attempts + 1;
+            if (attempts >= settings.getMaximumAttempts()) {
+                deleteCode(connection, playerName);
+                return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
+            }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE shitbot_bind_codes SET attempts=?, updated_at=? WHERE player_name=?")) {
+                statement.setInt(1, attempts);
+                statement.setLong(2, now);
+                statement.setString(3, playerName);
+                statement.executeUpdate();
+            }
+            return BindResult.of(BindResult.Status.INVALID_CODE);
+        }
+
+        Optional<BindingRecord> existingPlayer = findByPlayerName(connection, playerName);
+        if (existingPlayer.isPresent()) {
+            if (qqId.equals(existingPlayer.get().getQqId())) {
+                deleteCode(connection, playerName);
+                return BindResult.success(BindResult.Status.ALREADY_BOUND_SAME, existingPlayer.get());
+            }
+            return BindResult.of(BindResult.Status.PLAYER_ALREADY_BOUND);
+        }
+
+        int currentBindingCount = countBindingsByQq(connection, qqId, true);
+        if (currentBindingCount >= settings.getMaximumIdsPerQq()) {
+            return BindResult.of(BindResult.Status.QQ_BINDING_LIMIT_REACHED);
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO shitbot_bindings(player_name, player_uuid, qq_id, created_at, updated_at) "
+                        + "VALUES(?, ?, ?, ?, ?)")) {
+            statement.setString(1, playerName);
+            statement.setNull(2, Types.VARCHAR);
+            statement.setString(3, qqId);
+            statement.setLong(4, now);
+            statement.setLong(5, now);
+            statement.executeUpdate();
+        } catch (SQLException conflict) {
+            Optional<BindingRecord> bindingAfterConflict = findByPlayerName(connection, playerName);
+            if (bindingAfterConflict.isPresent()) {
+                if (qqId.equals(bindingAfterConflict.get().getQqId())) {
+                    deleteCode(connection, playerName);
+                    return BindResult.success(
+                            BindResult.Status.ALREADY_BOUND_SAME,
+                            bindingAfterConflict.get());
+                }
+                return BindResult.of(BindResult.Status.PLAYER_ALREADY_BOUND);
+            }
+            if (countBindingsByQq(connection, qqId, false) >= settings.getMaximumIdsPerQq()) {
+                return BindResult.of(BindResult.Status.QQ_BINDING_LIMIT_REACHED);
+            }
+            throw conflict;
+        }
+
+        deleteCode(connection, playerName);
+        return BindResult.success(
+                BindResult.Status.SUCCESS,
+                new BindingRecord(playerName, null, qqId, now, now));
     }
 
     public CompletableFuture<Void> updateUuid(final String playerName, final String uuid) {
@@ -270,11 +289,14 @@ public final class BindingRepository {
     }
 
     /**
-     * Imports QQ bindings from an EasyBot SQLite database.
+     * Imports EasyBot associations asynchronously through
+     * SocialAccount -> PlayerSocialAccount -> Player.
      *
-     * <p>Only rows whose Platform value is exactly lowercase {@code qq} are
-     * accepted. EasyBot's Uuid column is the QQ number and Name is the exact
-     * Minecraft player name. Existing ShitBot bindings are never overwritten.</p>
+     * <p>The maximum number of distinct player IDs owned by one QQ is checked
+     * before the first target row is written. If the configured ShitBot limit
+     * is too small, the entire migration is rejected. The target writes also
+     * run in one transaction, so an existing ShitBot binding cannot cause a
+     * partially imported result.</p>
      */
     public CompletableFuture<EasyBotMigrationResult> importEasyBotBindings(final Path sourcePath) {
         if (sourcePath == null) {
@@ -286,120 +308,356 @@ public final class BindingRepository {
 
         return database.transactionAsync(new DatabaseManager.SqlFunction<EasyBotMigrationResult>() {
             @Override
-            public EasyBotMigrationResult apply(Connection targetConnection) throws Exception {
+            public EasyBotMigrationResult apply(Connection target) throws Exception {
                 Class.forName("org.sqlite.JDBC");
                 String jdbcUrl = "jdbc:sqlite:" + sourcePath.toAbsolutePath().normalize();
-                try (Connection sourceConnection = DriverManager.getConnection(jdbcUrl)) {
-                    try (Statement statement = sourceConnection.createStatement()) {
+                try (Connection source = DriverManager.getConnection(jdbcUrl)) {
+                    try (Statement statement = source.createStatement()) {
                         statement.execute("PRAGMA query_only=ON");
                         statement.execute("PRAGMA busy_timeout=5000");
                     }
-                    validateEasyBotSchema(sourceConnection);
-                    return importEasyBotRows(sourceConnection, targetConnection);
+
+                    EasyBotSchema schema = inspectEasyBotSchema(source);
+                    EasyBotSourceLimit sourceLimit = findLargestEasyBotBindingCount(source, schema);
+                    validateSourceBindingLimit(sourceLimit);
+                    return importEasyBotRows(source, target, schema);
                 }
             }
         });
     }
 
-    private EasyBotMigrationResult importEasyBotRows(Connection sourceConnection,
-                                                       Connection targetConnection) throws SQLException {
-        MigrationAccumulator counters = new MigrationAccumulator();
-        String sourceSql = "SELECT \"Id\", \"Platform\", \"Uuid\", \"Name\", "
-                + "\"CreatedTime\", \"LastUpdatedTime\" "
-                + "FROM \"SocialAccount\" ORDER BY \"Id\"";
+    private void validateSourceBindingLimit(EasyBotSourceLimit sourceLimit) {
+        int configuredLimit = settings.getMaximumIdsPerQq();
+        if (sourceLimit.bindingCount <= configuredLimit) {
+            return;
+        }
 
-        try (PreparedStatement findPlayer = targetConnection.prepareStatement(
-                     "SELECT qq_id FROM shitbot_bindings WHERE player_name=?");
-             PreparedStatement findQq = targetConnection.prepareStatement(
-                     "SELECT player_name FROM shitbot_bindings WHERE qq_id=?");
-             PreparedStatement insert = targetConnection.prepareStatement(
-                     "INSERT INTO shitbot_bindings(player_name, player_uuid, qq_id, created_at, updated_at) "
-                             + "VALUES(?, ?, ?, ?, ?)");
-             PreparedStatement deleteCode = targetConnection.prepareStatement(
-                     "DELETE FROM shitbot_bind_codes WHERE player_name=?");
-             PreparedStatement sourceStatement = sourceConnection.prepareStatement(sourceSql);
-             ResultSet resultSet = sourceStatement.executeQuery()) {
+        throw new IllegalStateException(
+                "EasyBot 迁移已取消：QQ " + sourceLimit.qqId
+                        + " 在 EasyBot 中绑定了 " + sourceLimit.bindingCount
+                        + " 个游戏ID，但 ShitBot 当前最多允许 " + configuredLimit
+                        + " 个。请修改 binding.maximum-ids-per-qq"
+                        + (settings.isAllowMultipleIdsPerQq()
+                        ? ""
+                        : " 并开启 binding.allow-multiple-ids-per-qq")
+                        + "，执行 /shitbot reload 后重新迁移。");
+    }
 
+    /** Finds the largest distinct, valid player-name count owned by one lowercase qq account. */
+    private EasyBotSourceLimit findLargestEasyBotBindingCount(Connection source,
+                                                               EasyBotSchema schema) throws SQLException {
+        String sql = schema.hasPlayerRelations
+                ? relationalBindingCountQuery()
+                : legacyBindingCountQuery();
+
+        String currentQq = null;
+        int currentCount = 0;
+        String largestQq = "";
+        int largestCount = 0;
+
+        try (PreparedStatement statement = source.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
-                counters.totalRows++;
-
-                // Read every EasyBot binding field except AvatarUrl.
-                long sourceId = resultSet.getLong("Id");
-                String sourcePlatform = resultSet.getString("Platform");
-                String qqId = trimToEmpty(resultSet.getString("Uuid"));
-                String playerName = trimToEmpty(resultSet.getString("Name"));
-                String createdTime = resultSet.getString("CreatedTime");
-                String lastUpdatedTime = resultSet.getString("LastUpdatedTime");
-
-                if (!"qq".equals(sourcePlatform)) {
-                    counters.nonQqRows++;
-                    continue;
-                }
-                counters.qqRows++;
-
-                if (!TextUtil.isValidPlayerName(playerName) || !TextUtil.isValidQqId(qqId)) {
-                    counters.invalidRows++;
+                String qqId = trimToEmpty(resultSet.getString("QqId"));
+                String playerName = trimToEmpty(resultSet.getString("PlayerName"));
+                if (!TextUtil.isValidQqId(qqId) || !TextUtil.isValidPlayerName(playerName)) {
                     continue;
                 }
 
-                long now = System.currentTimeMillis();
-                long createdAt = parseEasyBotTime(createdTime, now);
-                long updatedAt = parseEasyBotTime(lastUpdatedTime, createdAt);
-                if (updatedAt < createdAt) {
-                    updatedAt = createdAt;
-                }
-
-                String existingQq = findSingleValue(findPlayer, playerName);
-                if (existingQq != null) {
-                    if (qqId.equals(existingQq)) {
-                        counters.alreadyPresentRows++;
-                        deletePendingCode(deleteCode, playerName);
-                    } else {
-                        counters.playerConflictRows++;
+                if (!qqId.equals(currentQq)) {
+                    if (currentQq != null && currentCount > largestCount) {
+                        largestQq = currentQq;
+                        largestCount = currentCount;
                     }
-                    continue;
+                    currentQq = qqId;
+                    currentCount = 0;
                 }
-
-                String existingPlayer = findSingleValue(findQq, qqId);
-                if (existingPlayer != null) {
-                    counters.qqConflictRows++;
-                    continue;
-                }
-
-                try {
-                    insert.clearParameters();
-                    insert.setString(1, playerName);
-                    insert.setNull(2, Types.VARCHAR);
-                    insert.setString(3, qqId);
-                    insert.setLong(4, createdAt);
-                    insert.setLong(5, updatedAt);
-                    insert.executeUpdate();
-                    deletePendingCode(deleteCode, playerName);
-                    counters.importedRows++;
-                } catch (SQLException conflict) {
-                    String playerAfterConflict = findSingleValue(findPlayer, playerName);
-                    String qqAfterConflict = findSingleValue(findQq, qqId);
-                    if (qqId.equals(playerAfterConflict)) {
-                        counters.alreadyPresentRows++;
-                        deletePendingCode(deleteCode, playerName);
-                    } else if (playerAfterConflict != null) {
-                        counters.playerConflictRows++;
-                    } else if (qqAfterConflict != null) {
-                        counters.qqConflictRows++;
-                    } else {
-                        throw new SQLException("Failed to import EasyBot SocialAccount Id=" + sourceId, conflict);
-                    }
-                }
+                currentCount++;
             }
         }
 
+        if (currentQq != null && currentCount > largestCount) {
+            largestQq = currentQq;
+            largestCount = currentCount;
+        }
+        return new EasyBotSourceLimit(largestQq, largestCount);
+    }
+
+    private EasyBotMigrationResult importEasyBotRows(Connection source,
+                                                       Connection target,
+                                                       EasyBotSchema schema) throws SQLException {
+        MigrationAccumulator counters = new MigrationAccumulator();
+        Map<String, Integer> qqBindingCounts = new HashMap<String, Integer>();
+        String sourceQuery = schema.hasPlayerRelations ? relationalQuery() : legacyQuery();
+        String countQuery = "SELECT id FROM shitbot_bindings WHERE qq_id=?"
+                + (database.getType() == Settings.Database.Type.MYSQL ? " FOR UPDATE" : "");
+
+        try (PreparedStatement findPlayer = target.prepareStatement(
+                     "SELECT qq_id, player_uuid FROM shitbot_bindings WHERE player_name=?");
+             PreparedStatement countQqBindings = target.prepareStatement(countQuery);
+             PreparedStatement insert = target.prepareStatement(
+                     "INSERT INTO shitbot_bindings(player_name, player_uuid, qq_id, created_at, updated_at) "
+                             + "VALUES(?, ?, ?, ?, ?)");
+             PreparedStatement updateUuid = target.prepareStatement(
+                     "UPDATE shitbot_bindings SET player_uuid=?, updated_at=? "
+                             + "WHERE player_name=? AND player_uuid IS NULL");
+             PreparedStatement deleteCode = target.prepareStatement(
+                     "DELETE FROM shitbot_bind_codes WHERE player_name=?");
+             PreparedStatement sourceStatement = source.prepareStatement(sourceQuery);
+             ResultSet resultSet = sourceStatement.executeQuery()) {
+
+            long socialId = Long.MIN_VALUE;
+            boolean qqPlatform = false;
+            boolean hasRelatedPlayer = false;
+            String qqId = "";
+            String fallbackPlayerName = "";
+            String socialCreatedTime = null;
+            String socialUpdatedTime = null;
+
+            while (resultSet.next()) {
+                long nextSocialId = resultSet.getLong("SocialId");
+                if (nextSocialId != socialId) {
+                    if (socialId != Long.MIN_VALUE && qqPlatform && !hasRelatedPlayer) {
+                        counters.fallbackRows++;
+                        importCandidate(
+                                socialId,
+                                null,
+                                qqId,
+                                fallbackPlayerName,
+                                null,
+                                socialCreatedTime,
+                                socialUpdatedTime,
+                                null,
+                                null,
+                                findPlayer,
+                                countQqBindings,
+                                insert,
+                                updateUuid,
+                                deleteCode,
+                                qqBindingCounts,
+                                counters);
+                    }
+
+                    socialId = nextSocialId;
+                    counters.totalRows++;
+                    qqPlatform = "qq".equals(resultSet.getString("Platform"));
+                    if (qqPlatform) {
+                        counters.qqRows++;
+                    } else {
+                        counters.nonQqRows++;
+                    }
+                    hasRelatedPlayer = false;
+                    qqId = trimToEmpty(resultSet.getString("QqId"));
+                    fallbackPlayerName = trimToEmpty(resultSet.getString("SocialName"));
+                    socialCreatedTime = resultSet.getString("SocialCreatedTime");
+                    socialUpdatedTime = resultSet.getString("SocialUpdatedTime");
+                }
+
+                if (!qqPlatform) {
+                    continue;
+                }
+
+                Object playerId = resultSet.getObject("PlayerId");
+                if (playerId == null) {
+                    continue;
+                }
+
+                hasRelatedPlayer = true;
+                counters.linkedPlayerRows++;
+                importCandidate(
+                        socialId,
+                        String.valueOf(playerId),
+                        qqId,
+                        trimToEmpty(resultSet.getString("PlayerName")),
+                        resultSet.getString("PlayerUuid"),
+                        socialCreatedTime,
+                        socialUpdatedTime,
+                        resultSet.getString("PlayerCreatedTime"),
+                        resultSet.getString("PlayerUpdatedTime"),
+                        findPlayer,
+                        countQqBindings,
+                        insert,
+                        updateUuid,
+                        deleteCode,
+                        qqBindingCounts,
+                        counters);
+            }
+
+            if (socialId != Long.MIN_VALUE && qqPlatform && !hasRelatedPlayer) {
+                counters.fallbackRows++;
+                importCandidate(
+                        socialId,
+                        null,
+                        qqId,
+                        fallbackPlayerName,
+                        null,
+                        socialCreatedTime,
+                        socialUpdatedTime,
+                        null,
+                        null,
+                        findPlayer,
+                        countQqBindings,
+                        insert,
+                        updateUuid,
+                        deleteCode,
+                        qqBindingCounts,
+                        counters);
+            }
+        }
         return counters.toResult();
     }
 
-    private void validateEasyBotSchema(Connection sourceConnection) throws SQLException {
+    private void importCandidate(long socialId,
+                                 String playerId,
+                                 String qqId,
+                                 String playerName,
+                                 String playerUuidValue,
+                                 String socialCreatedTime,
+                                 String socialUpdatedTime,
+                                 String playerCreatedTime,
+                                 String playerUpdatedTime,
+                                 PreparedStatement findPlayer,
+                                 PreparedStatement countQqBindings,
+                                 PreparedStatement insert,
+                                 PreparedStatement updateUuid,
+                                 PreparedStatement deleteCode,
+                                 Map<String, Integer> qqBindingCounts,
+                                 MigrationAccumulator counters) throws SQLException {
+        if (!TextUtil.isValidPlayerName(playerName) || !TextUtil.isValidQqId(qqId)) {
+            counters.invalidRows++;
+            return;
+        }
+
+        String playerUuid = normalizePlayerUuid(playerUuidValue);
+        long now = System.currentTimeMillis();
+        long socialCreated = parseEasyBotTime(socialCreatedTime, now);
+        long socialUpdated = parseEasyBotTime(socialUpdatedTime, socialCreated);
+        long playerCreated = parseEasyBotTime(playerCreatedTime, socialCreated);
+        long playerUpdated = parseEasyBotTime(playerUpdatedTime, playerCreated);
+        long createdAt = Math.max(socialCreated, playerCreated);
+        long updatedAt = Math.max(createdAt, Math.max(socialUpdated, playerUpdated));
+
+        ExistingPlayerBinding existing = findExistingPlayer(findPlayer, playerName);
+        if (existing != null) {
+            if (qqId.equals(existing.qqId)) {
+                if (existing.playerUuid == null && playerUuid != null) {
+                    updateMissingUuid(updateUuid, playerName, playerUuid, updatedAt);
+                }
+                counters.alreadyPresentRows++;
+                deletePendingCode(deleteCode, playerName);
+            } else {
+                counters.playerConflictRows++;
+            }
+            return;
+        }
+
+        int currentCount = getCachedQqBindingCount(
+                countQqBindings,
+                qqBindingCounts,
+                qqId);
+        if (currentCount >= settings.getMaximumIdsPerQq()) {
+            throw new IllegalStateException(
+                    "EasyBot 迁移已取消：QQ " + qqId
+                            + " 与 ShitBot 现有数据合并后至少需要 " + (currentCount + 1)
+                            + " 个绑定名额，但当前最多允许 " + settings.getMaximumIdsPerQq()
+                            + " 个。请修改 binding.maximum-ids-per-qq，执行 /shitbot reload 后重试。");
+        }
+
+        try {
+            insert.clearParameters();
+            insert.setString(1, playerName);
+            if (playerUuid == null) {
+                insert.setNull(2, Types.VARCHAR);
+            } else {
+                insert.setString(2, playerUuid);
+            }
+            insert.setString(3, qqId);
+            insert.setLong(4, createdAt);
+            insert.setLong(5, updatedAt);
+            insert.executeUpdate();
+
+            qqBindingCounts.put(qqId, Integer.valueOf(currentCount + 1));
+            deletePendingCode(deleteCode, playerName);
+            counters.importedRows++;
+        } catch (SQLException conflict) {
+            ExistingPlayerBinding afterConflict = findExistingPlayer(findPlayer, playerName);
+            if (afterConflict != null && qqId.equals(afterConflict.qqId)) {
+                if (afterConflict.playerUuid == null && playerUuid != null) {
+                    updateMissingUuid(updateUuid, playerName, playerUuid, updatedAt);
+                }
+                counters.alreadyPresentRows++;
+                deletePendingCode(deleteCode, playerName);
+            } else if (afterConflict != null) {
+                counters.playerConflictRows++;
+            } else {
+                throw new SQLException(
+                        "Failed to import EasyBot SocialAccount Id=" + socialId
+                                + (playerId == null ? "" : ", Player Id=" + playerId),
+                        conflict);
+            }
+        }
+    }
+
+    private int getCachedQqBindingCount(PreparedStatement countStatement,
+                                        Map<String, Integer> cache,
+                                        String qqId) throws SQLException {
+        Integer cached = cache.get(qqId);
+        if (cached != null) {
+            return cached.intValue();
+        }
+
+        countStatement.clearParameters();
+        countStatement.setString(1, qqId);
+        int count = 0;
+        try (ResultSet resultSet = countStatement.executeQuery()) {
+            while (resultSet.next()) {
+                count++;
+            }
+        }
+        cache.put(qqId, Integer.valueOf(count));
+        return count;
+    }
+
+    private EasyBotSchema inspectEasyBotSchema(Connection source) throws SQLException {
+        Set<String> socialColumns = tableColumns(source, "SocialAccount");
+        if (socialColumns.isEmpty()) {
+            throw new SQLException("EasyBot database does not contain table SocialAccount");
+        }
+        requireColumns(
+                "SocialAccount",
+                socialColumns,
+                "id",
+                "platform",
+                "uuid",
+                "name",
+                "createdtime",
+                "lastupdatedtime");
+
+        Set<String> relationColumns = tableColumns(source, "PlayerSocialAccount");
+        Set<String> playerColumns = tableColumns(source, "Player");
+        boolean hasPlayerRelations = !relationColumns.isEmpty() && !playerColumns.isEmpty();
+        if (hasPlayerRelations) {
+            requireColumns(
+                    "PlayerSocialAccount",
+                    relationColumns,
+                    "socialaccountsid",
+                    "usersid");
+            requireColumns(
+                    "Player",
+                    playerColumns,
+                    "id",
+                    "name",
+                    "uuid",
+                    "createdtime",
+                    "lastupdatedtime");
+        }
+        return new EasyBotSchema(hasPlayerRelations);
+    }
+
+    private Set<String> tableColumns(Connection connection, String table) throws SQLException {
         Set<String> columns = new HashSet<String>();
-        try (Statement statement = sourceConnection.createStatement();
-             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(\"SocialAccount\")")) {
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(\"" + table + "\")")) {
             while (resultSet.next()) {
                 String name = resultSet.getString("name");
                 if (name != null) {
@@ -407,27 +665,107 @@ public final class BindingRepository {
                 }
             }
         }
-        if (columns.isEmpty()) {
-            throw new SQLException("EasyBot database does not contain table SocialAccount");
-        }
+        return columns;
+    }
 
-        Set<String> required = new HashSet<String>(Arrays.asList(
-                "id", "platform", "uuid", "name", "createdtime", "lastupdatedtime"));
-        required.removeAll(columns);
-        if (!required.isEmpty()) {
-            throw new SQLException("EasyBot SocialAccount is missing columns: " + required);
+    private void requireColumns(String table,
+                                Set<String> columns,
+                                String... requiredColumns) throws SQLException {
+        Set<String> missing = new HashSet<String>(Arrays.asList(requiredColumns));
+        missing.removeAll(columns);
+        if (!missing.isEmpty()) {
+            throw new SQLException("EasyBot " + table + " is missing columns: " + missing);
         }
     }
 
-    private String findSingleValue(PreparedStatement statement, String value) throws SQLException {
+    private String relationalQuery() {
+        return "SELECT sa.\"Id\" AS \"SocialId\", "
+                + "sa.\"Platform\" AS \"Platform\", "
+                + "sa.\"Uuid\" AS \"QqId\", "
+                + "sa.\"Name\" AS \"SocialName\", "
+                + "sa.\"CreatedTime\" AS \"SocialCreatedTime\", "
+                + "sa.\"LastUpdatedTime\" AS \"SocialUpdatedTime\", "
+                + "p.\"Id\" AS \"PlayerId\", "
+                + "p.\"Name\" AS \"PlayerName\", "
+                + "p.\"Uuid\" AS \"PlayerUuid\", "
+                + "p.\"CreatedTime\" AS \"PlayerCreatedTime\", "
+                + "p.\"LastUpdatedTime\" AS \"PlayerUpdatedTime\" "
+                + "FROM \"SocialAccount\" sa "
+                + "LEFT JOIN \"PlayerSocialAccount\" psa "
+                + "ON psa.\"SocialAccountsId\"=sa.\"Id\" "
+                + "LEFT JOIN \"Player\" p ON p.\"Id\"=psa.\"UsersId\" "
+                + "ORDER BY sa.\"Id\", p.\"Id\"";
+    }
+
+    private String legacyQuery() {
+        return "SELECT sa.\"Id\" AS \"SocialId\", "
+                + "sa.\"Platform\" AS \"Platform\", "
+                + "sa.\"Uuid\" AS \"QqId\", "
+                + "sa.\"Name\" AS \"SocialName\", "
+                + "sa.\"CreatedTime\" AS \"SocialCreatedTime\", "
+                + "sa.\"LastUpdatedTime\" AS \"SocialUpdatedTime\", "
+                + "NULL AS \"PlayerId\", NULL AS \"PlayerName\", "
+                + "NULL AS \"PlayerUuid\", NULL AS \"PlayerCreatedTime\", "
+                + "NULL AS \"PlayerUpdatedTime\" "
+                + "FROM \"SocialAccount\" sa ORDER BY sa.\"Id\"";
+    }
+
+    private String relationalBindingCountQuery() {
+        return "SELECT DISTINCT candidate_qq COLLATE BINARY AS \"QqId\", "
+                + "candidate_name COLLATE BINARY AS \"PlayerName\" "
+                + "FROM ("
+                + "SELECT sa.\"Uuid\" AS candidate_qq, p.\"Name\" AS candidate_name "
+                + "FROM \"SocialAccount\" sa "
+                + "INNER JOIN \"PlayerSocialAccount\" psa "
+                + "ON psa.\"SocialAccountsId\"=sa.\"Id\" "
+                + "INNER JOIN \"Player\" p ON p.\"Id\"=psa.\"UsersId\" "
+                + "WHERE sa.\"Platform\" COLLATE BINARY='qq' "
+                + "UNION ALL "
+                + "SELECT sa.\"Uuid\" AS candidate_qq, sa.\"Name\" AS candidate_name "
+                + "FROM \"SocialAccount\" sa "
+                + "WHERE sa.\"Platform\" COLLATE BINARY='qq' "
+                + "AND NOT EXISTS ("
+                + "SELECT 1 FROM \"PlayerSocialAccount\" psa2 "
+                + "INNER JOIN \"Player\" p2 ON p2.\"Id\"=psa2.\"UsersId\" "
+                + "WHERE psa2.\"SocialAccountsId\"=sa.\"Id\")"
+                + ") candidates "
+                + "ORDER BY candidate_qq COLLATE BINARY, candidate_name COLLATE BINARY";
+    }
+
+    private String legacyBindingCountQuery() {
+        return "SELECT DISTINCT sa.\"Uuid\" COLLATE BINARY AS \"QqId\", "
+                + "sa.\"Name\" COLLATE BINARY AS \"PlayerName\" "
+                + "FROM \"SocialAccount\" sa "
+                + "WHERE sa.\"Platform\" COLLATE BINARY='qq' "
+                + "ORDER BY sa.\"Uuid\" COLLATE BINARY, sa.\"Name\" COLLATE BINARY";
+    }
+
+    private ExistingPlayerBinding findExistingPlayer(PreparedStatement statement,
+                                                       String playerName) throws SQLException {
         statement.clearParameters();
-        statement.setString(1, value);
+        statement.setString(1, playerName);
         try (ResultSet resultSet = statement.executeQuery()) {
-            return resultSet.next() ? resultSet.getString(1) : null;
+            return resultSet.next()
+                    ? new ExistingPlayerBinding(
+                    resultSet.getString("qq_id"),
+                    resultSet.getString("player_uuid"))
+                    : null;
         }
     }
 
-    private void deletePendingCode(PreparedStatement statement, String playerName) throws SQLException {
+    private void updateMissingUuid(PreparedStatement statement,
+                                   String playerName,
+                                   String playerUuid,
+                                   long updatedAt) throws SQLException {
+        statement.clearParameters();
+        statement.setString(1, playerUuid);
+        statement.setLong(2, updatedAt);
+        statement.setString(3, playerName);
+        statement.executeUpdate();
+    }
+
+    private void deletePendingCode(PreparedStatement statement,
+                                   String playerName) throws SQLException {
         statement.clearParameters();
         statement.setString(1, playerName);
         statement.executeUpdate();
@@ -441,23 +779,45 @@ public final class BindingRepository {
         try {
             return Instant.parse(clean).toEpochMilli();
         } catch (DateTimeParseException ignored) {
+            // Try the next supported EasyBot timestamp representation.
         }
         try {
             return OffsetDateTime.parse(clean).toInstant().toEpochMilli();
         } catch (DateTimeParseException ignored) {
+            // Try the local timestamp representation below.
         }
         try {
-            String normalized = clean.replace('T', ' ');
             DateTimeFormatter formatter = new DateTimeFormatterBuilder()
                     .appendPattern("yyyy-MM-dd HH:mm:ss")
                     .optionalStart()
                     .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
                     .optionalEnd()
                     .toFormatter(Locale.ROOT);
-            LocalDateTime localDateTime = LocalDateTime.parse(normalized, formatter);
-            return localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            return LocalDateTime.parse(clean.replace('T', ' '), formatter)
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli();
         } catch (DateTimeParseException ignored) {
             return fallback;
+        }
+    }
+
+    private String normalizePlayerUuid(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String clean = value.trim();
+        if (clean.matches("[0-9a-fA-F]{32}")) {
+            clean = clean.substring(0, 8) + '-'
+                    + clean.substring(8, 12) + '-'
+                    + clean.substring(12, 16) + '-'
+                    + clean.substring(16, 20) + '-'
+                    + clean.substring(20);
+        }
+        try {
+            return UUID.fromString(clean).toString();
+        } catch (IllegalArgumentException ignored) {
+            return null;
         }
     }
 
@@ -487,13 +847,39 @@ public final class BindingRepository {
     }
 
     private Optional<BindingRecord> findByQqId(Connection connection, String qqId) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT player_name, player_uuid, qq_id, created_at, updated_at FROM shitbot_bindings WHERE qq_id=?")) {
+        String sql = "SELECT player_name, player_uuid, qq_id, created_at, updated_at "
+                + "FROM shitbot_bindings WHERE qq_id=? ORDER BY id LIMIT 1";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, qqId);
             try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next() ? Optional.of(readBinding(resultSet)) : Optional.<BindingRecord>empty();
+                return resultSet.next()
+                        ? Optional.of(readBinding(resultSet))
+                        : Optional.<BindingRecord>empty();
             }
         }
+    }
+
+    /**
+     * Counts a QQ's current bindings. On MySQL the locking form uses the qq_id
+     * index and prevents concurrent imports/binds from consuming the same slot.
+     */
+    private int countBindingsByQq(Connection connection,
+                                  String qqId,
+                                  boolean lock) throws SQLException {
+        String sql = "SELECT id FROM shitbot_bindings WHERE qq_id=?"
+                + (lock && database.getType() == Settings.Database.Type.MYSQL
+                ? " FOR UPDATE"
+                : "");
+        int count = 0;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, qqId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private BindingRecord readBinding(ResultSet resultSet) throws SQLException {
@@ -552,6 +938,8 @@ public final class BindingRepository {
     private static final class MigrationAccumulator {
         private int totalRows;
         private int qqRows;
+        private int linkedPlayerRows;
+        private int fallbackRows;
         private int importedRows;
         private int alreadyPresentRows;
         private int playerConflictRows;
@@ -563,12 +951,42 @@ public final class BindingRepository {
             return new EasyBotMigrationResult(
                     totalRows,
                     qqRows,
+                    linkedPlayerRows,
+                    fallbackRows,
                     importedRows,
                     alreadyPresentRows,
                     playerConflictRows,
                     qqConflictRows,
                     invalidRows,
                     nonQqRows);
+        }
+    }
+
+    private static final class EasyBotSchema {
+        private final boolean hasPlayerRelations;
+
+        private EasyBotSchema(boolean hasPlayerRelations) {
+            this.hasPlayerRelations = hasPlayerRelations;
+        }
+    }
+
+    private static final class EasyBotSourceLimit {
+        private final String qqId;
+        private final int bindingCount;
+
+        private EasyBotSourceLimit(String qqId, int bindingCount) {
+            this.qqId = qqId;
+            this.bindingCount = bindingCount;
+        }
+    }
+
+    private static final class ExistingPlayerBinding {
+        private final String qqId;
+        private final String playerUuid;
+
+        private ExistingPlayerBinding(String qqId, String playerUuid) {
+            this.qqId = qqId;
+            this.playerUuid = playerUuid;
         }
     }
 

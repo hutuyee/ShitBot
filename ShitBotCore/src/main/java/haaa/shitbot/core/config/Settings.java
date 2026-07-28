@@ -260,6 +260,8 @@ public final class Settings {
         private final int expireMinutes;
         private final int maximumAttempts;
         private final int loginDatabaseTimeoutSeconds;
+        private final boolean allowMultipleIdsPerQq;
+        private final int maximumIdsPerQq;
         private final String codeAlphabet;
 
         public Binding(boolean enabled,
@@ -267,12 +269,16 @@ public final class Settings {
                        int expireMinutes,
                        int maximumAttempts,
                        int loginDatabaseTimeoutSeconds,
+                       boolean allowMultipleIdsPerQq,
+                       int maximumIdsPerQq,
                        String codeAlphabet) {
             this.enabled = enabled;
             this.codeLength = clamp(codeLength, 4, 12, 6);
             this.expireMinutes = clamp(expireMinutes, 1, 1440, 10);
             this.maximumAttempts = clamp(maximumAttempts, 1, 20, 5);
             this.loginDatabaseTimeoutSeconds = clamp(loginDatabaseTimeoutSeconds, 1, 60, 8);
+            this.allowMultipleIdsPerQq = allowMultipleIdsPerQq;
+            this.maximumIdsPerQq = clamp(maximumIdsPerQq, 1, 1000, 5);
             String normalizedAlphabet = text(codeAlphabet, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789").toUpperCase(Locale.ROOT);
             this.codeAlphabet = normalizedAlphabet.length() < 8
                     ? "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -297,6 +303,19 @@ public final class Settings {
 
         public int getLoginDatabaseTimeoutSeconds() {
             return loginDatabaseTimeoutSeconds;
+        }
+
+        /** Whether one QQ number may own more than one exact Minecraft player name. */
+        public boolean isAllowMultipleIdsPerQq() {
+            return allowMultipleIdsPerQq;
+        }
+
+        /**
+         * Effective per-QQ binding limit. Disabling multi-ID binding always
+         * forces the limit to one, regardless of maximum-ids-per-qq.
+         */
+        public int getMaximumIdsPerQq() {
+            return allowMultipleIdsPerQq ? maximumIdsPerQq : 1;
         }
 
         public String getCodeAlphabet() {
@@ -523,6 +542,7 @@ public final class Settings {
         private final String bindInvalid;
         private final String bindExpired;
         private final String bindQqAlreadyUsed;
+        private final String bindQqLimitReached;
         private final String bindPlayerAlreadyUsed;
         private final String bindDatabaseError;
         private final String onlineFailed;
@@ -538,6 +558,7 @@ public final class Settings {
                         String bindInvalid,
                         String bindExpired,
                         String bindQqAlreadyUsed,
+                        String bindQqLimitReached,
                         String bindPlayerAlreadyUsed,
                         String bindDatabaseError,
                         String onlineFailed,
@@ -553,6 +574,8 @@ public final class Settings {
             this.bindInvalid = text(bindInvalid, "%at% 验证码错误。");
             this.bindExpired = text(bindExpired, "%at% 验证码不存在或已经过期，请重新进入服务器获取。");
             this.bindQqAlreadyUsed = text(bindQqAlreadyUsed, "%at% 该QQ已经绑定其他游戏ID。");
+            this.bindQqLimitReached = text(bindQqLimitReached,
+                    "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。");
             this.bindPlayerAlreadyUsed = text(bindPlayerAlreadyUsed, "%at% 该游戏ID已经绑定其他QQ。");
             this.bindDatabaseError = text(bindDatabaseError, "%at% 数据库操作失败，请联系管理员。");
             this.onlineFailed = text(onlineFailed, "%at% 在线人数图片生成失败，请稍后重试。");
@@ -569,6 +592,7 @@ public final class Settings {
         public String getBindInvalid() { return bindInvalid; }
         public String getBindExpired() { return bindExpired; }
         public String getBindQqAlreadyUsed() { return bindQqAlreadyUsed; }
+        public String getBindQqLimitReached() { return bindQqLimitReached; }
         public String getBindPlayerAlreadyUsed() { return bindPlayerAlreadyUsed; }
         public String getBindDatabaseError() { return bindDatabaseError; }
         public String getOnlineFailed() { return onlineFailed; }

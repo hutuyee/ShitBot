@@ -8,6 +8,7 @@ public final class BindResult {
         EXPIRED_OR_MISSING,
         TOO_MANY_ATTEMPTS,
         QQ_ALREADY_BOUND,
+        QQ_BINDING_LIMIT_REACHED,
         PLAYER_ALREADY_BOUND,
         INVALID_INPUT
     }
