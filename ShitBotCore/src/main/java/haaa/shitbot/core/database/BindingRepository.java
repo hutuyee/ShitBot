@@ -4,13 +4,28 @@ import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.util.HashUtil;
 import haaa.shitbot.core.util.TextUtil;
 
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /** All SQL related to bindings and one-time verification codes. */
@@ -73,14 +88,24 @@ public final class BindingRepository {
             public IssuedBindCode apply(Connection connection) throws SQLException {
                 deleteExpiredCodes(connection, now);
                 if (database.getType() == Settings.Database.Type.SQLITE) {
+                    int updated;
                     try (PreparedStatement statement = connection.prepareStatement(
-                            "INSERT INTO shitbot_bind_codes(player_name, code_hash, code_salt, expires_at, attempts, created_at, updated_at) "
-                                    + "VALUES(?, ?, ?, ?, 0, ?, ?) "
-                                    + "ON CONFLICT(player_name) DO UPDATE SET "
-                                    + "code_hash=excluded.code_hash, code_salt=excluded.code_salt, "
-                                    + "expires_at=excluded.expires_at, attempts=0, updated_at=excluded.updated_at")) {
-                        setCodeParameters(statement, cleanName, hash, salt, expiresAt, now);
-                        statement.executeUpdate();
+                            "UPDATE shitbot_bind_codes SET code_hash=?, code_salt=?, expires_at=?, "
+                                    + "attempts=0, updated_at=? WHERE player_name=?")) {
+                        statement.setString(1, hash);
+                        statement.setString(2, salt);
+                        statement.setLong(3, expiresAt);
+                        statement.setLong(4, now);
+                        statement.setString(5, cleanName);
+                        updated = statement.executeUpdate();
+                    }
+                    if (updated == 0) {
+                        try (PreparedStatement statement = connection.prepareStatement(
+                                "INSERT INTO shitbot_bind_codes(player_name, code_hash, code_salt, expires_at, attempts, created_at, updated_at) "
+                                        + "VALUES(?, ?, ?, ?, 0, ?, ?)")) {
+                            setCodeParameters(statement, cleanName, hash, salt, expiresAt, now);
+                            statement.executeUpdate();
+                        }
                     }
                 } else {
                     try (PreparedStatement statement = connection.prepareStatement(
@@ -226,6 +251,202 @@ public final class BindingRepository {
         });
     }
 
+    /**
+     * Imports QQ bindings from an EasyBot SQLite database.
+     *
+     * <p>Only rows whose Platform value is exactly lowercase {@code qq} are
+     * accepted. EasyBot's Uuid column is the QQ number and Name is the exact
+     * Minecraft player name. Existing ShitBot bindings are never overwritten.</p>
+     */
+    public CompletableFuture<EasyBotMigrationResult> importEasyBotBindings(final Path sourcePath) {
+        if (sourcePath == null) {
+            CompletableFuture<EasyBotMigrationResult> failed =
+                    new CompletableFuture<EasyBotMigrationResult>();
+            failed.completeExceptionally(new IllegalArgumentException("EasyBot database path is null"));
+            return failed;
+        }
+
+        return database.transactionAsync(new DatabaseManager.SqlFunction<EasyBotMigrationResult>() {
+            @Override
+            public EasyBotMigrationResult apply(Connection targetConnection) throws Exception {
+                Class.forName("org.sqlite.JDBC");
+                String jdbcUrl = "jdbc:sqlite:" + sourcePath.toAbsolutePath().normalize();
+                try (Connection sourceConnection = DriverManager.getConnection(jdbcUrl)) {
+                    try (Statement statement = sourceConnection.createStatement()) {
+                        statement.execute("PRAGMA query_only=ON");
+                        statement.execute("PRAGMA busy_timeout=5000");
+                    }
+                    validateEasyBotSchema(sourceConnection);
+                    return importEasyBotRows(sourceConnection, targetConnection);
+                }
+            }
+        });
+    }
+
+    private EasyBotMigrationResult importEasyBotRows(Connection sourceConnection,
+                                                       Connection targetConnection) throws SQLException {
+        MigrationAccumulator counters = new MigrationAccumulator();
+        String sourceSql = "SELECT \"Id\", \"Platform\", \"Uuid\", \"Name\", "
+                + "\"CreatedTime\", \"LastUpdatedTime\" "
+                + "FROM \"SocialAccount\" ORDER BY \"Id\"";
+
+        try (PreparedStatement findPlayer = targetConnection.prepareStatement(
+                     "SELECT qq_id FROM shitbot_bindings WHERE player_name=?");
+             PreparedStatement findQq = targetConnection.prepareStatement(
+                     "SELECT player_name FROM shitbot_bindings WHERE qq_id=?");
+             PreparedStatement insert = targetConnection.prepareStatement(
+                     "INSERT INTO shitbot_bindings(player_name, player_uuid, qq_id, created_at, updated_at) "
+                             + "VALUES(?, ?, ?, ?, ?)");
+             PreparedStatement deleteCode = targetConnection.prepareStatement(
+                     "DELETE FROM shitbot_bind_codes WHERE player_name=?");
+             PreparedStatement sourceStatement = sourceConnection.prepareStatement(sourceSql);
+             ResultSet resultSet = sourceStatement.executeQuery()) {
+
+            while (resultSet.next()) {
+                counters.totalRows++;
+
+                // Read every EasyBot binding field except AvatarUrl.
+                long sourceId = resultSet.getLong("Id");
+                String sourcePlatform = resultSet.getString("Platform");
+                String qqId = trimToEmpty(resultSet.getString("Uuid"));
+                String playerName = trimToEmpty(resultSet.getString("Name"));
+                String createdTime = resultSet.getString("CreatedTime");
+                String lastUpdatedTime = resultSet.getString("LastUpdatedTime");
+
+                if (!"qq".equals(sourcePlatform)) {
+                    counters.nonQqRows++;
+                    continue;
+                }
+                counters.qqRows++;
+
+                if (!TextUtil.isValidPlayerName(playerName) || !TextUtil.isValidQqId(qqId)) {
+                    counters.invalidRows++;
+                    continue;
+                }
+
+                long now = System.currentTimeMillis();
+                long createdAt = parseEasyBotTime(createdTime, now);
+                long updatedAt = parseEasyBotTime(lastUpdatedTime, createdAt);
+                if (updatedAt < createdAt) {
+                    updatedAt = createdAt;
+                }
+
+                String existingQq = findSingleValue(findPlayer, playerName);
+                if (existingQq != null) {
+                    if (qqId.equals(existingQq)) {
+                        counters.alreadyPresentRows++;
+                        deletePendingCode(deleteCode, playerName);
+                    } else {
+                        counters.playerConflictRows++;
+                    }
+                    continue;
+                }
+
+                String existingPlayer = findSingleValue(findQq, qqId);
+                if (existingPlayer != null) {
+                    counters.qqConflictRows++;
+                    continue;
+                }
+
+                try {
+                    insert.clearParameters();
+                    insert.setString(1, playerName);
+                    insert.setNull(2, Types.VARCHAR);
+                    insert.setString(3, qqId);
+                    insert.setLong(4, createdAt);
+                    insert.setLong(5, updatedAt);
+                    insert.executeUpdate();
+                    deletePendingCode(deleteCode, playerName);
+                    counters.importedRows++;
+                } catch (SQLException conflict) {
+                    String playerAfterConflict = findSingleValue(findPlayer, playerName);
+                    String qqAfterConflict = findSingleValue(findQq, qqId);
+                    if (qqId.equals(playerAfterConflict)) {
+                        counters.alreadyPresentRows++;
+                        deletePendingCode(deleteCode, playerName);
+                    } else if (playerAfterConflict != null) {
+                        counters.playerConflictRows++;
+                    } else if (qqAfterConflict != null) {
+                        counters.qqConflictRows++;
+                    } else {
+                        throw new SQLException("Failed to import EasyBot SocialAccount Id=" + sourceId, conflict);
+                    }
+                }
+            }
+        }
+
+        return counters.toResult();
+    }
+
+    private void validateEasyBotSchema(Connection sourceConnection) throws SQLException {
+        Set<String> columns = new HashSet<String>();
+        try (Statement statement = sourceConnection.createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(\"SocialAccount\")")) {
+            while (resultSet.next()) {
+                String name = resultSet.getString("name");
+                if (name != null) {
+                    columns.add(name.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        if (columns.isEmpty()) {
+            throw new SQLException("EasyBot database does not contain table SocialAccount");
+        }
+
+        Set<String> required = new HashSet<String>(Arrays.asList(
+                "id", "platform", "uuid", "name", "createdtime", "lastupdatedtime"));
+        required.removeAll(columns);
+        if (!required.isEmpty()) {
+            throw new SQLException("EasyBot SocialAccount is missing columns: " + required);
+        }
+    }
+
+    private String findSingleValue(PreparedStatement statement, String value) throws SQLException {
+        statement.clearParameters();
+        statement.setString(1, value);
+        try (ResultSet resultSet = statement.executeQuery()) {
+            return resultSet.next() ? resultSet.getString(1) : null;
+        }
+    }
+
+    private void deletePendingCode(PreparedStatement statement, String playerName) throws SQLException {
+        statement.clearParameters();
+        statement.setString(1, playerName);
+        statement.executeUpdate();
+    }
+
+    private long parseEasyBotTime(String value, long fallback) {
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        String clean = value.trim();
+        try {
+            return Instant.parse(clean).toEpochMilli();
+        } catch (DateTimeParseException ignored) {
+        }
+        try {
+            return OffsetDateTime.parse(clean).toInstant().toEpochMilli();
+        } catch (DateTimeParseException ignored) {
+        }
+        try {
+            String normalized = clean.replace('T', ' ');
+            DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                    .appendPattern("yyyy-MM-dd HH:mm:ss")
+                    .optionalStart()
+                    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+                    .optionalEnd()
+                    .toFormatter(Locale.ROOT);
+            LocalDateTime localDateTime = LocalDateTime.parse(normalized, formatter);
+            return localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (DateTimeParseException ignored) {
+            return fallback;
+        }
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     public CompletableFuture<Integer> cleanupExpiredCodes() {
         final long now = System.currentTimeMillis();
         return database.supplyAsync(new DatabaseManager.SqlFunction<Integer>() {
@@ -308,6 +529,29 @@ public final class BindingRepository {
             builder.append(alphabet.charAt(RANDOM.nextInt(alphabet.length())));
         }
         return builder.toString();
+    }
+
+    private static final class MigrationAccumulator {
+        private int totalRows;
+        private int qqRows;
+        private int importedRows;
+        private int alreadyPresentRows;
+        private int playerConflictRows;
+        private int qqConflictRows;
+        private int invalidRows;
+        private int nonQqRows;
+
+        private EasyBotMigrationResult toResult() {
+            return new EasyBotMigrationResult(
+                    totalRows,
+                    qqRows,
+                    importedRows,
+                    alreadyPresentRows,
+                    playerConflictRows,
+                    qqConflictRows,
+                    invalidRows,
+                    nonQqRows);
+        }
     }
 
     private static final class CodeRow {

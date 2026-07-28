@@ -7,6 +7,7 @@ import haaa.shitbot.core.onebot.OneBotClient;
 import haaa.shitbot.core.onebot.OneBotCommandHandler;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
+import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.service.LoginDecision;
 import haaa.shitbot.core.service.OnlineImageService;
 import haaa.shitbot.core.util.FutureUtil;
@@ -26,6 +27,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final DatabaseManager database;
     private final BindingRepository repository;
     private final BindingService bindingService;
+    private final EasyBotMigrationService easyBotMigrationService;
     private final OnlineImageService imageService;
     private final OneBotClient oneBotClient;
     private final OneBotCommandHandler commandHandler;
@@ -41,6 +43,7 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.database = new DatabaseManager(settings.getDatabase(), platform);
         this.repository = new BindingRepository(database, settings.getBinding());
         this.bindingService = new BindingService(settings, repository);
+        this.easyBotMigrationService = new EasyBotMigrationService(platform, repository);
         this.imageService = new OnlineImageService(settings.getImage(), platform);
         this.oneBotClient = new OneBotClient(settings.getOneBot(), platform);
         this.commandHandler = new OneBotCommandHandler(
@@ -134,6 +137,10 @@ public final class ShitBotRuntime implements AutoCloseable {
 
     public BindingService getBindingService() {
         return bindingService;
+    }
+
+    public EasyBotMigrationService getEasyBotMigrationService() {
+        return easyBotMigrationService;
     }
 
     public OnlineImageService getImageService() {

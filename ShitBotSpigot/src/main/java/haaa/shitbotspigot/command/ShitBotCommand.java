@@ -1,6 +1,8 @@
 package haaa.shitbotspigot.command;
 
+import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotspigot.ShitBotSpigot;
@@ -56,6 +58,31 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
             });
             return true;
         }
+        if ("migrate".equalsIgnoreCase(args[0])) {
+            if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
+                sender.sendMessage("§e用法: /shitbot migrate easybot [EasyBot.db]");
+                return true;
+            }
+            final String fileName = args.length >= 3 ? args[2] : EasyBotMigrationService.DEFAULT_FILE_NAME;
+            sender.sendMessage("§e正在异步迁移 EasyBot 绑定数据: §f" + fileName);
+            runtime.getEasyBotMigrationService().migrate(fileName).whenComplete(
+                    new java.util.function.BiConsumer<EasyBotMigrationResult, Throwable>() {
+                        @Override
+                        public void accept(final EasyBotMigrationResult result, final Throwable throwable) {
+                            plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (throwable != null) {
+                                        sender.sendMessage("§cEasyBot 迁移失败: §f" + errorMessage(throwable));
+                                    } else {
+                                        sender.sendMessage("§aEasyBot 迁移完成: §f" + result.describe());
+                                    }
+                                }
+                            });
+                        }
+                    });
+            return true;
+        }
         if ("image".equalsIgnoreCase(args[0])) {
             runtime.getImageService().renderOnlineImageAsync().whenComplete(
                     new java.util.function.BiConsumer<byte[], Throwable>() {
@@ -76,14 +103,30 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     });
             return true;
         }
-        sender.sendMessage("§e/shitbot status|reload|image");
+        sender.sendMessage("§e/shitbot status|reload|image|migrate easybot [EasyBot.db]");
         return true;
+    }
+
+    private String errorMessage(Throwable throwable) {
+        Throwable cause = FutureUtil.unwrap(throwable);
+        String message = cause.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? cause.getClass().getSimpleName()
+                : message;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("status", "reload", "image");
+            return Arrays.asList("status", "reload", "image", "migrate");
+        }
+        if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
+            return Collections.singletonList("easybot");
+        }
+        if (args.length == 3
+                && "migrate".equalsIgnoreCase(args[0])
+                && "easybot".equalsIgnoreCase(args[1])) {
+            return Collections.singletonList(EasyBotMigrationService.DEFAULT_FILE_NAME);
         }
         return Collections.emptyList();
     }

@@ -83,6 +83,10 @@ public final class ShitBotBungee extends Plugin {
         return runtimeReference.get();
     }
 
+    public BungeePlatformBridge getPlatformBridge() {
+        return platformBridge;
+    }
+
     @Override
     public void onDisable() {
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);

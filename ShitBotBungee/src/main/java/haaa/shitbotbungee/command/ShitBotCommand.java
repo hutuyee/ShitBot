@@ -1,6 +1,8 @@
 package haaa.shitbotbungee.command;
 
+import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotbungee.ShitBotBungee;
@@ -48,6 +50,31 @@ public final class ShitBotCommand extends Command {
             });
             return;
         }
+        if ("migrate".equalsIgnoreCase(args[0])) {
+            if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
+                send(sender, "§e用法: /shitbot migrate easybot [EasyBot.db]");
+                return;
+            }
+            final String fileName = args.length >= 3 ? args[2] : EasyBotMigrationService.DEFAULT_FILE_NAME;
+            send(sender, "§e正在异步迁移 EasyBot 绑定数据: §f" + fileName);
+            runtime.getEasyBotMigrationService().migrate(fileName).whenComplete(
+                    new java.util.function.BiConsumer<EasyBotMigrationResult, Throwable>() {
+                        @Override
+                        public void accept(final EasyBotMigrationResult result, final Throwable throwable) {
+                            plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (throwable != null) {
+                                        send(sender, "§cEasyBot 迁移失败: §f" + errorMessage(throwable));
+                                    } else {
+                                        send(sender, "§aEasyBot 迁移完成: §f" + result.describe());
+                                    }
+                                }
+                            });
+                        }
+                    });
+            return;
+        }
         if ("image".equalsIgnoreCase(args[0])) {
             runtime.getImageService().renderOnlineImageAsync().whenComplete(
                     new java.util.function.BiConsumer<byte[], Throwable>() {
@@ -63,7 +90,15 @@ public final class ShitBotCommand extends Command {
                     });
             return;
         }
-        send(sender, "§e/shitbot status|reload|image");
+        send(sender, "§e/shitbot status|reload|image|migrate easybot [EasyBot.db]");
+    }
+
+    private String errorMessage(Throwable throwable) {
+        Throwable cause = FutureUtil.unwrap(throwable);
+        String message = cause.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? cause.getClass().getSimpleName()
+                : message;
     }
 
     private void send(CommandSender sender, String message) {

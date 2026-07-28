@@ -2,7 +2,9 @@ package ds.shitBotVelocity.command;
 
 import com.velocitypowered.api.command.SimpleCommand;
 import ds.shitBotVelocity.ShitBotVelocity;
+import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import net.kyori.adventure.text.Component;
@@ -49,6 +51,24 @@ public final class ShitBotCommand implements SimpleCommand {
             });
             return;
         }
+        if ("migrate".equalsIgnoreCase(args[0])) {
+            if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
+                send(invocation, "§e用法: /shitbot migrate easybot [EasyBot.db]");
+                return;
+            }
+            final String fileName = args.length >= 3 ? args[2] : EasyBotMigrationService.DEFAULT_FILE_NAME;
+            send(invocation, "§e正在异步迁移 EasyBot 绑定数据: §f" + fileName);
+            runtime.getEasyBotMigrationService().migrate(fileName).whenComplete(
+                    (EasyBotMigrationResult result, Throwable throwable) ->
+                            plugin.getPlatformBridge().executeOnPlatformThread(() -> {
+                                if (throwable != null) {
+                                    send(invocation, "§cEasyBot 迁移失败: §f" + errorMessage(throwable));
+                                } else {
+                                    send(invocation, "§aEasyBot 迁移完成: §f" + result.describe());
+                                }
+                            }));
+            return;
+        }
         if ("image".equalsIgnoreCase(args[0])) {
             runtime.getImageService().renderOnlineImageAsync().whenComplete((bytes, throwable) -> {
                 if (throwable != null) {
@@ -60,13 +80,22 @@ public final class ShitBotCommand implements SimpleCommand {
             });
             return;
         }
-        send(invocation, "§e/shitbot status|reload|image");
+        send(invocation, "§e/shitbot status|reload|image|migrate easybot [EasyBot.db]");
     }
 
     @Override
     public List<String> suggest(Invocation invocation) {
-        if (invocation.arguments().length <= 1) {
-            return Arrays.asList("status", "reload", "image");
+        String[] args = invocation.arguments();
+        if (args.length <= 1) {
+            return Arrays.asList("status", "reload", "image", "migrate");
+        }
+        if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
+            return Collections.singletonList("easybot");
+        }
+        if (args.length == 3
+                && "migrate".equalsIgnoreCase(args[0])
+                && "easybot".equalsIgnoreCase(args[1])) {
+            return Collections.singletonList(EasyBotMigrationService.DEFAULT_FILE_NAME);
         }
         return Collections.emptyList();
     }
@@ -74,6 +103,14 @@ public final class ShitBotCommand implements SimpleCommand {
     @Override
     public CompletableFuture<List<String>> suggestAsync(Invocation invocation) {
         return CompletableFuture.completedFuture(suggest(invocation));
+    }
+
+    private String errorMessage(Throwable throwable) {
+        Throwable cause = FutureUtil.unwrap(throwable);
+        String message = cause.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? cause.getClass().getSimpleName()
+                : message;
     }
 
     private void send(Invocation invocation, String legacyText) {

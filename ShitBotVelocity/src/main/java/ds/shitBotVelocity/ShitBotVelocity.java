@@ -97,6 +97,10 @@ public final class ShitBotVelocity {
         return runtimeReference.get();
     }
 
+    public VelocityPlatformBridge getPlatformBridge() {
+        return platformBridge;
+    }
+
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);

@@ -18,6 +18,17 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 
 ## 功能
 
+## 命令
+
+| 命令 | 说明 |
+|---|---|
+| `/shitbot status` | 查看 ShitBot 当前运行状态，包括数据库连接、OneBot WebSocket 连接和插件运行状态。 |
+| `/shitbot migrate easybot [EasyBot.db]` | 迁移 EasyBot 的 QQ 绑定数据。数据库文件需要放在 ShitBot 插件目录中，文件名不填写时默认使用 `EasyBot.db`。 |
+| `/shitbot image` | 手动生成一张当前服务器在线人数图片，用于测试图片生成功能。 |
+| `/shitbot reload` | 热重载 ShitBot 配置，包括数据库、OneBot、QQ 指令和在线人数图片配置。 |
+
+> 上述命令默认需要 `shitbot.admin` 权限。
+
 ### QQ 绑定
 
 - 玩家未绑定 QQ 时自动阻止登录并生成一次性验证码
@@ -29,8 +40,6 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 ### OneBot v11
 
 - 使用正向 WebSocket，由 ShitBot 主动连接 OneBot 实现
-- 支持在 WebSocket 握手 Header 中携带 Token
-- Header 格式：`Authorization: Bearer <token>`
 - 自动重连和指数退避
 - 心跳超时检测
 - OneBot API 调用回执与超时管理

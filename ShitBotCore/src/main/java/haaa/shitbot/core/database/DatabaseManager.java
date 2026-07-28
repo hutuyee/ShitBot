@@ -9,6 +9,7 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 import java.nio.file.Files;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -38,7 +39,8 @@ public final class DatabaseManager implements AutoCloseable {
     private final ExecutorService executor;
     private final String workerThreadPrefix;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private volatile HikariDataSource dataSource;
+    private volatile HikariDataSource mysqlDataSource;
+    private volatile Connection sqliteConnection;
 
     public DatabaseManager(Settings.Database settings, PlatformBridge platform) {
         this.settings = settings;
@@ -65,16 +67,11 @@ public final class DatabaseManager implements AutoCloseable {
         try {
             Files.createDirectories(platform.getDataDirectory());
             loadDriver();
-            HikariConfig config = createHikariConfig();
-            HikariDataSource newDataSource = new HikariDataSource(config);
-            try (Connection connection = newDataSource.getConnection()) {
-                configureDatabase(connection);
-                applyMigrations(connection);
-            } catch (Throwable throwable) {
-                newDataSource.close();
-                throw throwable;
+            if (settings.getType() == Settings.Database.Type.SQLITE) {
+                initializeSqlite();
+            } else {
+                initializeMysql();
             }
-            dataSource = newDataSource;
             platform.info("Database initialized: " + settings.getType().name().toLowerCase(Locale.ROOT)
                     + ", schema v" + SCHEMA_VERSION);
         } catch (Throwable throwable) {
@@ -90,32 +87,71 @@ public final class DatabaseManager implements AutoCloseable {
         }
     }
 
-    private HikariConfig createHikariConfig() {
+    /**
+     * SQLite deliberately does not use HikariCP. Older CraftBukkit/Spigot
+     * distributions expose a legacy org.sqlite driver through the parent
+     * class loader. Those drivers can open and use a database, but they do not
+     * implement JDBC 4 methods such as Connection#isValid(int), which Hikari
+     * calls while creating a pool. A single persistent connection is safe here
+     * because every SQLite operation is serialized by the one database worker.
+     */
+    private void initializeSqlite() throws SQLException {
+        Connection connection = DriverManager.getConnection(
+                settings.buildJdbcUrl(platform.getDataDirectory()));
+        boolean success = false;
+        try {
+            configureDatabase(connection);
+            applyMigrations(connection);
+            sqliteConnection = connection;
+            platform.info("SQLite backend uses one serialized direct connection; HikariCP is disabled for SQLite");
+            success = true;
+        } finally {
+            if (!success) {
+                closeQuietly(connection);
+            }
+        }
+    }
+
+    private void initializeMysql() throws SQLException {
+        HikariConfig config = createMysqlHikariConfig();
+        HikariDataSource newDataSource = new HikariDataSource(config);
+        try (Connection connection = newDataSource.getConnection()) {
+            configureDatabase(connection);
+            applyMigrations(connection);
+        } catch (Throwable throwable) {
+            newDataSource.close();
+            if (throwable instanceof SQLException) {
+                throw (SQLException) throwable;
+            }
+            if (throwable instanceof RuntimeException) {
+                throw (RuntimeException) throwable;
+            }
+            if (throwable instanceof Error) {
+                throw (Error) throwable;
+            }
+            throw new SQLException("Failed to initialize MySQL", throwable);
+        }
+        mysqlDataSource = newDataSource;
+    }
+
+    private HikariConfig createMysqlHikariConfig() {
         HikariConfig config = new HikariConfig();
         config.setPoolName("ShitBot-" + settings.getType().name());
         config.setJdbcUrl(settings.buildJdbcUrl(platform.getDataDirectory()));
-        if (settings.getType() == Settings.Database.Type.MYSQL) {
-            config.setUsername(settings.getMysqlUsername());
-            config.setPassword(settings.getMysqlPassword());
-            config.setMaximumPoolSize(settings.getMaximumPoolSize());
-            config.setMinimumIdle(settings.getMinimumIdle());
-            config.setIdleTimeout(settings.getIdleTimeoutMs());
-            config.setMaxLifetime(settings.getMaximumLifetimeMs());
-            if (settings.getKeepaliveTimeMs() > 0L) {
-                config.setKeepaliveTime(settings.getKeepaliveTimeMs());
-            }
-            config.addDataSourceProperty("cachePrepStmts", "true");
-            config.addDataSourceProperty("prepStmtCacheSize", "250");
-            config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-            config.addDataSourceProperty("useServerPrepStmts", "true");
-            config.addDataSourceProperty("rewriteBatchedStatements", "true");
-        } else {
-            config.setMaximumPoolSize(1);
-            config.setMinimumIdle(1);
-            config.setMaxLifetime(0L);
-            config.setIdleTimeout(0L);
-            config.setConnectionInitSql("PRAGMA foreign_keys=ON");
+        config.setUsername(settings.getMysqlUsername());
+        config.setPassword(settings.getMysqlPassword());
+        config.setMaximumPoolSize(settings.getMaximumPoolSize());
+        config.setMinimumIdle(settings.getMinimumIdle());
+        config.setIdleTimeout(settings.getIdleTimeoutMs());
+        config.setMaxLifetime(settings.getMaximumLifetimeMs());
+        if (settings.getKeepaliveTimeMs() > 0L) {
+            config.setKeepaliveTime(settings.getKeepaliveTimeMs());
         }
+        config.addDataSourceProperty("cachePrepStmts", "true");
+        config.addDataSourceProperty("prepStmtCacheSize", "250");
+        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        config.addDataSourceProperty("useServerPrepStmts", "true");
+        config.addDataSourceProperty("rewriteBatchedStatements", "true");
         config.setConnectionTimeout(settings.getConnectionTimeoutMs());
         config.setValidationTimeout(settings.getValidationTimeoutMs());
         config.setAutoCommit(true);
@@ -188,13 +224,22 @@ public final class DatabaseManager implements AutoCloseable {
     private void writeSchemaVersion(Connection connection, int version) throws SQLException {
         long now = System.currentTimeMillis();
         if (settings.getType() == Settings.Database.Type.SQLITE) {
+            int updated;
             try (PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO shitbot_schema(schema_key, version, applied_at) VALUES(?, ?, ?) "
-                            + "ON CONFLICT(schema_key) DO UPDATE SET version=excluded.version, applied_at=excluded.applied_at")) {
-                statement.setString(1, "main");
-                statement.setInt(2, version);
-                statement.setLong(3, now);
-                statement.executeUpdate();
+                    "UPDATE shitbot_schema SET version=?, applied_at=? WHERE schema_key=?")) {
+                statement.setInt(1, version);
+                statement.setLong(2, now);
+                statement.setString(3, "main");
+                updated = statement.executeUpdate();
+            }
+            if (updated == 0) {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO shitbot_schema(schema_key, version, applied_at) VALUES(?, ?, ?)")) {
+                    statement.setString(1, "main");
+                    statement.setInt(2, version);
+                    statement.setLong(3, now);
+                    statement.executeUpdate();
+                }
             }
         } else {
             try (PreparedStatement statement = connection.prepareStatement(
@@ -459,13 +504,21 @@ public final class DatabaseManager implements AutoCloseable {
         return CompletableFuture.supplyAsync(new java.util.function.Supplier<T>() {
             @Override
             public T get() {
-                HikariDataSource current = dataSource;
-                if (current == null) {
-                    throw new CompletionException(new IllegalStateException("Database is not initialized"));
-                }
-                try (Connection connection = current.getConnection()) {
-                    configureConnection(connection);
-                    return function.apply(connection);
+                try {
+                    if (settings.getType() == Settings.Database.Type.SQLITE) {
+                        Connection connection = requireSqliteConnection();
+                        configureConnection(connection);
+                        return function.apply(connection);
+                    }
+
+                    HikariDataSource current = mysqlDataSource;
+                    if (current == null) {
+                        throw new IllegalStateException("Database is not initialized");
+                    }
+                    try (Connection connection = current.getConnection()) {
+                        configureConnection(connection);
+                        return function.apply(connection);
+                    }
                 } catch (Throwable throwable) {
                     throw new CompletionException(throwable);
                 }
@@ -501,8 +554,41 @@ public final class DatabaseManager implements AutoCloseable {
     }
 
     public boolean isReady() {
-        HikariDataSource current = dataSource;
-        return current != null && !current.isClosed() && !closed.get();
+        if (closed.get()) {
+            return false;
+        }
+        if (settings.getType() == Settings.Database.Type.SQLITE) {
+            Connection current = sqliteConnection;
+            if (current == null) {
+                return false;
+            }
+            try {
+                return !current.isClosed();
+            } catch (SQLException ignored) {
+                return false;
+            }
+        }
+        HikariDataSource current = mysqlDataSource;
+        return current != null && !current.isClosed();
+    }
+
+    private Connection requireSqliteConnection() throws SQLException {
+        Connection current = sqliteConnection;
+        if (current == null || current.isClosed()) {
+            throw new SQLException("SQLite connection is not initialized or has been closed");
+        }
+        return current;
+    }
+
+    private static void closeQuietly(Connection connection) {
+        if (connection == null) {
+            return;
+        }
+        try {
+            connection.close();
+        } catch (SQLException ignored) {
+            // Best-effort shutdown only.
+        }
     }
 
     public Settings.Database.Type getType() {
@@ -529,10 +615,14 @@ public final class DatabaseManager implements AutoCloseable {
             executor.shutdownNow();
         }
 
-        HikariDataSource current = dataSource;
-        dataSource = null;
-        if (current != null) {
-            current.close();
+        Connection currentSqlite = sqliteConnection;
+        sqliteConnection = null;
+        closeQuietly(currentSqlite);
+
+        HikariDataSource currentMysql = mysqlDataSource;
+        mysqlDataSource = null;
+        if (currentMysql != null) {
+            currentMysql.close();
         }
     }
 
