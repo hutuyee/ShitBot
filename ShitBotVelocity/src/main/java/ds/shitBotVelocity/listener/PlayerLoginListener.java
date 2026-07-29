@@ -22,11 +22,14 @@ public final class PlayerLoginListener {
         }
         final ShitBotRuntime runtime = plugin.getRuntime();
         if (runtime == null) {
-            if (plugin.isStartupUnavailable()) {
-                event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
-                        LegacyComponentSerializer.legacySection().deserialize(
-                                "§c绑定系统配置加载失败，请联系管理员。")));
-            }
+            // Fail closed whenever the runtime is unavailable, not just during startup failure.
+            // `runtime` also goes null while the plugin is disabling/reloading; previously that
+            // window silently allowed logins because only the startup-failure case was denied.
+            String message = plugin.isStartupUnavailable()
+                    ? "§c绑定系统配置加载失败，请联系管理员。"
+                    : "§cShitBot 正在重载，请稍后重试。";
+            event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
+                    LegacyComponentSerializer.legacySection().deserialize(message)));
             return null;
         }
         if (!runtime.getSettings().getBinding().isEnabled()) {
