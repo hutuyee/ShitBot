@@ -13,6 +13,7 @@
 ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 
 > **注意：ShitBot 不与 EasyBot 竞争，仅供 LLBot 在暂时不允许 EasyBot 连接时的应急使用。**
+> **禁止在LLBot群讨论该插件的使用**
 
 项目支持：
 
