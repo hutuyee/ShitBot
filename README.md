@@ -67,6 +67,21 @@ MC端输入: #qq 内容即可通过机器人传到群聊
 ```text
 QQ端输入: #mc 内容即可通过机器人传到MC
 ```
+
+群消息中的图片会转成带 `OPEN_URL` 的可点击聊天组件。服主可在三端通用配置中选择显示方式：
+
+```yaml
+forwarding:
+  group-to-game:
+    # browser 或 picturebridge
+    media-mode: "browser"
+```
+
+- `browser`：游戏里显示可点击的 `[图片]`，点击后由 Minecraft 按原版逻辑在浏览器查看。
+- `picturebridge`：图片和表情会附加 PictureBridge 标记；装有 [PictureBridge](https://github.com/hutuyee/PictureBridge) 的客户端直接在聊天中预览，点击后在游戏内查看高清原图。
+- 两种模式都会保留网页链接，所以没有安装模组的客户端也能点击后使用浏览器查看。
+- 仓库根目录的 `PictureBridge` 是该客户端模组的 Git 子模块，GitHub 上可直接点击跳转到独立项目。
+
 ### 数据库
 
 - 支持 SQLite

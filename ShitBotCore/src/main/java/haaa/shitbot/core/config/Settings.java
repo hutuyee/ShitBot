@@ -264,10 +264,16 @@ public final class Settings {
     public static final class Forwarding {
         private final Direction gameToGroup;
         private final Direction groupToGame;
+        private final MediaMode groupToGameMediaMode;
 
         public Forwarding(Direction gameToGroup, Direction groupToGame) {
+            this(gameToGroup, groupToGame, MediaMode.BROWSER);
+        }
+
+        public Forwarding(Direction gameToGroup, Direction groupToGame, MediaMode groupToGameMediaMode) {
             this.gameToGroup = require(gameToGroup, "gameToGroup");
             this.groupToGame = require(groupToGame, "groupToGame");
+            this.groupToGameMediaMode = require(groupToGameMediaMode, "groupToGameMediaMode");
         }
 
         public Direction getGameToGroup() {
@@ -276,6 +282,22 @@ public final class Settings {
 
         public Direction getGroupToGame() {
             return groupToGame;
+        }
+
+        public MediaMode getGroupToGameMediaMode() {
+            return groupToGameMediaMode;
+        }
+    }
+
+    public enum MediaMode {
+        BROWSER,
+        PICTUREBRIDGE;
+
+        public static MediaMode from(String value) {
+            if (value != null && "picturebridge".equalsIgnoreCase(value.trim())) {
+                return PICTUREBRIDGE;
+            }
+            return BROWSER;
         }
     }
 
@@ -547,6 +569,15 @@ public final class Settings {
         private final int maximumPlayers;
         private final int cacheSeconds;
         private final String outputFile;
+        private final boolean avatarEnabled;
+        private final String avatarUrlTemplate;
+        private final int avatarSize;
+        private final int avatarCacheMinutes;
+        private final int avatarDownloadThreads;
+        private final int avatarMaximumDownloadsPerRender;
+        private final int avatarConnectTimeoutMs;
+        private final int avatarReadTimeoutMs;
+        private final int avatarWaitTimeoutMs;
 
         public Image(String title,
                      String serverName,
@@ -555,15 +586,33 @@ public final class Settings {
                      int playersPerRow,
                      int maximumPlayers,
                      int cacheSeconds,
-                     String outputFile) {
+                     String outputFile,
+                     boolean avatarEnabled,
+                     String avatarUrlTemplate,
+                     int avatarSize,
+                     int avatarCacheMinutes,
+                     int avatarDownloadThreads,
+                     int avatarMaximumDownloadsPerRender,
+                     int avatarConnectTimeoutMs,
+                     int avatarReadTimeoutMs,
+                     int avatarWaitTimeoutMs) {
             this.title = text(title, "服务器在线状态");
             this.serverName = text(serverName, "Minecraft Server");
             this.fontName = text(fontName, "Microsoft YaHei");
             this.width = clamp(width, 720, 2400, 1200);
-            this.playersPerRow = clamp(playersPerRow, 2, 8, 4);
+            this.playersPerRow = clamp(playersPerRow, 1, 12, 5);
             this.maximumPlayers = clamp(maximumPlayers, 1, 1000, 200);
             this.cacheSeconds = clamp(cacheSeconds, 0, 300, 8);
             this.outputFile = Database.sanitizeFileName(outputFile, "online.png");
+            this.avatarEnabled = avatarEnabled;
+            this.avatarUrlTemplate = text(avatarUrlTemplate, "https://mc-heads.net/avatar/%player%/64");
+            this.avatarSize = clamp(avatarSize, 24, 64, 36);
+            this.avatarCacheMinutes = clamp(avatarCacheMinutes, 1, 10080, 1440);
+            this.avatarDownloadThreads = clamp(avatarDownloadThreads, 1, 12, 4);
+            this.avatarMaximumDownloadsPerRender = clamp(avatarMaximumDownloadsPerRender, 1, 200, 24);
+            this.avatarConnectTimeoutMs = clamp(avatarConnectTimeoutMs, 250, 10000, 1500);
+            this.avatarReadTimeoutMs = clamp(avatarReadTimeoutMs, 250, 15000, 2500);
+            this.avatarWaitTimeoutMs = clamp(avatarWaitTimeoutMs, 0, 10000, 2200);
         }
 
         public String getTitle() {
@@ -596,6 +645,42 @@ public final class Settings {
 
         public String getOutputFile() {
             return outputFile;
+        }
+
+        public boolean isAvatarEnabled() {
+            return avatarEnabled;
+        }
+
+        public String getAvatarUrlTemplate() {
+            return avatarUrlTemplate;
+        }
+
+        public int getAvatarSize() {
+            return avatarSize;
+        }
+
+        public int getAvatarCacheMinutes() {
+            return avatarCacheMinutes;
+        }
+
+        public int getAvatarDownloadThreads() {
+            return avatarDownloadThreads;
+        }
+
+        public int getAvatarMaximumDownloadsPerRender() {
+            return avatarMaximumDownloadsPerRender;
+        }
+
+        public int getAvatarConnectTimeoutMs() {
+            return avatarConnectTimeoutMs;
+        }
+
+        public int getAvatarReadTimeoutMs() {
+            return avatarReadTimeoutMs;
+        }
+
+        public int getAvatarWaitTimeoutMs() {
+            return avatarWaitTimeoutMs;
         }
     }
 

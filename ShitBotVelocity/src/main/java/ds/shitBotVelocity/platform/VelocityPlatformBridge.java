@@ -2,8 +2,11 @@ package ds.shitBotVelocity.platform;
 
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.platform.PlatformBridge;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.slf4j.Logger;
 
@@ -64,6 +67,28 @@ public final class VelocityPlatformBridge implements PlatformBridge {
         Component component = LegacyComponentSerializer.legacySection().deserialize(message == null ? "" : message);
         for (Player player : server.getAllPlayers()) {
             player.sendMessage(component);
+        }
+    }
+
+    @Override
+    public void broadcastRichMessage(List<ChatPart> parts) {
+        Component output = Component.empty();
+        if (parts != null) {
+            for (ChatPart part : parts) {
+                if (part == null || part.getText().isEmpty()) {
+                    continue;
+                }
+                Component component = LegacyComponentSerializer.legacySection().deserialize(part.getText());
+                if (part.hasClickUrl()) {
+                    component = component.clickEvent(ClickEvent.openUrl(part.getClickUrl()));
+                    String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                    component = component.hoverEvent(HoverEvent.showText(Component.text(hover)));
+                }
+                output = output.append(component);
+            }
+        }
+        for (Player player : server.getAllPlayers()) {
+            player.sendMessage(output);
         }
     }
 

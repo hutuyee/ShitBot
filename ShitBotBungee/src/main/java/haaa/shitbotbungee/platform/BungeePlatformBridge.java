@@ -1,7 +1,11 @@
 package haaa.shitbotbungee.platform;
 
+import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.platform.PlatformBridge;
 import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -58,6 +62,29 @@ public final class BungeePlatformBridge implements PlatformBridge {
     @Override
     public void broadcastMessage(String message) {
         ProxyServer.getInstance().broadcast(TextComponent.fromLegacyText(message == null ? "" : message));
+    }
+
+    @Override
+    public void broadcastRichMessage(List<ChatPart> parts) {
+        List<BaseComponent> components = new ArrayList<BaseComponent>();
+        if (parts != null) {
+            for (ChatPart part : parts) {
+                if (part == null || part.getText().isEmpty()) {
+                    continue;
+                }
+                BaseComponent[] parsed = TextComponent.fromLegacyText(part.getText());
+                for (BaseComponent component : parsed) {
+                    if (part.hasClickUrl()) {
+                        component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, part.getClickUrl()));
+                        String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                        component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                TextComponent.fromLegacyText("§7" + hover)));
+                    }
+                    components.add(component);
+                }
+            }
+        }
+        ProxyServer.getInstance().broadcast(components.toArray(new BaseComponent[components.size()]));
     }
 
     @Override

@@ -1,5 +1,7 @@
 package haaa.shitbot.core.platform;
 
+import haaa.shitbot.core.chat.ChatPart;
+
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,19 @@ public interface PlatformBridge {
     void executeOnPlatformThread(Runnable runnable);
 
     void broadcastMessage(String message);
+
+    /** Broadcasts text with optional clickable URL parts. */
+    default void broadcastRichMessage(List<ChatPart> parts) {
+        StringBuilder builder = new StringBuilder();
+        if (parts != null) {
+            for (ChatPart part : parts) {
+                if (part != null) {
+                    builder.append(part.getText());
+                }
+            }
+        }
+        broadcastMessage(builder.toString());
+    }
 
     void info(String message);
 

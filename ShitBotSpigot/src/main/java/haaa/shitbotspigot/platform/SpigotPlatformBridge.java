@@ -1,12 +1,18 @@
 package haaa.shitbotspigot.platform;
 
+import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.platform.PlatformBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +85,38 @@ public final class SpigotPlatformBridge implements PlatformBridge {
             @Override
             public void run() {
                 Bukkit.broadcastMessage(message == null ? "" : message);
+            }
+        });
+    }
+
+    @Override
+    public void broadcastRichMessage(final List<ChatPart> parts) {
+        executeOnPlatformThread(new Runnable() {
+            @Override
+            public void run() {
+                List<BaseComponent> components = new ArrayList<BaseComponent>();
+                if (parts != null) {
+                    for (ChatPart part : parts) {
+                        if (part == null || part.getText().isEmpty()) {
+                            continue;
+                        }
+                        BaseComponent[] parsed = TextComponent.fromLegacyText(part.getText());
+                        for (BaseComponent component : parsed) {
+                            if (part.hasClickUrl()) {
+                                component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, part.getClickUrl()));
+                                String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                                component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                        TextComponent.fromLegacyText("§7" + hover)));
+                            }
+                            components.add(component);
+                        }
+                    }
+                }
+                BaseComponent[] output = components.toArray(new BaseComponent[components.size()]);
+                Collection<? extends Player> onlinePlayers = Bukkit.getOnlinePlayers();
+                for (Player player : onlinePlayers) {
+                    player.spigot().sendMessage(output);
+                }
             }
         });
     }

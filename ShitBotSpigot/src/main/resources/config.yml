@@ -59,6 +59,8 @@ forwarding:
     prefix: "#qq "
 
   # QQ 群消息转发到游戏，输出格式为 [QQ] 群名片或昵称: 内容。
+  # 图片、动画表情、语音、视频、文件、分享等会转换成可识别的聊天标签；
+  # OneBot 提供网络地址时，标签可在游戏聊天中点击打开。普通 Unicode 表情会原样保留。
   # 仅处理 onebot.allowed-group-ids 中配置的群。
   group-to-game:
     # 该方向的总开关。
@@ -68,6 +70,10 @@ forwarding:
     # 转发时会移除此触发前缀；末尾空格属于前缀的一部分。
     # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
     prefix: "#mc "
+    # browser：发送可点击的 [图片]，所有原版客户端都可在浏览器查看。
+    # picturebridge：为图片和表情附加 PictureBridge 标记；装有模组的客户端会在聊天中预览并在游戏内打开。
+    # 两种模式都会保留 OPEN_URL，未安装模组的客户端仍可点击后用浏览器查看。
+    media-mode: "browser"
 
 binding:
   enabled: true
@@ -117,10 +123,26 @@ image:
   server-name: "Server-Status"
   font-name: "Microsoft YaHei"
   width: 1200
-  players-per-row: 4
+  # 每行最多显示几个玩家；实际卡片宽度会按头像和名字自动适配，不再强制铺满整行。
+  players-per-row: 5
   maximum-players: 200
   cache-seconds: 8
   output-file: "online.png"
+  avatar:
+    # 头像下载和图片渲染全部在独立线程执行，不会阻塞服务器主线程。
+    enabled: true
+    # 支持 %player% 变量。可替换成你自己的头像服务。
+    url-template: "https://mc-heads.net/avatar/%player%/64"
+    size: 36
+    # 下载成功后同时缓存到内存和 plugins/ShitBot/images/avatar-cache。
+    cache-minutes: 1440
+    download-threads: 4
+    # 避免在线人数很多时一次性排队下载过多头像。未下载的玩家暂时使用默认头像。
+    maximum-downloads-per-render: 24
+    connect-timeout-ms: 1500
+    read-timeout-ms: 2500
+    # 单次生成最多等待头像的时间；超时先用默认头像，下载完成后下次生成自动使用。
+    wait-timeout-ms: 2200
 
 messages:
   kick-unbound: |

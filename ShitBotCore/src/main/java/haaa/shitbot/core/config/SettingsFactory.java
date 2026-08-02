@@ -51,7 +51,9 @@ public final class SettingsFactory {
                         source.getBoolean("forwarding.group-to-game.enabled", false),
                         source.getBoolean("forwarding.group-to-game.require-prefix", true),
                         source.getString("forwarding.group-to-game.prefix", ""),
-                        "#mc "));
+                        "#mc "),
+                Settings.MediaMode.from(source.getString(
+                        "forwarding.group-to-game.media-mode", "browser")));
 
         Settings.Binding binding = new Settings.Binding(
                 source.getBoolean("binding.enabled", true),
@@ -87,10 +89,19 @@ public final class SettingsFactory {
                 source.getString("image.server-name", "Minecraft Server"),
                 source.getString("image.font-name", "Microsoft YaHei"),
                 source.getInt("image.width", 1200),
-                source.getInt("image.players-per-row", 4),
+                source.getInt("image.players-per-row", 5),
                 source.getInt("image.maximum-players", 200),
                 source.getInt("image.cache-seconds", 8),
-                source.getString("image.output-file", "online.png"));
+                source.getString("image.output-file", "online.png"),
+                source.getBoolean("image.avatar.enabled", true),
+                source.getString("image.avatar.url-template", "https://mc-heads.net/avatar/%player%/64"),
+                source.getInt("image.avatar.size", 36),
+                source.getInt("image.avatar.cache-minutes", 1440),
+                source.getInt("image.avatar.download-threads", 4),
+                source.getInt("image.avatar.maximum-downloads-per-render", 24),
+                source.getInt("image.avatar.connect-timeout-ms", 1500),
+                source.getInt("image.avatar.read-timeout-ms", 2500),
+                source.getInt("image.avatar.wait-timeout-ms", 2200));
 
         Settings.Messages messages = new Settings.Messages(
                 source.getString("messages.kick-unbound",

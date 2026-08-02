@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
@@ -14,9 +15,12 @@ import org.java_websocket.enums.ReadyState;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +42,7 @@ public final class OneBotClient implements AutoCloseable {
     private static final int MAX_INBOUND_MESSAGE_LENGTH = 2 * 1024 * 1024;
 
     private final Settings.OneBot settings;
+    private final Settings.MediaMode mediaMode;
     private final PlatformBridge platform;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
@@ -52,7 +57,12 @@ public final class OneBotClient implements AutoCloseable {
     private volatile Client client;
 
     public OneBotClient(Settings.OneBot settings, PlatformBridge platform) {
+        this(settings, Settings.MediaMode.BROWSER, platform);
+    }
+
+    public OneBotClient(Settings.OneBot settings, Settings.MediaMode mediaMode, PlatformBridge platform) {
         this.settings = settings;
+        this.mediaMode = mediaMode == null ? Settings.MediaMode.BROWSER : mediaMode;
         this.platform = platform;
         this.reconnectDelaySeconds = new AtomicInteger(settings.getReconnectInitialSeconds());
     }
@@ -289,15 +299,16 @@ public final class OneBotClient implements AutoCloseable {
         if (!isAcceptedGroupUser(groupId, userId, selfId)) {
             return;
         }
-        String rawMessage = extractText(root, selfId);
-        if (rawMessage.trim().isEmpty()) {
+        ParsedMessage parsedMessage = extractMessage(root, selfId);
+        if (parsedMessage.commandText.trim().isEmpty() && parsedMessage.parts.isEmpty()) {
             return;
         }
         String senderName = extractSenderName(root, userId);
         Consumer<GroupMessage> consumer = groupMessageConsumer;
         if (consumer != null) {
             try {
-                consumer.accept(new GroupMessage(groupId, userId, selfId, rawMessage, senderName));
+                consumer.accept(new GroupMessage(
+                        groupId, userId, selfId, parsedMessage.commandText, senderName, parsedMessage.parts));
             } catch (Throwable throwable) {
                 platform.error("Unhandled OneBot group message error", throwable);
             }
@@ -360,41 +371,316 @@ public final class OneBotClient implements AutoCloseable {
         return String.valueOf(userId);
     }
 
-    private String extractText(JsonNode root, long selfId) {
-        // Prefer message segments: they remove leading CQ at-codes when users mention the bot.
+    private ParsedMessage extractMessage(JsonNode root, long selfId) {
         JsonNode message = root.get("message");
         if (message != null && message.isArray()) {
-            StringBuilder builder = new StringBuilder();
-            for (JsonNode segment : message) {
-                if ("text".equals(segment.path("type").asText())) {
-                    builder.append(segment.path("data").path("text").asText(""));
-                }
-            }
-            if (builder.length() > 0) {
-                return builder.toString();
-            }
+            return extractArrayMessage(message, selfId);
         }
+        String encoded = "";
         if (message != null && message.isTextual()) {
-            return stripLeadingSelfMention(message.asText(), selfId);
+            encoded = message.asText("");
+        } else {
+            JsonNode raw = root.get("raw_message");
+            if (raw != null && raw.isTextual()) {
+                encoded = raw.asText("");
+            }
         }
-        JsonNode raw = root.get("raw_message");
-        return raw != null && raw.isTextual() ? stripLeadingSelfMention(raw.asText(), selfId) : "";
+        return extractCqMessage(encoded, selfId);
     }
 
-    private String stripLeadingSelfMention(String text, long selfId) {
-        String result = text == null ? "" : text.trim();
-        if (selfId <= 0L) {
-            return result;
+    private ParsedMessage extractArrayMessage(JsonNode message, long selfId) {
+        StringBuilder commandText = new StringBuilder();
+        List<ChatPart> parts = new ArrayList<ChatPart>();
+        for (JsonNode segment : message) {
+            String type = segment.path("type").asText("");
+            JsonNode data = segment.path("data");
+            appendSegment(parts, commandText, type, data, selfId);
         }
-        String prefix = "[CQ:at,qq=" + selfId;
-        while (result.startsWith(prefix)) {
-            int segmentEnd = result.indexOf(']');
-            if (segmentEnd < 0) {
+        return new ParsedMessage(commandText.toString(), trimParts(parts));
+    }
+
+    private ParsedMessage extractCqMessage(String encoded, long selfId) {
+        String text = encoded == null ? "" : encoded;
+        StringBuilder commandText = new StringBuilder();
+        List<ChatPart> parts = new ArrayList<ChatPart>();
+        int cursor = 0;
+        while (cursor < text.length()) {
+            int start = text.indexOf("[CQ:", cursor);
+            if (start < 0) {
+                appendText(parts, commandText, decodeCq(text.substring(cursor)));
                 break;
             }
-            result = result.substring(segmentEnd + 1).trim();
+            if (start > cursor) {
+                appendText(parts, commandText, decodeCq(text.substring(cursor, start)));
+            }
+            int close = text.indexOf(']', start + 4);
+            if (close < 0) {
+                appendText(parts, commandText, decodeCq(text.substring(start)));
+                break;
+            }
+            String body = text.substring(start + 4, close);
+            String[] values = body.split(",");
+            String type = values.length == 0 ? "" : values[0];
+            ObjectNode data = objectMapper.createObjectNode();
+            for (int i = 1; i < values.length; i++) {
+                int equals = values[i].indexOf('=');
+                if (equals > 0) {
+                    data.put(values[i].substring(0, equals), decodeCq(values[i].substring(equals + 1)));
+                }
+            }
+            appendSegment(parts, commandText, type, data, selfId);
+            cursor = close + 1;
         }
-        return result;
+        if (text.isEmpty()) {
+            return new ParsedMessage("", Collections.<ChatPart>emptyList());
+        }
+        return new ParsedMessage(commandText.toString(), trimParts(parts));
+    }
+
+    private void appendSegment(List<ChatPart> parts,
+                               StringBuilder commandText,
+                               String rawType,
+                               JsonNode data,
+                               long selfId) {
+        String type = rawType == null ? "" : rawType.toLowerCase(Locale.ROOT);
+        if ("text".equals(type)) {
+            appendText(parts, commandText, data.path("text").asText(""));
+            return;
+        }
+        if ("at".equals(type)) {
+            String qq = data.path("qq").asText("").trim();
+            if (isLeadingWhitespaceOnly(parts) && qq.equals(String.valueOf(selfId))) {
+                return;
+            }
+            String name = firstNonBlank(data, "name", "text");
+            if ("all".equalsIgnoreCase(qq)) {
+                name = "全体成员";
+            }
+            appendToken(parts, "@" + (name.isEmpty() ? qq : name), null, null);
+            return;
+        }
+        if ("image".equals(type)) {
+            String summary = cleanSummary(firstNonBlank(data, "summary", "text"));
+            String label = mediaMode == Settings.MediaMode.BROWSER
+                    ? "[图片]"
+                    : (summary.isEmpty() ? "[图片]" : summary);
+            appendToken(parts, label, firstUrl(data, "url", "file"), mediaHover("图片"));
+            return;
+        }
+        if ("face".equals(type)) {
+            String summary = cleanSummary(firstNonBlank(data, "summary", "text", "name"));
+            String id = data.path("id").asText("").trim();
+            String url = firstUrl(data, "url", "file");
+            if ((url == null || url.isEmpty()) && id.matches("\\d{1,5}")) {
+                url = "https://koishi.js.org/QFace/gif/s" + id + ".gif";
+            }
+            appendToken(parts, summary.isEmpty() ? "[表情" + (id.isEmpty() ? "" : ":" + id) + "]" : summary,
+                    url, url == null || url.isEmpty() ? null : mediaHover("表情"));
+            return;
+        }
+        if ("mface".equals(type)) {
+            String summary = cleanSummary(firstNonBlank(data, "summary", "text", "name"));
+            appendToken(parts, summary.isEmpty() ? "[动画表情]" : summary,
+                    firstUrl(data, "url"), mediaHover("表情"));
+            return;
+        }
+        if ("record".equals(type)) {
+            appendToken(parts, "[语音]", firstUrl(data, "url", "file"), "点击打开 QQ 语音");
+            return;
+        }
+        if ("video".equals(type)) {
+            appendToken(parts, "[视频]", firstUrl(data, "url", "file"), "点击打开 QQ 视频");
+            return;
+        }
+        if ("file".equals(type)) {
+            String name = firstNonBlank(data, "name", "file");
+            appendToken(parts, name.isEmpty() ? "[文件]" : "[文件:" + singleLine(name, 48) + "]",
+                    firstUrl(data, "url"), "点击打开 QQ 文件");
+            return;
+        }
+        if ("share".equals(type)) {
+            String title = firstNonBlank(data, "title", "content");
+            appendToken(parts, title.isEmpty() ? "[分享]" : "[分享:" + singleLine(title, 48) + "]",
+                    firstUrl(data, "url"), "点击打开 QQ 分享");
+            return;
+        }
+        if ("location".equals(type)) {
+            String title = firstNonBlank(data, "title", "content");
+            appendToken(parts, title.isEmpty() ? "[位置]" : "[位置:" + singleLine(title, 48) + "]",
+                    null, null);
+            return;
+        }
+        if ("music".equals(type)) {
+            String title = firstNonBlank(data, "title", "content");
+            appendToken(parts, title.isEmpty() ? "[音乐]" : "[音乐:" + singleLine(title, 48) + "]",
+                    firstUrl(data, "url", "jumpUrl"), "点击打开 QQ 音乐");
+            return;
+        }
+        if ("reply".equals(type)) {
+            appendToken(parts, "[回复]", null, null);
+            return;
+        }
+        if ("forward".equals(type) || "node".equals(type)) {
+            appendToken(parts, "[合并转发]", null, null);
+            return;
+        }
+        if ("json".equals(type) || "xml".equals(type)) {
+            appendToken(parts, "[卡片消息]", null, null);
+            return;
+        }
+        if ("dice".equals(type)) {
+            appendToken(parts, "[骰子:" + data.path("result").asText(data.path("id").asText("?")) + "]", null, null);
+            return;
+        }
+        if ("rps".equals(type)) {
+            appendToken(parts, "[猜拳:" + data.path("result").asText(data.path("id").asText("?")) + "]", null, null);
+            return;
+        }
+        if ("poke".equals(type) || "shake".equals(type)) {
+            appendToken(parts, "[戳一戳]", null, null);
+            return;
+        }
+        if (!type.isEmpty()) {
+            appendToken(parts, "[" + singleLine(type, 24) + "]", null, null);
+        }
+    }
+
+    private void appendText(List<ChatPart> parts, StringBuilder commandText, String value) {
+        if (value == null || value.isEmpty()) {
+            return;
+        }
+        commandText.append(value);
+        parts.add(ChatPart.text(value));
+    }
+
+    private void appendToken(List<ChatPart> parts, String text, String url, String hover) {
+        if (text == null || text.trim().isEmpty()) {
+            return;
+        }
+        if (!parts.isEmpty()) {
+            ChatPart previous = parts.get(parts.size() - 1);
+            String previousText = previous.getText();
+            if (!previousText.isEmpty() && !Character.isWhitespace(previousText.charAt(previousText.length() - 1))) {
+                parts.add(ChatPart.text(" "));
+            }
+        }
+        parts.add(url == null || url.trim().isEmpty()
+                ? ChatPart.text(text.trim())
+                : ChatPart.link(text.trim(), url, hover));
+        parts.add(ChatPart.text(" "));
+    }
+
+    private boolean isLeadingWhitespaceOnly(List<ChatPart> parts) {
+        for (ChatPart part : parts) {
+            if (part != null && !part.getText().trim().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<ChatPart> trimParts(List<ChatPart> source) {
+        if (source == null || source.isEmpty()) {
+            return Collections.emptyList();
+        }
+        StringBuilder full = new StringBuilder();
+        for (ChatPart part : source) {
+            full.append(part == null ? "" : part.getText());
+        }
+        int start = 0;
+        int end = full.length();
+        while (start < end && Character.isWhitespace(full.charAt(start))) {
+            start++;
+        }
+        while (end > start && Character.isWhitespace(full.charAt(end - 1))) {
+            end--;
+        }
+        if (start >= end) {
+            return Collections.emptyList();
+        }
+        List<ChatPart> result = new ArrayList<ChatPart>();
+        int offset = 0;
+        for (ChatPart part : source) {
+            if (part == null) {
+                continue;
+            }
+            String value = part.getText();
+            int partStart = offset;
+            int partEnd = offset + value.length();
+            int from = Math.max(start, partStart);
+            int to = Math.min(end, partEnd);
+            if (from < to) {
+                result.add(new ChatPart(value.substring(from - partStart, to - partStart),
+                        part.getClickUrl(), part.getHoverText()));
+            }
+            offset = partEnd;
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private String firstNonBlank(JsonNode data, String... keys) {
+        if (data == null || keys == null) {
+            return "";
+        }
+        for (String key : keys) {
+            String value = data.path(key).asText("").trim();
+            if (!value.isEmpty()) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private String firstUrl(JsonNode data, String... keys) {
+        if (data == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String value = data.path(key).asText("").trim();
+            if (value.regionMatches(true, 0, "https://", 0, 8)
+                    || value.regionMatches(true, 0, "http://", 0, 7)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String cleanSummary(String value) {
+        String clean = singleLine(value, 48);
+        if (clean.equalsIgnoreCase("[CQ:image]") || clean.equalsIgnoreCase("[CQ:face]")) {
+            return "";
+        }
+        return clean;
+    }
+
+    private String mediaHover(String kind) {
+        if (mediaMode == Settings.MediaMode.PICTUREBRIDGE) {
+            return "PictureBridge · QQ " + kind;
+        }
+        return "点击在浏览器查看" + kind;
+    }
+
+    private String singleLine(String value, int maximumLength) {
+        String clean = value == null ? "" : value.replace('\r', ' ').replace('\n', ' ').trim();
+        return clean.length() <= maximumLength ? clean : clean.substring(0, maximumLength - 1) + "…";
+    }
+
+    private String decodeCq(String value) {
+        return value == null ? "" : value
+                .replace("&#91;", "[")
+                .replace("&#93;", "]")
+                .replace("&#44;", ",")
+                .replace("&amp;", "&");
+    }
+
+    private static final class ParsedMessage {
+        private final String commandText;
+        private final List<ChatPart> parts;
+
+        private ParsedMessage(String commandText, List<ChatPart> parts) {
+            this.commandText = commandText == null ? "" : commandText;
+            this.parts = parts == null ? Collections.<ChatPart>emptyList() : parts;
+        }
     }
 
     private void expirePendingActions() {

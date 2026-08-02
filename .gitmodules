@@ -1,0 +1,3 @@
+[submodule "PictureBridge"]
+	path = PictureBridge
+	url = https://github.com/hutuyee/PictureBridge.git
