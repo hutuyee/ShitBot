@@ -5,6 +5,7 @@ import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotbungee.command.ShitBotCommand;
 import haaa.shitbotbungee.config.BungeeConfigLoader;
+import haaa.shitbotbungee.listener.PlayerChatListener;
 import haaa.shitbotbungee.listener.PlayerLoginListener;
 import haaa.shitbotbungee.platform.BungeePlatformBridge;
 import net.md_5.bungee.api.ProxyServer;
@@ -24,6 +25,7 @@ public final class ShitBotBungee extends Plugin {
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerLoginListener(this));
+        ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerChatListener(this));
         ProxyServer.getInstance().getPluginManager().registerCommand(this, new ShitBotCommand(this));
 
         try {

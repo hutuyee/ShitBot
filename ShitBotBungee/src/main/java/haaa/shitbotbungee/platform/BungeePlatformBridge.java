@@ -2,6 +2,7 @@ package haaa.shitbotbungee.platform;
 
 import haaa.shitbot.core.platform.PlatformBridge;
 import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -52,6 +53,11 @@ public final class BungeePlatformBridge implements PlatformBridge {
         if (runnable != null) {
             runnable.run();
         }
+    }
+
+    @Override
+    public void broadcastMessage(String message) {
+        ProxyServer.getInstance().broadcast(TextComponent.fromLegacyText(message == null ? "" : message));
     }
 
     @Override

@@ -41,6 +41,18 @@ public final class SettingsFactory {
                 groupJoinWelcome,
                 groupLeaveUnbind);
 
+        Settings.Forwarding forwarding = new Settings.Forwarding(
+                new Settings.Direction(
+                        source.getBoolean("forwarding.game-to-group.enabled", false),
+                        source.getBoolean("forwarding.game-to-group.require-prefix", true),
+                        source.getString("forwarding.game-to-group.prefix", ""),
+                        "#qq "),
+                new Settings.Direction(
+                        source.getBoolean("forwarding.group-to-game.enabled", false),
+                        source.getBoolean("forwarding.group-to-game.require-prefix", true),
+                        source.getString("forwarding.group-to-game.prefix", ""),
+                        "#mc "));
+
         Settings.Binding binding = new Settings.Binding(
                 source.getBoolean("binding.enabled", true),
                 source.getInt("binding.code-length", 6),
@@ -99,7 +111,7 @@ public final class SettingsFactory {
                 source.getString("messages.reload-success", "&aShitBot 已完成热重载。"),
                 source.getString("messages.reload-failed", "&cShitBot 重载失败，旧配置仍在运行。"));
 
-        return new Settings(source.getInt("config-version", 1), oneBot, binding, database, image, messages);
+        return new Settings(source.getInt("config-version", 1), oneBot, forwarding, binding, database, image, messages);
     }
 
     private static List<String> listOrDefault(List<String> values, String... fallback) {

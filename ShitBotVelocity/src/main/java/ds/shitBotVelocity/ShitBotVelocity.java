@@ -9,6 +9,7 @@ import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import ds.shitBotVelocity.command.ShitBotCommand;
 import ds.shitBotVelocity.config.VelocityConfigLoader;
+import ds.shitBotVelocity.listener.PlayerChatListener;
 import ds.shitBotVelocity.listener.PlayerLoginListener;
 import ds.shitBotVelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
@@ -41,6 +42,7 @@ public final class ShitBotVelocity {
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.platformBridge = new VelocityPlatformBridge(server, logger, dataDirectory);
         server.getEventManager().register(this, new PlayerLoginListener(this));
+        server.getEventManager().register(this, new PlayerChatListener(this));
         CommandMeta commandMeta = server.getCommandManager().metaBuilder("shitbot")
                 .aliases("sbot")
                 .build();

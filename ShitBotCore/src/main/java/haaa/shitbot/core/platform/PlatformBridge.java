@@ -15,6 +15,8 @@ public interface PlatformBridge {
 
     void executeOnPlatformThread(Runnable runnable);
 
+    void broadcastMessage(String message);
+
     void info(String message);
 
     void warn(String message);

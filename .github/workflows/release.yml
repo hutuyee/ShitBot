@@ -1,126 +1,103 @@
-name: Build and Release
+name: Build
 
 on:
   push:
-    tags:
-      - '*'
+    branches:
+      - master
+  pull_request:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag'
-        required: true
-        type: string
-
-permissions:
-  contents: write
-
-concurrency:
-  group: shitbot-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-  cancel-in-progress: false
+  release:
+    types:
+      - published
 
 jobs:
-  build-and-release:
-    name: Build and publish plugins
-    runs-on: windows-latest
-    timeout-minutes: 20
+  build:
+    name: Build with Maven
+    runs-on: ubuntu-latest
 
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v5
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "8"
           cache: maven
-          cache-dependency-path: |
-            pom.xml
-            ShitBotCore/pom.xml
-            ShitBotSpigot/pom.xml
-            ShitBotBungee/pom.xml
-            ShitBotVelocity/pom.xml
 
-      - name: Show build environment
-        shell: pwsh
+      - name: Build project
+        run: mvn --batch-mode --no-transfer-progress clean package
+
+      - name: Prepare JAR files
+        shell: bash
         run: |
-          java -version
-          mvn -version
+          mkdir -p release
 
-      - name: Build all modules
-        shell: pwsh
-        run: mvn -B -ntp clean package
+          find target \
+            -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "original-*.jar" \
+            ! -name "*-sources.jar" \
+            ! -name "*-javadoc.jar" \
+            -exec cp "{}" release/ \;
 
-      - name: Collect release jars
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
+          echo "Generated JAR files:"
+          ls -lah release
 
-          New-Item -ItemType Directory -Path 'release' -Force | Out-Null
+          if ! find release -maxdepth 1 -type f -name "*.jar" | grep -q .; then
+            echo "No plugin JAR was generated."
+            exit 1
+          fi
 
-          function Copy-PluginJar {
-              param(
-                  [Parameter(Mandatory = $true)][string]$Module,
-                  [Parameter(Mandatory = $true)][string]$ArtifactPrefix,
-                  [Parameter(Mandatory = $true)][string]$OutputName
-              )
-
-              $jar = Get-ChildItem -Path "$Module/target" -File -Filter "$ArtifactPrefix-*.jar" |
-                  Where-Object {
-                      $_.Name -notlike 'original-*' -and
-                      $_.Name -notlike '*-sources.jar' -and
-                      $_.Name -notlike '*-javadoc.jar'
-                  } |
-                  Sort-Object LastWriteTime -Descending |
-                  Select-Object -First 1
-
-              if ($null -eq $jar) {
-                  throw "Release jar was not found for module: $Module"
-              }
-
-              Copy-Item -Path $jar.FullName -Destination "release/$OutputName" -Force
-              Write-Host "Collected $($jar.Name) as $OutputName"
-          }
-
-          $safeTag = $env:RELEASE_TAG -replace '[^0-9A-Za-z._-]', '-'
-
-          Copy-PluginJar `
-              -Module 'ShitBotSpigot' `
-              -ArtifactPrefix 'ShitBotSpigot' `
-              -OutputName "ShitBot-Spigot-$safeTag.jar"
-
-          Copy-PluginJar `
-              -Module 'ShitBotBungee' `
-              -ArtifactPrefix 'ShitBotBungee' `
-              -OutputName "ShitBot-Bungee-$safeTag.jar"
-
-          Copy-PluginJar `
-              -Module 'ShitBotVelocity' `
-              -ArtifactPrefix 'ShitBotVelocity' `
-              -OutputName "ShitBot-Velocity-$safeTag.jar"
-
-          $releaseFiles = Get-ChildItem -Path 'release' -File
-          if ($releaseFiles.Count -ne 3) {
-              throw "Expected exactly 3 release jars, but found $($releaseFiles.Count)."
-          }
-
-          $releaseFiles | ForEach-Object {
-              Write-Host "Release asset: $($_.Name) ($($_.Length) bytes)"
-          }
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ShitBot ${{ env.RELEASE_TAG }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            release/ShitBot-Spigot-*.jar
-            release/ShitBot-Bungee-*.jar
-            release/ShitBot-Velocity-*.jar
+          name: BiliMusicBridge-${{ github.sha }}
+          path: release/*.jar
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Upload GitHub Release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download compiled JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: BiliMusicBridge-${{ github.sha }}
+          path: release
+
+      - name: Clear release description
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          printf "" > EMPTY_RELEASE_NOTES.md
+
+          gh release edit \
+            "${{ github.event.release.tag_name }}" \
+            --notes-file EMPTY_RELEASE_NOTES.md
+
+      - name: Upload JAR to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          echo "Uploading:"
+          ls -lah release
+
+          gh release upload \
+            "${{ github.event.release.tag_name }}" \
+            release/*.jar \
+            --clobber

@@ -10,6 +10,7 @@ import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
 import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.service.LoginDecision;
+import haaa.shitbot.core.service.MessageForwardingService;
 import haaa.shitbot.core.service.OnlineImageService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
@@ -33,6 +34,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final OneBotClient oneBotClient;
     private final OneBotCommandHandler commandHandler;
     private final OneBotNoticeHandler noticeHandler;
+    private final MessageForwardingService forwardingService;
     private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-maintenance", true));
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -52,10 +54,13 @@ public final class ShitBotRuntime implements AutoCloseable {
                 settings, platform, bindingService, imageService, oneBotClient);
         this.noticeHandler = new OneBotNoticeHandler(
                 settings, platform, bindingService, oneBotClient);
+        this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
         this.oneBotClient.setGroupMessageConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupMessage>() {
             @Override
             public void accept(haaa.shitbot.core.onebot.GroupMessage message) {
-                commandHandler.handle(message);
+                if (!commandHandler.handle(message)) {
+                    forwardingService.handleGroupMessage(message);
+                }
             }
         });
         this.oneBotClient.setGroupNoticeConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupNotice>() {
@@ -159,6 +164,12 @@ public final class ShitBotRuntime implements AutoCloseable {
 
     public OneBotClient getOneBotClient() {
         return oneBotClient;
+    }
+
+    public void forwardGameMessage(String playerName, String message) {
+        if (!closed.get() && isReady()) {
+            forwardingService.handleGameMessage(playerName, message);
+        }
     }
 
     public boolean isReady() {

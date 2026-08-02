@@ -74,6 +74,16 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     }
 
     @Override
+    public void broadcastMessage(final String message) {
+        executeOnPlatformThread(new Runnable() {
+            @Override
+            public void run() {
+                Bukkit.broadcastMessage(message == null ? "" : message);
+            }
+        });
+    }
+
+    @Override
     public void info(String message) {
         plugin.getLogger().info(message);
     }

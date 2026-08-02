@@ -33,28 +33,28 @@ public final class OneBotCommandHandler {
         this.client = client;
     }
 
-    public void handle(GroupMessage message) {
+    public boolean handle(GroupMessage message) {
         String raw = message.getRawMessage().trim();
         if (raw.isEmpty()) {
-            return;
+            return false;
         }
 
         Match bindMatch = matchPrefix(raw, settings.getOneBot().getBindCommand().getAliases());
         if (settings.getOneBot().getBindCommand().isEnabled() && bindMatch != null) {
-            if (isCoolingDown(message, "bind")) {
-                return;
+            if (!isCoolingDown(message, "bind")) {
+                handleBind(message, bindMatch.remaining);
             }
-            handleBind(message, bindMatch.remaining);
-            return;
+            return true;
         }
 
         if (settings.getOneBot().getOnlineImageCommand().isEnabled()
                 && matchesExact(raw, settings.getOneBot().getOnlineImageCommand().getAliases())) {
-            if (isCoolingDown(message, "online")) {
-                return;
+            if (!isCoolingDown(message, "online")) {
+                handleOnlineImage(message);
             }
-            handleOnlineImage(message);
+            return true;
         }
+        return false;
     }
 
     private void handleBind(final GroupMessage message, String arguments) {

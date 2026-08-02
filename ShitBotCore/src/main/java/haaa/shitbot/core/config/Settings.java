@@ -13,6 +13,7 @@ public final class Settings {
 
     private final int configVersion;
     private final OneBot oneBot;
+    private final Forwarding forwarding;
     private final Binding binding;
     private final Database database;
     private final Image image;
@@ -20,12 +21,14 @@ public final class Settings {
 
     public Settings(int configVersion,
                     OneBot oneBot,
+                    Forwarding forwarding,
                     Binding binding,
                     Database database,
                     Image image,
                     Messages messages) {
         this.configVersion = configVersion;
         this.oneBot = require(oneBot, "oneBot");
+        this.forwarding = require(forwarding, "forwarding");
         this.binding = require(binding, "binding");
         this.database = require(database, "database");
         this.image = require(image, "image");
@@ -38,6 +41,10 @@ public final class Settings {
 
     public OneBot getOneBot() {
         return oneBot;
+    }
+
+    public Forwarding getForwarding() {
+        return forwarding;
     }
 
     public Binding getBinding() {
@@ -251,6 +258,64 @@ public final class Settings {
 
         public boolean isEnabled() {
             return enabled;
+        }
+    }
+
+    public static final class Forwarding {
+        private final Direction gameToGroup;
+        private final Direction groupToGame;
+
+        public Forwarding(Direction gameToGroup, Direction groupToGame) {
+            this.gameToGroup = require(gameToGroup, "gameToGroup");
+            this.groupToGame = require(groupToGame, "groupToGame");
+        }
+
+        public Direction getGameToGroup() {
+            return gameToGroup;
+        }
+
+        public Direction getGroupToGame() {
+            return groupToGame;
+        }
+    }
+
+    public static final class Direction {
+        private final boolean enabled;
+        private final boolean requirePrefix;
+        private final String prefix;
+
+        public Direction(boolean enabled, boolean requirePrefix, String prefix, String fallbackPrefix) {
+            this.enabled = enabled;
+            this.prefix = prefix == null ? (fallbackPrefix == null ? "" : fallbackPrefix) : prefix;
+            // An empty prefix means there is no trigger prefix, so all non-empty messages pass.
+            this.requirePrefix = requirePrefix && !this.prefix.isEmpty();
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public boolean isRequirePrefix() {
+            return requirePrefix;
+        }
+
+        public String getPrefix() {
+            return prefix;
+        }
+
+        public String extractContent(String message) {
+            if (!enabled || message == null) {
+                return null;
+            }
+            String content = message;
+            if (requirePrefix) {
+                if (!content.startsWith(prefix)) {
+                    return null;
+                }
+                content = content.substring(prefix.length());
+            }
+            content = content.trim();
+            return content.isEmpty() ? null : content;
         }
     }
 

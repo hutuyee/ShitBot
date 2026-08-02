@@ -5,6 +5,7 @@ import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotspigot.command.ShitBotCommand;
 import haaa.shitbotspigot.config.SpigotConfigLoader;
+import haaa.shitbotspigot.listener.PlayerChatListener;
 import haaa.shitbotspigot.listener.PlayerLoginListener;
 import haaa.shitbotspigot.platform.SpigotPlatformBridge;
 import org.bukkit.command.PluginCommand;
@@ -24,6 +25,7 @@ public final class ShitBotSpigot extends JavaPlugin {
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
         getServer().getPluginManager().registerEvents(new PlayerLoginListener(this), this);
+        getServer().getPluginManager().registerEvents(new PlayerChatListener(this), this);
         ShitBotCommand commandHandler = new ShitBotCommand(this);
         PluginCommand command = getCommand("shitbot");
         if (command != null) {

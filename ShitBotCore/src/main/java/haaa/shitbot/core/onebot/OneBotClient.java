@@ -293,10 +293,11 @@ public final class OneBotClient implements AutoCloseable {
         if (rawMessage.trim().isEmpty()) {
             return;
         }
+        String senderName = extractSenderName(root, userId);
         Consumer<GroupMessage> consumer = groupMessageConsumer;
         if (consumer != null) {
             try {
-                consumer.accept(new GroupMessage(groupId, userId, selfId, rawMessage));
+                consumer.accept(new GroupMessage(groupId, userId, selfId, rawMessage, senderName));
             } catch (Throwable throwable) {
                 platform.error("Unhandled OneBot group message error", throwable);
             }
@@ -342,6 +343,21 @@ public final class OneBotClient implements AutoCloseable {
                 && userId > 0L
                 && userId != selfId
                 && settings.isGroupAllowed(groupId);
+    }
+
+    private String extractSenderName(JsonNode root, long userId) {
+        JsonNode sender = root.get("sender");
+        if (sender != null && sender.isObject()) {
+            String card = sender.path("card").asText("").trim();
+            if (!card.isEmpty()) {
+                return card;
+            }
+            String nickname = sender.path("nickname").asText("").trim();
+            if (!nickname.isEmpty()) {
+                return nickname;
+            }
+        }
+        return String.valueOf(userId);
     }
 
     private String extractText(JsonNode root, long selfId) {

@@ -3,6 +3,8 @@ package ds.shitBotVelocity.platform;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import haaa.shitbot.core.platform.PlatformBridge;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
@@ -54,6 +56,14 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     public void executeOnPlatformThread(Runnable runnable) {
         if (runnable != null) {
             runnable.run();
+        }
+    }
+
+    @Override
+    public void broadcastMessage(String message) {
+        Component component = LegacyComponentSerializer.legacySection().deserialize(message == null ? "" : message);
+        for (Player player : server.getAllPlayers()) {
+            player.sendMessage(component);
         }
     }
 

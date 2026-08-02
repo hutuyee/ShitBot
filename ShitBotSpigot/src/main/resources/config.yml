@@ -46,6 +46,29 @@ onebot:
         - "在线人数"
       usage: "服务器状态"
 
+forwarding:
+  # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
+  # 目标群使用 onebot.allowed-group-ids；该列表为空时无法确定发送目标。
+  game-to-group:
+    # 该方向的总开关。
+    enabled: false
+    # true：只有带 prefix 的消息才转发；false：所有非空消息均转发。
+    require-prefix: true
+    # 只从发往 QQ 的内容中移除，不改变游戏内原聊天。末尾空格会原样保留。
+    # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
+    prefix: "#qq "
+
+  # QQ 群消息转发到游戏，输出格式为 [QQ] 群名片或昵称: 内容。
+  # 仅处理 onebot.allowed-group-ids 中配置的群。
+  group-to-game:
+    # 该方向的总开关。
+    enabled: false
+    # true：只有带 prefix 的消息才转发；false：所有非空消息均转发。
+    require-prefix: true
+    # 转发时会移除此触发前缀；末尾空格属于前缀的一部分。
+    # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
+    prefix: "#mc "
+
 binding:
   enabled: true
   # true：同一个 QQ 可以绑定多个大小写精确匹配的游戏 ID。
