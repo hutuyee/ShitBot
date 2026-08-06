@@ -45,6 +45,13 @@ onebot:
         - "服务器状态"
         - "在线人数"
       usage: "服务器状态"
+    inventory:
+      enabled: true
+      aliases:
+        - "背包"
+        - "我的背包"
+      # 不接受游戏 ID 参数，只根据消息发送者 QQ 查询其绑定角色。
+      usage: "用法: 背包（仅可查询自己的绑定角色）"
 
 forwarding:
   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
@@ -144,6 +151,37 @@ image:
     # 单次生成最多等待头像的时间；超时先用默认头像，下载完成后下次生成自动使用。
     wait-timeout-ms: 2200
 
+inventory:
+  enabled: true
+  title: "%player% 的背包"
+  font-name: "Microsoft YaHei"
+  width: 760
+  slot-size: 48
+  output-file: "inventory.png"
+  snapshot:
+    # 在线玩家定时写入快照；玩家退出时也会立即抓取一次。
+    interval-seconds: 60
+    # 超过保留期的离线快照不再用于查询，并由后台清理。
+    retention-days: 30
+  cache:
+    # 快照内存缓存上限；达到上限后按最近访问顺序淘汰。
+    memory-maximum-entries: 2048
+    # 相同快照短时间内复用已经渲染的 PNG。
+    render-seconds: 5
+  render:
+    # 限制并发渲染，避免大量 QQ 查询瞬间占满 CPU。
+    maximum-concurrent: 2
+  icons:
+    # 精确覆盖目录：item-icons/<namespace>/<path>.png
+    # CustomModelData 可使用 <path>__cmd_<值>.png。
+    exported-directory: "item-icons"
+    # 自动扫描 mods-directory 下的 JAR/ZIP，仅解析普通二维物品模型。
+    scan-mod-jars: true
+    mods-directory: "../../mods"
+    # 额外资源包或资源 JAR，越靠前优先级越高。支持相对插件数据目录的路径。
+    resource-archives: []
+    cache-entries: 2048
+
 messages:
   kick-unbound: |
     &7欢迎 &a%player% &7加入服务器
@@ -160,6 +198,10 @@ messages:
   bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+  inventory-not-bound: "%at% 你还没有绑定游戏ID。"
+  inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
+  inventory-disabled: "%at% 背包查询当前未启用。"
+  inventory-failed: "%at% 背包查询失败，请稍后重试。"
   no-permission: "&c你没有权限使用此命令。"
   reload-started: "&7正在重载 ShitBot..."
   reload-success: "&aShitBot 已完成热重载。"

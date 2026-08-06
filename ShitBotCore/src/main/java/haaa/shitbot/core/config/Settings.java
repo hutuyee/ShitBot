@@ -17,6 +17,7 @@ public final class Settings {
     private final Binding binding;
     private final Database database;
     private final Image image;
+    private final Inventory inventory;
     private final Messages messages;
 
     public Settings(int configVersion,
@@ -25,6 +26,7 @@ public final class Settings {
                     Binding binding,
                     Database database,
                     Image image,
+                    Inventory inventory,
                     Messages messages) {
         this.configVersion = configVersion;
         this.oneBot = require(oneBot, "oneBot");
@@ -32,6 +34,7 @@ public final class Settings {
         this.binding = require(binding, "binding");
         this.database = require(database, "database");
         this.image = require(image, "image");
+        this.inventory = require(inventory, "inventory");
         this.messages = require(messages, "messages");
     }
 
@@ -57,6 +60,10 @@ public final class Settings {
 
     public Image getImage() {
         return image;
+    }
+
+    public Inventory getInventory() {
+        return inventory;
     }
 
     public Messages getMessages() {
@@ -105,6 +112,7 @@ public final class Settings {
         private final boolean replyAtSender;
         private final Command bindCommand;
         private final Command onlineImageCommand;
+        private final Command inventoryCommand;
         private final GroupJoinWelcome groupJoinWelcome;
         private final GroupLeaveUnbind groupLeaveUnbind;
 
@@ -121,6 +129,7 @@ public final class Settings {
                       boolean replyAtSender,
                       Command bindCommand,
                       Command onlineImageCommand,
+                      Command inventoryCommand,
                       GroupJoinWelcome groupJoinWelcome,
                       GroupLeaveUnbind groupLeaveUnbind) {
             this.enabled = enabled;
@@ -138,6 +147,7 @@ public final class Settings {
             this.replyAtSender = replyAtSender;
             this.bindCommand = require(bindCommand, "bindCommand");
             this.onlineImageCommand = require(onlineImageCommand, "onlineImageCommand");
+            this.inventoryCommand = require(inventoryCommand, "inventoryCommand");
             this.groupJoinWelcome = require(groupJoinWelcome, "groupJoinWelcome");
             this.groupLeaveUnbind = require(groupLeaveUnbind, "groupLeaveUnbind");
         }
@@ -192,6 +202,10 @@ public final class Settings {
 
         public Command getOnlineImageCommand() {
             return onlineImageCommand;
+        }
+
+        public Command getInventoryCommand() {
+            return inventoryCommand;
         }
 
         public GroupJoinWelcome getGroupJoinWelcome() {
@@ -684,6 +698,76 @@ public final class Settings {
         }
     }
 
+    public static final class Inventory {
+        private final boolean enabled;
+        private final String title;
+        private final String fontName;
+        private final int width;
+        private final int slotSize;
+        private final int snapshotIntervalSeconds;
+        private final int snapshotRetentionDays;
+        private final int memoryMaximumEntries;
+        private final int renderCacheSeconds;
+        private final int maximumConcurrentRenders;
+        private final String outputFile;
+        private final String exportedIconsDirectory;
+        private final boolean scanModJars;
+        private final String modsDirectory;
+        private final List<String> resourceArchives;
+        private final int iconCacheEntries;
+
+        public Inventory(boolean enabled,
+                         String title,
+                         String fontName,
+                         int width,
+                         int slotSize,
+                         int snapshotIntervalSeconds,
+                         int snapshotRetentionDays,
+                         int memoryMaximumEntries,
+                         int renderCacheSeconds,
+                         int maximumConcurrentRenders,
+                         String outputFile,
+                         String exportedIconsDirectory,
+                         boolean scanModJars,
+                         String modsDirectory,
+                         List<String> resourceArchives,
+                         int iconCacheEntries) {
+            this.enabled = enabled;
+            this.title = text(title, "%player% 的背包");
+            this.fontName = text(fontName, "Microsoft YaHei");
+            this.width = clamp(width, 560, 2400, 760);
+            this.slotSize = clamp(slotSize, 32, 96, 48);
+            this.snapshotIntervalSeconds = clamp(snapshotIntervalSeconds, 15, 3600, 60);
+            this.snapshotRetentionDays = clamp(snapshotRetentionDays, 1, 3650, 30);
+            this.memoryMaximumEntries = clamp(memoryMaximumEntries, 64, 100000, 2048);
+            this.renderCacheSeconds = Math.max(0, Math.min(300, renderCacheSeconds));
+            this.maximumConcurrentRenders = clamp(maximumConcurrentRenders, 1, 8, 2);
+            this.outputFile = Database.sanitizeFileName(outputFile, "inventory.png");
+            this.exportedIconsDirectory = text(exportedIconsDirectory, "item-icons");
+            this.scanModJars = scanModJars;
+            this.modsDirectory = text(modsDirectory, "../../mods");
+            this.resourceArchives = immutableStrings(resourceArchives);
+            this.iconCacheEntries = clamp(iconCacheEntries, 64, 10000, 2048);
+        }
+
+        public boolean isEnabled() { return enabled; }
+        public String getTitle() { return title; }
+        public String getFontName() { return fontName; }
+        public int getWidth() { return width; }
+        public int getSlotSize() { return slotSize; }
+        public int getSnapshotIntervalSeconds() { return snapshotIntervalSeconds; }
+        public int getSnapshotRetentionDays() { return snapshotRetentionDays; }
+        public int getMemoryMaximumEntries() { return memoryMaximumEntries; }
+        public int getRenderCacheSeconds() { return renderCacheSeconds; }
+        public int getMaximumConcurrentRenders() { return maximumConcurrentRenders; }
+        public String getOutputFile() { return outputFile; }
+        public String getExportedIconsDirectory() { return exportedIconsDirectory; }
+        public boolean isScanModJars() { return scanModJars; }
+        public String getModsDirectory() { return modsDirectory; }
+        public List<String> getResourceArchives() { return resourceArchives; }
+        public int getIconCacheEntries() { return iconCacheEntries; }
+    }
+
     public static final class Messages {
         private final String kickUnbound;
         private final String kickDatabaseUnavailable;
@@ -696,6 +780,10 @@ public final class Settings {
         private final String bindPlayerAlreadyUsed;
         private final String bindDatabaseError;
         private final String onlineFailed;
+        private final String inventoryNotBound;
+        private final String inventoryUnavailable;
+        private final String inventoryDisabled;
+        private final String inventoryFailed;
         private final String noPermission;
         private final String reloadStarted;
         private final String reloadSuccess;
@@ -712,6 +800,10 @@ public final class Settings {
                         String bindPlayerAlreadyUsed,
                         String bindDatabaseError,
                         String onlineFailed,
+                        String inventoryNotBound,
+                        String inventoryUnavailable,
+                        String inventoryDisabled,
+                        String inventoryFailed,
                         String noPermission,
                         String reloadStarted,
                         String reloadSuccess,
@@ -729,6 +821,10 @@ public final class Settings {
             this.bindPlayerAlreadyUsed = text(bindPlayerAlreadyUsed, "%at% 该游戏ID已经绑定其他QQ。");
             this.bindDatabaseError = text(bindDatabaseError, "%at% 数据库操作失败，请联系管理员。");
             this.onlineFailed = text(onlineFailed, "%at% 在线人数图片生成失败，请稍后重试。");
+            this.inventoryNotBound = text(inventoryNotBound, "%at% 你还没有绑定游戏ID。");
+            this.inventoryUnavailable = text(inventoryUnavailable, "%at% 暂无你的背包快照，请先进入一次服务器。");
+            this.inventoryDisabled = text(inventoryDisabled, "%at% 背包查询当前未启用。");
+            this.inventoryFailed = text(inventoryFailed, "%at% 背包查询失败，请稍后重试。");
             this.noPermission = text(noPermission, "&c你没有权限使用此命令。");
             this.reloadStarted = text(reloadStarted, "&7正在重载 ShitBot...");
             this.reloadSuccess = text(reloadSuccess, "&aShitBot 已完成热重载。");
@@ -746,6 +842,10 @@ public final class Settings {
         public String getBindPlayerAlreadyUsed() { return bindPlayerAlreadyUsed; }
         public String getBindDatabaseError() { return bindDatabaseError; }
         public String getOnlineFailed() { return onlineFailed; }
+        public String getInventoryNotBound() { return inventoryNotBound; }
+        public String getInventoryUnavailable() { return inventoryUnavailable; }
+        public String getInventoryDisabled() { return inventoryDisabled; }
+        public String getInventoryFailed() { return inventoryFailed; }
         public String getNoPermission() { return noPermission; }
         public String getReloadStarted() { return reloadStarted; }
         public String getReloadSuccess() { return reloadSuccess; }

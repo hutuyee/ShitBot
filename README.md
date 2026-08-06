@@ -12,7 +12,10 @@
 
 ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 
+欢迎使用 [LuckyLilliaBot](https://github.com/LLOneBot/LuckyLilliaBot) 来对接此框架
+
 > **注意：ShitBot 不与 EasyBot 竞争，仅供 LLBot 在暂时不允许 EasyBot 连接时的应急使用。**
+
 > **禁止在LLBot群讨论该插件的使用**
 
 项目支持：
@@ -82,6 +85,7 @@ forwarding:
 - 两种模式都会保留网页链接，所以没有安装模组的客户端也能点击后使用浏览器查看。
 - 仓库根目录的 `PictureBridge` 是该客户端模组的 Git 子模块，GitHub 上可直接点击跳转到独立项目。
 
+### [背包查询](https://github.com/hutuyee/ShitBot/docs/inventory.md)
 ### 数据库
 
 - 支持 SQLite

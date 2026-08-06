@@ -1,8 +1,10 @@
 package haaa.shitbot.core.platform;
 
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.inventory.InventorySnapshot;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -14,6 +16,16 @@ public interface PlatformBridge {
     String getPlatformName();
 
     CompletableFuture<Map<String, List<String>>> captureOnlinePlayers();
+
+    /** Captures all online inventories in one platform-thread pass when supported. */
+    default CompletableFuture<List<InventorySnapshot>> captureOnlineInventories() {
+        return CompletableFuture.completedFuture(Collections.<InventorySnapshot>emptyList());
+    }
+
+    /** Captures only currently-online exact player names when supported. */
+    default CompletableFuture<Map<String, InventorySnapshot>> captureInventories(List<String> playerNames) {
+        return CompletableFuture.completedFuture(Collections.<String, InventorySnapshot>emptyMap());
+    }
 
     void executeOnPlatformThread(Runnable runnable);
 

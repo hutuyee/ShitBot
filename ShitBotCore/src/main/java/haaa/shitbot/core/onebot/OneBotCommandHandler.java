@@ -4,6 +4,8 @@ import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.database.BindResult;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
+import haaa.shitbot.core.service.InventoryQueryResult;
+import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.service.OnlineImageService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
@@ -18,6 +20,7 @@ public final class OneBotCommandHandler {
     private final PlatformBridge platform;
     private final BindingService bindingService;
     private final OnlineImageService imageService;
+    private final InventoryService inventoryService;
     private final OneBotClient client;
     private final ConcurrentHashMap<String, Long> cooldowns = new ConcurrentHashMap<String, Long>();
 
@@ -25,11 +28,13 @@ public final class OneBotCommandHandler {
                                 PlatformBridge platform,
                                 BindingService bindingService,
                                 OnlineImageService imageService,
+                                InventoryService inventoryService,
                                 OneBotClient client) {
         this.settings = settings;
         this.platform = platform;
         this.bindingService = bindingService;
         this.imageService = imageService;
+        this.inventoryService = inventoryService;
         this.client = client;
     }
 
@@ -54,6 +59,18 @@ public final class OneBotCommandHandler {
             }
             return true;
         }
+        if (settings.getOneBot().getInventoryCommand().isEnabled()) {
+            Match inventoryMatch = matchPrefix(raw, settings.getOneBot().getInventoryCommand().getAliases());
+            if (inventoryMatch != null) {
+                if (!inventoryMatch.remaining.isEmpty()) {
+                    reply(message, settings.getOneBot().getInventoryCommand().getUsage(), null, null);
+                } else if (!isCoolingDown(message, "inventory")) {
+                    handleInventory(message);
+                }
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -120,6 +137,41 @@ public final class OneBotCommandHandler {
                     public com.fasterxml.jackson.databind.JsonNode apply(Throwable throwable) {
                         platform.error("Failed to render/send online image", FutureUtil.unwrap(throwable));
                         reply(message, settings.getMessages().getOnlineFailed(), null, null);
+                        return null;
+                    }
+                });
+    }
+
+    private void handleInventory(final GroupMessage message) {
+        final String qqId = String.valueOf(message.getUserId());
+        inventoryService.queryForQq(qqId).thenCompose(
+                new java.util.function.Function<InventoryQueryResult,
+                        java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode>>() {
+                    @Override
+                    public java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode> apply(
+                            InventoryQueryResult result) {
+                        switch (result.getStatus()) {
+                            case SUCCESS:
+                                return client.sendGroupImage(message.getGroupId(), result.getImage(),
+                                        settings.getInventory().getOutputFile());
+                            case NOT_BOUND:
+                                reply(message, settings.getMessages().getInventoryNotBound(), null, qqId);
+                                break;
+                            case NO_SNAPSHOT:
+                                reply(message, settings.getMessages().getInventoryUnavailable(), null, qqId);
+                                break;
+                            case DISABLED:
+                            default:
+                                reply(message, settings.getMessages().getInventoryDisabled(), null, qqId);
+                                break;
+                        }
+                        return java.util.concurrent.CompletableFuture.completedFuture(null);
+                    }
+                }).exceptionally(new java.util.function.Function<Throwable, com.fasterxml.jackson.databind.JsonNode>() {
+                    @Override
+                    public com.fasterxml.jackson.databind.JsonNode apply(Throwable throwable) {
+                        platform.error("Failed to query/render/send inventory image", FutureUtil.unwrap(throwable));
+                        reply(message, settings.getMessages().getInventoryFailed(), null, qqId);
                         return null;
                     }
                 });

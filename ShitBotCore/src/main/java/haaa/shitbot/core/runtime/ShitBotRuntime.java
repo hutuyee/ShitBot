@@ -3,12 +3,14 @@ package haaa.shitbot.core.runtime;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.DatabaseManager;
+import haaa.shitbot.core.database.InventorySnapshotRepository;
 import haaa.shitbot.core.onebot.OneBotClient;
 import haaa.shitbot.core.onebot.OneBotCommandHandler;
 import haaa.shitbot.core.onebot.OneBotNoticeHandler;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
 import haaa.shitbot.core.service.EasyBotMigrationService;
+import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.service.LoginDecision;
 import haaa.shitbot.core.service.MessageForwardingService;
 import haaa.shitbot.core.service.OnlineImageService;
@@ -28,9 +30,11 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final PlatformBridge platform;
     private final DatabaseManager database;
     private final BindingRepository repository;
+    private final InventorySnapshotRepository inventorySnapshotRepository;
     private final BindingService bindingService;
     private final EasyBotMigrationService easyBotMigrationService;
     private final OnlineImageService imageService;
+    private final InventoryService inventoryService;
     private final OneBotClient oneBotClient;
     private final OneBotCommandHandler commandHandler;
     private final OneBotNoticeHandler noticeHandler;
@@ -46,13 +50,16 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.platform = platform;
         this.database = new DatabaseManager(settings.getDatabase(), platform);
         this.repository = new BindingRepository(database, settings.getBinding());
+        this.inventorySnapshotRepository = new InventorySnapshotRepository(database);
         this.bindingService = new BindingService(settings, repository);
         this.easyBotMigrationService = new EasyBotMigrationService(platform, repository);
         this.imageService = new OnlineImageService(settings.getImage(), platform);
+        this.inventoryService = new InventoryService(
+                settings.getInventory(), platform, repository, inventorySnapshotRepository);
         this.oneBotClient = new OneBotClient(
                 settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(), platform);
         this.commandHandler = new OneBotCommandHandler(
-                settings, platform, bindingService, imageService, oneBotClient);
+                settings, platform, bindingService, imageService, inventoryService, oneBotClient);
         this.noticeHandler = new OneBotNoticeHandler(
                 settings, platform, bindingService, oneBotClient);
         this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
@@ -85,6 +92,7 @@ public final class ShitBotRuntime implements AutoCloseable {
                 if (closed.get()) {
                     return;
                 }
+                inventoryService.start(maintenanceExecutor);
                 maintenanceExecutor.scheduleAtFixedRate(new Runnable() {
                     @Override
                     public void run() {
@@ -163,6 +171,10 @@ public final class ShitBotRuntime implements AutoCloseable {
         return imageService;
     }
 
+    public InventoryService getInventoryService() {
+        return inventoryService;
+    }
+
     public OneBotClient getOneBotClient() {
         return oneBotClient;
     }
@@ -194,6 +206,7 @@ public final class ShitBotRuntime implements AutoCloseable {
         }
         maintenanceExecutor.shutdownNow();
         oneBotClient.close();
+        inventoryService.close();
         imageService.close();
         database.close();
     }

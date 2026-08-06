@@ -16,6 +16,10 @@ public final class SettingsFactory {
                 source.getBoolean("onebot.commands.online-image.enabled", true),
                 listOrDefault(source.getStringList("onebot.commands.online-image.aliases"), "服务器状态", "在线人数"),
                 source.getString("onebot.commands.online-image.usage", "服务器状态"));
+        Settings.Command inventoryCommand = new Settings.Command(
+                source.getBoolean("onebot.commands.inventory.enabled", true),
+                listOrDefault(source.getStringList("onebot.commands.inventory.aliases"), "背包", "我的背包"),
+                source.getString("onebot.commands.inventory.usage", "用法: 背包（仅可查询自己的绑定角色）"));
 
         Settings.GroupJoinWelcome groupJoinWelcome = new Settings.GroupJoinWelcome(
                 source.getBoolean("onebot.notices.group-join-welcome.enabled", true),
@@ -38,6 +42,7 @@ public final class SettingsFactory {
                 source.getBoolean("onebot.reply-at-sender", true),
                 bindCommand,
                 onlineCommand,
+                inventoryCommand,
                 groupJoinWelcome,
                 groupLeaveUnbind);
 
@@ -103,6 +108,24 @@ public final class SettingsFactory {
                 source.getInt("image.avatar.read-timeout-ms", 2500),
                 source.getInt("image.avatar.wait-timeout-ms", 2200));
 
+        Settings.Inventory inventory = new Settings.Inventory(
+                source.getBoolean("inventory.enabled", true),
+                source.getString("inventory.title", "%player% 的背包"),
+                source.getString("inventory.font-name", "Microsoft YaHei"),
+                source.getInt("inventory.width", 760),
+                source.getInt("inventory.slot-size", 48),
+                source.getInt("inventory.snapshot.interval-seconds", 60),
+                source.getInt("inventory.snapshot.retention-days", 30),
+                source.getInt("inventory.cache.memory-maximum-entries", 2048),
+                source.getInt("inventory.cache.render-seconds", 5),
+                source.getInt("inventory.render.maximum-concurrent", 2),
+                source.getString("inventory.output-file", "inventory.png"),
+                source.getString("inventory.icons.exported-directory", "item-icons"),
+                source.getBoolean("inventory.icons.scan-mod-jars", true),
+                source.getString("inventory.icons.mods-directory", "../../mods"),
+                source.getStringList("inventory.icons.resource-archives"),
+                source.getInt("inventory.icons.cache-entries", 2048));
+
         Settings.Messages messages = new Settings.Messages(
                 source.getString("messages.kick-unbound",
                         "&7欢迎 &a%player% &7加入服务器\n&7请在QQ群发送 &6绑定 %player% %code%\n&7验证码将在 &c%expire_minutes% 分钟 &7后失效"),
@@ -117,12 +140,17 @@ public final class SettingsFactory {
                 source.getString("messages.bind-player-already-used", "%at% 该游戏ID已经绑定其他QQ。"),
                 source.getString("messages.bind-database-error", "%at% 数据库操作失败，请联系管理员。"),
                 source.getString("messages.online-failed", "%at% 在线人数图片生成失败，请稍后重试。"),
+                source.getString("messages.inventory-not-bound", "%at% 你还没有绑定游戏ID。"),
+                source.getString("messages.inventory-unavailable", "%at% 暂无你的背包快照，请先进入一次服务器。"),
+                source.getString("messages.inventory-disabled", "%at% 背包查询当前未启用。"),
+                source.getString("messages.inventory-failed", "%at% 背包查询失败，请稍后重试。"),
                 source.getString("messages.no-permission", "&c你没有权限使用此命令。"),
                 source.getString("messages.reload-started", "&7正在重载 ShitBot..."),
                 source.getString("messages.reload-success", "&aShitBot 已完成热重载。"),
                 source.getString("messages.reload-failed", "&cShitBot 重载失败，旧配置仍在运行。"));
 
-        return new Settings(source.getInt("config-version", 1), oneBot, forwarding, binding, database, image, messages);
+        return new Settings(source.getInt("config-version", 1), oneBot, forwarding, binding,
+                database, image, inventory, messages);
     }
 
     private static List<String> listOrDefault(List<String> values, String... fallback) {

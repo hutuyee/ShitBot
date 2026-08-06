@@ -21,9 +21,12 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -72,6 +75,20 @@ public final class BindingRepository {
             @Override
             public Optional<BindingRecord> apply(Connection connection) throws SQLException {
                 return findByQqId(connection, normalizedQq);
+            }
+        });
+    }
+
+    /** Returns every exact player name owned by one QQ, newest binding first. */
+    public CompletableFuture<List<BindingRecord>> findAllByQqId(final String qqId) {
+        if (!TextUtil.isValidQqId(qqId)) {
+            return CompletableFuture.completedFuture(Collections.<BindingRecord>emptyList());
+        }
+        final String cleanQq = qqId.trim();
+        return database.supplyAsync(new DatabaseManager.SqlFunction<List<BindingRecord>>() {
+            @Override
+            public List<BindingRecord> apply(Connection connection) throws SQLException {
+                return findAllByQqId(connection, cleanQq);
             }
         });
     }
@@ -844,6 +861,21 @@ public final class BindingRepository {
                 return resultSet.next() ? Optional.of(readBinding(resultSet)) : Optional.<BindingRecord>empty();
             }
         }
+    }
+
+    private List<BindingRecord> findAllByQqId(Connection connection, String qqId) throws SQLException {
+        List<BindingRecord> result = new ArrayList<BindingRecord>();
+        String sql = "SELECT player_name, player_uuid, qq_id, created_at, updated_at "
+                + "FROM shitbot_bindings WHERE qq_id=? ORDER BY updated_at DESC, id DESC";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, qqId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    result.add(readBinding(resultSet));
+                }
+            }
+        }
+        return result;
     }
 
     private Optional<BindingRecord> findByQqId(Connection connection, String qqId) throws SQLException {
