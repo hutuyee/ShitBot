@@ -3,9 +3,12 @@ name: Build
 on:
   push:
     branches:
-      - master
+      - main
+
   pull_request:
+
   workflow_dispatch:
+
   release:
     types:
       - published
@@ -14,6 +17,7 @@ jobs:
   build:
     name: Build with Maven
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     permissions:
       contents: read
@@ -30,74 +34,176 @@ jobs:
           cache: maven
 
       - name: Build project
-        run: mvn --batch-mode --no-transfer-progress clean package
-
-      - name: Prepare JAR files
         shell: bash
         run: |
+          set -euo pipefail
+
+          mvn \
+            --batch-mode \
+            --no-transfer-progress \
+            clean package
+
+      - name: Prepare plugin JAR files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf release
           mkdir -p release
 
-          find target \
-            -maxdepth 1 \
-            -type f \
-            -name "*.jar" \
-            ! -name "original-*.jar" \
-            ! -name "*-sources.jar" \
-            ! -name "*-javadoc.jar" \
-            -exec cp "{}" release/ \;
+          modules=(
+            "ShitBotSpigot"
+            "ShitBotBungee"
+            "ShitBotVelocity"
+          )
 
-          echo "Generated JAR files:"
+          for module in "${modules[@]}"; do
+            target_dir="${module}/target"
+
+            echo "Checking module: ${module}"
+
+            if [[ ! -d "${target_dir}" ]]; then
+              echo "::error title=Missing build output::Directory ${target_dir} does not exist."
+              exit 1
+            fi
+
+            mapfile -t jars < <(
+              find "${target_dir}" \
+                -maxdepth 1 \
+                -type f \
+                -name "*.jar" \
+                ! -name "original-*.jar" \
+                ! -name "*-sources.jar" \
+                ! -name "*-javadoc.jar" \
+                ! -name "*-tests.jar" \
+                ! -name "*-test.jar" \
+                -print \
+              | sort
+            )
+
+            if [[ "${#jars[@]}" -eq 0 ]]; then
+              echo "::error title=Missing plugin JAR::No plugin JAR was generated for ${module}."
+              echo "Contents of ${target_dir}:"
+              ls -lah "${target_dir}"
+              exit 1
+            fi
+
+            if [[ "${#jars[@]}" -gt 1 ]]; then
+              echo "::error title=Ambiguous plugin JAR::More than one candidate JAR was generated for ${module}."
+
+              printf 'Candidate: %s\n' "${jars[@]}"
+
+              echo "Contents of ${target_dir}:"
+              ls -lah "${target_dir}"
+              exit 1
+            fi
+
+            jar_file="${jars[0]}"
+            jar_name="$(basename "${jar_file}")"
+
+            echo "Copying ${jar_file} -> release/${jar_name}"
+            cp "${jar_file}" "release/${jar_name}"
+          done
+
+          echo
+          echo "Generated plugin JAR files:"
           ls -lah release
 
-          if ! find release -maxdepth 1 -type f -name "*.jar" | grep -q .; then
-            echo "No plugin JAR was generated."
+          mapfile -t release_jars < <(
+            find release \
+              -maxdepth 1 \
+              -type f \
+              -name "*.jar" \
+              -print \
+            | sort
+          )
+
+          if [[ "${#release_jars[@]}" -ne 3 ]]; then
+            echo "::error title=Unexpected artifact count::Expected exactly 3 plugin JAR files, found ${#release_jars[@]}."
             exit 1
           fi
+
+          echo
+          echo "Release files:"
+          printf '%s\n' "${release_jars[@]}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BiliMusicBridge-${{ github.sha }}
+          name: ShitBot-${{ github.sha }}
           path: release/*.jar
           if-no-files-found: error
           retention-days: 30
+          compression-level: 0
 
   release:
     name: Upload GitHub Release
-    if: github.event_name == 'release'
-    needs: build
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs:
+      - build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       contents: write
 
     steps:
-      - name: Download compiled JAR
+      - name: Download compiled JAR files
         uses: actions/download-artifact@v4
         with:
-          name: BiliMusicBridge-${{ github.sha }}
+          name: ShitBot-${{ github.sha }}
           path: release
+
+      - name: Verify release JAR files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Downloaded release files:"
+          ls -lah release
+
+          mapfile -t jars < <(
+            find release \
+              -maxdepth 1 \
+              -type f \
+              -name "*.jar" \
+              -print \
+            | sort
+          )
+
+          if [[ "${#jars[@]}" -ne 3 ]]; then
+            echo "::error title=Unexpected release artifact count::Expected exactly 3 JAR files, found ${#jars[@]}."
+            exit 1
+          fi
+
+          printf 'Ready to upload: %s\n' "${jars[@]}"
 
       - name: Clear release description
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          printf "" > EMPTY_RELEASE_NOTES.md
+          set -euo pipefail
+
+          : > EMPTY_RELEASE_NOTES.md
 
           gh release edit \
             "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" \
             --notes-file EMPTY_RELEASE_NOTES.md
 
-      - name: Upload JAR to release
+      - name: Upload JAR files to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          echo "Uploading:"
+          set -euo pipefail
+
+          echo "Uploading JAR files:"
           ls -lah release
 
           gh release upload \
             "${{ github.event.release.tag_name }}" \
             release/*.jar \
+            --repo "${{ github.repository }}" \
             --clobber
