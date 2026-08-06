@@ -1,25 +1,12 @@
-# QQ 自助背包查询
+# QQ 背包查询
 
 ## 使用方式与权限边界
 
-群成员只能发送 `背包` 或 `我的背包` 查询自己 QQ 已绑定的角色。命令不接受游戏 ID 参数，发送 `背包 Steve` 只会返回用法提示，不会查询其他玩家。
+群成员只能发送 `背包` 或 `我的背包` 查询自己 QQ 已绑定的角色。config可改命令
 
-若一个 QQ 绑定了多个角色，系统按以下顺序选择：
+若群成员有多个号，则会查询该查询号是否为他所绑定号。
 
-1. 当前在线并能实时抓取背包的角色；
-2. 没有在线角色时，选择数据库中快照时间最新的角色。
-
-查询流程会合并同一 QQ 的并发请求，并复用短时渲染缓存。
-
-## 离线快照
-
-Spigot 后端会：
-
-- 每隔 `inventory.snapshot.interval-seconds` 秒抓取所有在线玩家；
-- 玩家退出时再抓取一次；
-- 实时查询成功后异步写入一次。
-
-快照以版本化 JSON、GZIP 压缩 BLOB 保存到 `shitbot_inventory_snapshots`。只保存绘图所需字段，不保存完整 NBT。格式 2 额外保存 1.21.4+ 物品模型组件所需的有界 CustomModelData 列表；格式 3 只为玩家头额外保存经过校验的 Mojang 贴图哈希，不保存签名、UUID、拥有者名称或完整 Profile/NBT。格式 1、2 的旧快照仍可读取。超过 `retention-days` 的快照不会再返回，并会被后台删除。
+## 支持离线查询
 
 ## 群组服部署
 
@@ -84,7 +71,7 @@ inventory:
 
 ### 玩家头
 
-自定义玩家头不再依赖 `models/item/skull_steve.json`。Spigot 后端会兼容读取旧版 CraftMetaSkull/GameProfile、新版 PlayerProfile/ResolvableProfile 中的 `textures` 属性，只截取并保存 `textures.minecraft.net` 的十六进制内容哈希。图片端通过固定的 Mojang 贴图域名获取皮肤，合成头部底层和帽子层，并缓存在：
+Spigot 后端会兼容读取旧版 CraftMetaSkull/GameProfile、新版 PlayerProfile/ResolvableProfile 中的 `textures` 属性，只截取并保存 `textures.minecraft.net` 的十六进制内容哈希。图片端通过固定的 Mojang 贴图域名获取皮肤，合成头部底层和帽子层，并缓存在：
 
 ```text
 plugins/ShitBot/inventory-head-cache/

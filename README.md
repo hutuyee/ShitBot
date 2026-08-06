@@ -53,6 +53,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - 验证码使用随机盐哈希保存，数据库中不保存明文验证码
 - 同一个 QQ 不能重复绑定多个游戏 ID
 
+### [关于背包查询请点这里](https://github.com/hutuyee/ShitBot/docs/inventory.md)
 ### OneBot v11
 
 - 使用正向 WebSocket，由 ShitBot 主动连接 OneBot 实现
@@ -85,7 +86,6 @@ forwarding:
 - 两种模式都会保留网页链接，所以没有安装模组的客户端也能点击后使用浏览器查看。
 - 仓库根目录的 `PictureBridge` 是该客户端模组的 Git 子模块，GitHub 上可直接点击跳转到独立项目。
 
-### [背包查询](https://github.com/hutuyee/ShitBot/docs/inventory.md)
 ### 数据库
 
 - 支持 SQLite
