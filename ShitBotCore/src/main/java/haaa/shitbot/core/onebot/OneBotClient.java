@@ -13,6 +13,8 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.enums.ReadyState;
 import org.java_websocket.handshake.ServerHandshake;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ import java.util.function.Consumer;
  */
 public final class OneBotClient implements AutoCloseable {
     private static final int MAX_INBOUND_MESSAGE_LENGTH = 2 * 1024 * 1024;
+    private static final Logger log = LoggerFactory.getLogger(OneBotClient.class);
 
     private final Settings.OneBot settings;
     private final Settings.MediaMode mediaMode;

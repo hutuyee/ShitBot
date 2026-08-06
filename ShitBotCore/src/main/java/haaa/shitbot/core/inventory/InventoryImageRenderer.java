@@ -53,7 +53,8 @@ public final class InventoryImageRenderer {
     }
 
     public byte[] render(InventorySnapshot snapshot, boolean live) throws Exception {
-        String key = snapshot.getPlayerName() + '|' + snapshot.getCapturedAt() + '|' + live;
+        String key = snapshot.getPlayerName() + '|' + snapshot.getCapturedAt() + '|' + live
+                + '|' + iconResolver.getCacheGeneration();
         long now = System.currentTimeMillis();
         synchronized (renderCache) {
             CachedRender cached = renderCache.get(key);

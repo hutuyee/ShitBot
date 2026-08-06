@@ -16,9 +16,11 @@ import java.util.zip.GZIPOutputStream;
 
 /** Versioned and bounded GZIP/JSON persistence codec for inventory snapshots. */
 public final class InventorySnapshotCodec {
+    private static final int MIN_SUPPORTED_FORMAT = 1;
     private static final int MAX_COMPRESSED_BYTES = 512 * 1024;
     private static final int MAX_UNCOMPRESSED_BYTES = 2 * 1024 * 1024;
     private static final int MAX_ITEMS = InventorySnapshot.TOTAL_SLOTS;
+    private static final int MAX_COMPONENT_VALUES = 16;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -42,6 +44,16 @@ public final class InventorySnapshotCodec {
             if (item.getCustomModelData() != null) {
                 node.put("customModelData", item.getCustomModelData().intValue());
             }
+            if (!item.getItemModel().isEmpty()) {
+                node.put("itemModel", item.getItemModel());
+            }
+            writeFloats(node, "customModelFloats", item.getCustomModelFloats());
+            writeFlags(node, "customModelFlags", item.getCustomModelFlags());
+            writeStrings(node, "customModelStrings", item.getCustomModelStrings());
+            writeColors(node, "customModelColors", item.getCustomModelColors());
+            if (!item.getProfileTextureHash().isEmpty()) {
+                node.put("profileTextureHash", item.getProfileTextureHash());
+            }
             node.put("enchanted", item.isEnchanted());
             node.put("unbreakable", item.isUnbreakable());
         }
@@ -51,10 +63,10 @@ public final class InventorySnapshotCodec {
             throw new IOException("Inventory snapshot JSON is too large: " + json.length + " bytes");
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream(4096);
-        GZIPOutputStream gzip = new GZIPOutputStream(output);
-        gzip.write(json);
-        gzip.finish();
-        gzip.close();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(output)) {
+            gzip.write(json);
+            gzip.finish();
+        }
         byte[] encoded = output.toByteArray();
         if (encoded.length > MAX_COMPRESSED_BYTES) {
             throw new IOException("Inventory snapshot is too large: " + encoded.length + " bytes");
@@ -71,8 +83,9 @@ public final class InventorySnapshotCodec {
             json = readBounded(gzip, MAX_UNCOMPRESSED_BYTES);
         }
         JsonNode root = mapper.readTree(json);
-        if (root == null || root.path("format").asInt(-1) != InventorySnapshot.FORMAT_VERSION) {
-            throw new IOException("Unsupported inventory snapshot format");
+        int format = root == null ? -1 : root.path("format").asInt(-1);
+        if (format < MIN_SUPPORTED_FORMAT || format > InventorySnapshot.FORMAT_VERSION) {
+            throw new IOException("Unsupported inventory snapshot format: " + format);
         }
 
         List<InventorySnapshot.Item> items = new ArrayList<InventorySnapshot.Item>();
@@ -80,13 +93,9 @@ public final class InventorySnapshotCodec {
         if (itemNodes.isArray()) {
             int count = 0;
             for (JsonNode node : itemNodes) {
-                if (++count > MAX_ITEMS) {
-                    break;
-                }
+                if (++count > MAX_ITEMS) break;
                 int slot = node.path("slot").asInt(-1);
-                if (slot < 0 || slot >= InventorySnapshot.TOTAL_SLOTS) {
-                    continue;
-                }
+                if (slot < 0 || slot >= InventorySnapshot.TOTAL_SLOTS) continue;
                 JsonNode customModelNode = node.get("customModelData");
                 Integer customModelData = customModelNode == null || !customModelNode.isNumber()
                         ? null : Integer.valueOf(customModelNode.asInt());
@@ -99,6 +108,12 @@ public final class InventorySnapshotCodec {
                         node.path("damage").asInt(0),
                         node.path("maximumDurability").asInt(0),
                         customModelData,
+                        format >= 2 ? node.path("itemModel").asText("") : "",
+                        format >= 2 ? readFloats(node.path("customModelFloats")) : null,
+                        format >= 2 ? readFlags(node.path("customModelFlags")) : null,
+                        format >= 2 ? readStrings(node.path("customModelStrings")) : null,
+                        format >= 2 ? readColors(node.path("customModelColors")) : null,
+                        format >= 3 ? node.path("profileTextureHash").asText("") : "",
                         node.path("enchanted").asBoolean(false),
                         node.path("unbreakable").asBoolean(false)));
             }
@@ -109,6 +124,74 @@ public final class InventorySnapshotCodec {
                 root.path("serverName").asText("unknown"),
                 root.path("capturedAt").asLong(0L),
                 items);
+    }
+
+    private void writeFloats(ObjectNode node, String name, List<Float> values) {
+        if (values.isEmpty()) return;
+        ArrayNode array = node.putArray(name);
+        for (Float value : values) array.add(value.floatValue());
+    }
+
+    private void writeFlags(ObjectNode node, String name, List<Boolean> values) {
+        if (values.isEmpty()) return;
+        ArrayNode array = node.putArray(name);
+        for (Boolean value : values) array.add(value.booleanValue());
+    }
+
+    private void writeStrings(ObjectNode node, String name, List<String> values) {
+        if (values.isEmpty()) return;
+        ArrayNode array = node.putArray(name);
+        for (String value : values) array.add(value);
+    }
+
+    private void writeColors(ObjectNode node, String name, List<Integer> values) {
+        if (values.isEmpty()) return;
+        ArrayNode array = node.putArray(name);
+        for (Integer value : values) array.add(value.intValue());
+    }
+
+    private List<Float> readFloats(JsonNode node) {
+        List<Float> values = new ArrayList<Float>();
+        if (node.isArray()) {
+            for (JsonNode value : node) {
+                if (values.size() >= MAX_COMPONENT_VALUES) break;
+                if (value.isNumber()) values.add(Float.valueOf((float) value.asDouble()));
+            }
+        }
+        return values;
+    }
+
+    private List<Boolean> readFlags(JsonNode node) {
+        List<Boolean> values = new ArrayList<Boolean>();
+        if (node.isArray()) {
+            for (JsonNode value : node) {
+                if (values.size() >= MAX_COMPONENT_VALUES) break;
+                if (value.isBoolean()) values.add(Boolean.valueOf(value.asBoolean()));
+            }
+        }
+        return values;
+    }
+
+    private List<String> readStrings(JsonNode node) {
+        List<String> values = new ArrayList<String>();
+        if (node.isArray()) {
+            for (JsonNode value : node) {
+                if (values.size() >= MAX_COMPONENT_VALUES) break;
+                if (value.isTextual()) values.add(value.asText());
+            }
+        }
+        return values;
+    }
+
+    private List<Integer> readColors(JsonNode node) {
+        List<Integer> values = new ArrayList<Integer>();
+        if (node.isArray()) {
+            for (JsonNode value : node) {
+                if (values.size() >= MAX_COMPONENT_VALUES) break;
+                if (value.isNumber()) values.add(Integer.valueOf(value.asInt()));
+            }
+        }
+        return values;
     }
 
     private byte[] readBounded(InputStream input, int maximumBytes) throws IOException {

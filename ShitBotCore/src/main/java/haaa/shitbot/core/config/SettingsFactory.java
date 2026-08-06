@@ -123,6 +123,9 @@ public final class SettingsFactory {
                 source.getString("inventory.icons.exported-directory", "item-icons"),
                 source.getBoolean("inventory.icons.scan-mod-jars", true),
                 source.getString("inventory.icons.mods-directory", "../../mods"),
+                source.getBoolean("inventory.icons.auto-discover", true),
+                source.getInt("inventory.icons.refresh-seconds", 30),
+                source.getInt("inventory.icons.index-wait-ms", 5000),
                 source.getStringList("inventory.icons.resource-archives"),
                 source.getInt("inventory.icons.cache-entries", 2048));
 

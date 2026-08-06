@@ -175,10 +175,16 @@ inventory:
     # 精确覆盖目录：item-icons/<namespace>/<path>.png
     # CustomModelData 可使用 <path>__cmd_<值>.png。
     exported-directory: "item-icons"
-    # 自动扫描 mods-directory 下的 JAR/ZIP，仅解析普通二维物品模型。
+    # 自动扫描 mods-directory 下的 JAR/ZIP。客户端核心 JAR 也可以直接放进该目录。
     scan-mod-jars: true
     mods-directory: "../../mods"
-    # 额外资源包或资源 JAR，越靠前优先级越高。支持相对插件数据目录的路径。
+    # 自动发现服务端根目录下的 resourcepacks、server-resource-packs、versions 和客户端 JAR。
+    auto-discover: true
+    # 定期检查资源包、客户端核心和 Mod JAR 是否发生变化；变化后异步重建索引。
+    refresh-seconds: 30
+    # 首次查询最多等待材质索引的时间，超时则先显示已加载图标，不能阻塞主线程。
+    index-wait-ms: 5000
+    # 额外资源包、客户端核心或资源 JAR，越靠前优先级越高。支持目录和相对路径。
     resource-archives: []
     cache-entries: 2048
 

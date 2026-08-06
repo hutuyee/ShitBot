@@ -35,6 +35,7 @@ public final class InventoryService implements AutoCloseable {
     private final ItemIconResolver iconResolver;
     private final InventoryImageRenderer renderer;
     private final ExecutorService renderExecutor;
+    private final ExecutorService resourceExecutor;
     private final ConcurrentHashMap<String, SnapshotHolder> memorySnapshots =
             new ConcurrentHashMap<String, SnapshotHolder>();
     private final ConcurrentHashMap<String, CompletableFuture<InventoryQueryResult>> inFlightQueries =
@@ -57,13 +58,15 @@ public final class InventoryService implements AutoCloseable {
         this.renderExecutor = Executors.newFixedThreadPool(
                 settings.getMaximumConcurrentRenders(),
                 new NamedThreadFactory("shitbot-inventory-render", true));
+        this.resourceExecutor = Executors.newSingleThreadExecutor(
+                new NamedThreadFactory("shitbot-inventory-resources", true));
     }
 
     public void start(ScheduledExecutorService scheduler) {
         if (!settings.isEnabled() || closed.get()) {
             return;
         }
-        iconResolver.warmUpAsync(renderExecutor).exceptionally(
+        iconResolver.prepareAsync(resourceExecutor).exceptionally(
                 new java.util.function.Function<Throwable, Void>() {
                     @Override
                     public Void apply(Throwable throwable) {
@@ -231,10 +234,22 @@ public final class InventoryService implements AutoCloseable {
     }
 
     private CompletableFuture<InventoryQueryResult> render(final InventorySnapshot snapshot, final boolean live) {
+        final CompletableFuture<Void> resourcesReady = iconResolver.prepareAsync(resourceExecutor);
         return CompletableFuture.supplyAsync(new java.util.function.Supplier<InventoryQueryResult>() {
             @Override
             public InventoryQueryResult get() {
                 try {
+                    int waitMs = settings.getResourceIndexWaitMs();
+                    if (waitMs > 0) {
+                        try {
+                            resourcesReady.get(waitMs, TimeUnit.MILLISECONDS);
+                        } catch (java.util.concurrent.TimeoutException timeout) {
+                            platform.warn("Inventory resource index is still loading; rendering available icons only");
+                        } catch (java.util.concurrent.ExecutionException failure) {
+                            platform.warn("Inventory resource index is unavailable: "
+                                    + FutureUtil.unwrap(failure).getMessage());
+                        }
+                    }
                     return InventoryQueryResult.success(renderer.render(snapshot, live), snapshot, live);
                 } catch (Exception exception) {
                     throw new java.util.concurrent.CompletionException(exception);
@@ -368,6 +383,7 @@ public final class InventoryService implements AutoCloseable {
         inFlightQueries.clear();
         memorySnapshots.clear();
         renderExecutor.shutdownNow();
+        resourceExecutor.shutdownNow();
     }
 
     private static final class SnapshotHolder {

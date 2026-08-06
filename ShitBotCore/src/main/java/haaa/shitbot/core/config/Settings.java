@@ -713,6 +713,9 @@ public final class Settings {
         private final String exportedIconsDirectory;
         private final boolean scanModJars;
         private final String modsDirectory;
+        private final boolean autoDiscoverResources;
+        private final int resourceRefreshSeconds;
+        private final int resourceIndexWaitMs;
         private final List<String> resourceArchives;
         private final int iconCacheEntries;
 
@@ -730,6 +733,9 @@ public final class Settings {
                          String exportedIconsDirectory,
                          boolean scanModJars,
                          String modsDirectory,
+                         boolean autoDiscoverResources,
+                         int resourceRefreshSeconds,
+                         int resourceIndexWaitMs,
                          List<String> resourceArchives,
                          int iconCacheEntries) {
             this.enabled = enabled;
@@ -746,6 +752,9 @@ public final class Settings {
             this.exportedIconsDirectory = text(exportedIconsDirectory, "item-icons");
             this.scanModJars = scanModJars;
             this.modsDirectory = text(modsDirectory, "../../mods");
+            this.autoDiscoverResources = autoDiscoverResources;
+            this.resourceRefreshSeconds = clamp(resourceRefreshSeconds, 5, 3600, 30);
+            this.resourceIndexWaitMs = clamp(resourceIndexWaitMs, 0, 30000, 5000);
             this.resourceArchives = immutableStrings(resourceArchives);
             this.iconCacheEntries = clamp(iconCacheEntries, 64, 10000, 2048);
         }
@@ -764,6 +773,9 @@ public final class Settings {
         public String getExportedIconsDirectory() { return exportedIconsDirectory; }
         public boolean isScanModJars() { return scanModJars; }
         public String getModsDirectory() { return modsDirectory; }
+        public boolean isAutoDiscoverResources() { return autoDiscoverResources; }
+        public int getResourceRefreshSeconds() { return resourceRefreshSeconds; }
+        public int getResourceIndexWaitMs() { return resourceIndexWaitMs; }
         public List<String> getResourceArchives() { return resourceArchives; }
         public int getIconCacheEntries() { return iconCacheEntries; }
     }
