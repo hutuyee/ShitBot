@@ -19,7 +19,7 @@ public final class SettingsFactory {
         Settings.Command inventoryCommand = new Settings.Command(
                 source.getBoolean("onebot.commands.inventory.enabled", true),
                 listOrDefault(source.getStringList("onebot.commands.inventory.aliases"), "背包", "我的背包"),
-                source.getString("onebot.commands.inventory.usage", "用法: 背包（仅可查询自己的绑定角色）"));
+                source.getString("onebot.commands.inventory.usage", "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"));
 
         Settings.GroupJoinWelcome groupJoinWelcome = new Settings.GroupJoinWelcome(
                 source.getBoolean("onebot.notices.group-join-welcome.enabled", true),
@@ -144,6 +144,8 @@ public final class SettingsFactory {
                 source.getString("messages.bind-database-error", "%at% 数据库操作失败，请联系管理员。"),
                 source.getString("messages.online-failed", "%at% 在线人数图片生成失败，请稍后重试。"),
                 source.getString("messages.inventory-not-bound", "%at% 你还没有绑定游戏ID。"),
+                source.getString("messages.inventory-player-not-bound",
+                        "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"),
                 source.getString("messages.inventory-unavailable", "%at% 暂无你的背包快照，请先进入一次服务器。"),
                 source.getString("messages.inventory-disabled", "%at% 背包查询当前未启用。"),
                 source.getString("messages.inventory-failed", "%at% 背包查询失败，请稍后重试。"),

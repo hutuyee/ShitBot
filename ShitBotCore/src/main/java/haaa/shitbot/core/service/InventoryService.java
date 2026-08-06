@@ -89,8 +89,18 @@ public final class InventoryService implements AutoCloseable {
         }, 15L, 24L * 60L, TimeUnit.MINUTES);
     }
 
-    /** Queries only the player IDs bound to the supplied QQ number. */
+    /** Queries the automatically selected player ID bound to the supplied QQ number. */
     public CompletableFuture<InventoryQueryResult> queryForQq(final String qqId) {
+        return queryForQq(qqId, null);
+    }
+
+    /**
+     * Queries one explicitly requested player ID after verifying that it is
+     * bound to the supplied QQ number. A blank player name keeps the legacy
+     * automatic-selection behavior.
+     */
+    public CompletableFuture<InventoryQueryResult> queryForQq(final String qqId,
+                                                               final String playerName) {
         if (!settings.isEnabled()) {
             return CompletableFuture.completedFuture(
                     InventoryQueryResult.status(InventoryQueryResult.Status.DISABLED));
@@ -99,19 +109,21 @@ public final class InventoryService implements AutoCloseable {
             return FutureUtil.failedFuture(new IllegalStateException("Inventory service is closed"));
         }
         final String cleanQq = qqId == null ? "" : qqId.trim();
+        final String cleanPlayer = playerName == null ? "" : playerName.trim();
+        final String queryKey = cleanQq + '\u0000' + cleanPlayer;
         final CompletableFuture<InventoryQueryResult> created;
         synchronized (inFlightQueries) {
-            CompletableFuture<InventoryQueryResult> existing = inFlightQueries.get(cleanQq);
+            CompletableFuture<InventoryQueryResult> existing = inFlightQueries.get(queryKey);
             if (existing != null) {
                 return existing;
             }
-            created = doQuery(cleanQq);
-            inFlightQueries.put(cleanQq, created);
+            created = doQuery(cleanQq, cleanPlayer);
+            inFlightQueries.put(queryKey, created);
         }
         created.whenComplete(new java.util.function.BiConsumer<InventoryQueryResult, Throwable>() {
             @Override
             public void accept(InventoryQueryResult result, Throwable throwable) {
-                inFlightQueries.remove(cleanQq, created);
+                inFlightQueries.remove(queryKey, created);
             }
         });
         return created;
@@ -150,7 +162,8 @@ public final class InventoryService implements AutoCloseable {
         return result;
     }
 
-    private CompletableFuture<InventoryQueryResult> doQuery(final String qqId) {
+    private CompletableFuture<InventoryQueryResult> doQuery(final String qqId,
+                                                             final String requestedPlayer) {
         return bindingRepository.findAllByQqId(qqId).thenCompose(
                 new java.util.function.Function<List<BindingRecord>, CompletableFuture<InventoryQueryResult>>() {
                     @Override
@@ -159,15 +172,35 @@ public final class InventoryService implements AutoCloseable {
                             return CompletableFuture.completedFuture(
                                     InventoryQueryResult.status(InventoryQueryResult.Status.NOT_BOUND));
                         }
-                        final List<String> names = new ArrayList<String>(bindings.size());
-                        for (BindingRecord binding : bindings) {
+
+                        final List<BindingRecord> selectedBindings;
+                        if (requestedPlayer.isEmpty()) {
+                            selectedBindings = bindings;
+                        } else {
+                            BindingRecord requestedBinding = null;
+                            for (BindingRecord binding : bindings) {
+                                if (requestedPlayer.equals(binding.getPlayerName())) {
+                                    requestedBinding = binding;
+                                    break;
+                                }
+                            }
+                            if (requestedBinding == null) {
+                                return CompletableFuture.completedFuture(
+                                        InventoryQueryResult.status(
+                                                InventoryQueryResult.Status.PLAYER_NOT_BOUND));
+                            }
+                            selectedBindings = Collections.singletonList(requestedBinding);
+                        }
+
+                        final List<String> names = new ArrayList<String>(selectedBindings.size());
+                        for (BindingRecord binding : selectedBindings) {
                             names.add(binding.getPlayerName());
                         }
                         return captureBoundPlayers(names).thenCompose(
                                 new java.util.function.Function<Map<String, InventorySnapshot>, CompletableFuture<InventoryQueryResult>>() {
                                     @Override
                                     public CompletableFuture<InventoryQueryResult> apply(Map<String, InventorySnapshot> liveSnapshots) {
-                                        InventorySnapshot selectedLive = selectByBindingOrder(bindings, liveSnapshots);
+                                        InventorySnapshot selectedLive = selectByBindingOrder(selectedBindings, liveSnapshots);
                                         if (selectedLive != null) {
                                             final InventorySnapshot snapshot = selectedLive;
                                             rememberAndPersist(new ArrayList<InventorySnapshot>(liveSnapshots.values()))

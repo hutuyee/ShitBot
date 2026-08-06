@@ -50,8 +50,8 @@ onebot:
       aliases:
         - "背包"
         - "我的背包"
-      # 不接受游戏 ID 参数，只根据消息发送者 QQ 查询其绑定角色。
-      usage: "用法: 背包（仅可查询自己的绑定角色）"
+      # 不带参数时自动选择一个已绑定角色；带游戏 ID 时校验该角色是否属于消息发送者 QQ。
+      usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
 
 forwarding:
   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
@@ -205,6 +205,8 @@ messages:
   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
   inventory-not-bound: "%at% 你还没有绑定游戏ID。"
+  # 支持变量：%player%。当指定的游戏 ID 不属于消息发送者 QQ 时使用。
+  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
   inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
   inventory-disabled: "%at% 背包查询当前未启用。"
   inventory-failed: "%at% 背包查询失败，请稍后重试。"

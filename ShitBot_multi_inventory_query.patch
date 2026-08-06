@@ -1,0 +1,304 @@
+diff --git a/ShitBotBungee/src/main/resources/config.yml b/ShitBotBungee/src/main/resources/config.yml
+index 563f792..5229ed7 100644
+--- a/ShitBotBungee/src/main/resources/config.yml
++++ b/ShitBotBungee/src/main/resources/config.yml
+@@ -50,8 +50,8 @@ onebot:
+       aliases:
+         - "背包"
+         - "我的背包"
+-      # 不接受游戏 ID 参数，只根据消息发送者 QQ 查询其绑定角色。
+-      usage: "用法: 背包（仅可查询自己的绑定角色）"
++      # 不带参数时自动选择一个已绑定角色；带游戏 ID 时校验该角色是否属于消息发送者 QQ。
++      usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
+ 
+ forwarding:
+   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
+@@ -205,6 +205,8 @@ messages:
+   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
+   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+   inventory-not-bound: "%at% 你还没有绑定游戏ID。"
++  # 支持变量：%player%。当指定的游戏 ID 不属于消息发送者 QQ 时使用。
++  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
+   inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
+   inventory-disabled: "%at% 背包查询当前未启用。"
+   inventory-failed: "%at% 背包查询失败，请稍后重试。"
+diff --git a/ShitBotCore/src/main/java/haaa/shitbot/core/config/Settings.java b/ShitBotCore/src/main/java/haaa/shitbot/core/config/Settings.java
+index 0876cca..d55bb1e 100644
+--- a/ShitBotCore/src/main/java/haaa/shitbot/core/config/Settings.java
++++ b/ShitBotCore/src/main/java/haaa/shitbot/core/config/Settings.java
+@@ -793,6 +793,7 @@ public final class Settings {
+         private final String bindDatabaseError;
+         private final String onlineFailed;
+         private final String inventoryNotBound;
++        private final String inventoryPlayerNotBound;
+         private final String inventoryUnavailable;
+         private final String inventoryDisabled;
+         private final String inventoryFailed;
+@@ -813,6 +814,7 @@ public final class Settings {
+                         String bindDatabaseError,
+                         String onlineFailed,
+                         String inventoryNotBound,
++                        String inventoryPlayerNotBound,
+                         String inventoryUnavailable,
+                         String inventoryDisabled,
+                         String inventoryFailed,
+@@ -834,6 +836,8 @@ public final class Settings {
+             this.bindDatabaseError = text(bindDatabaseError, "%at% 数据库操作失败，请联系管理员。");
+             this.onlineFailed = text(onlineFailed, "%at% 在线人数图片生成失败，请稍后重试。");
+             this.inventoryNotBound = text(inventoryNotBound, "%at% 你还没有绑定游戏ID。");
++            this.inventoryPlayerNotBound = text(inventoryPlayerNotBound,
++                    "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。");
+             this.inventoryUnavailable = text(inventoryUnavailable, "%at% 暂无你的背包快照，请先进入一次服务器。");
+             this.inventoryDisabled = text(inventoryDisabled, "%at% 背包查询当前未启用。");
+             this.inventoryFailed = text(inventoryFailed, "%at% 背包查询失败，请稍后重试。");
+@@ -855,6 +859,7 @@ public final class Settings {
+         public String getBindDatabaseError() { return bindDatabaseError; }
+         public String getOnlineFailed() { return onlineFailed; }
+         public String getInventoryNotBound() { return inventoryNotBound; }
++        public String getInventoryPlayerNotBound() { return inventoryPlayerNotBound; }
+         public String getInventoryUnavailable() { return inventoryUnavailable; }
+         public String getInventoryDisabled() { return inventoryDisabled; }
+         public String getInventoryFailed() { return inventoryFailed; }
+diff --git a/ShitBotCore/src/main/java/haaa/shitbot/core/config/SettingsFactory.java b/ShitBotCore/src/main/java/haaa/shitbot/core/config/SettingsFactory.java
+index f112783..3e489d8 100644
+--- a/ShitBotCore/src/main/java/haaa/shitbot/core/config/SettingsFactory.java
++++ b/ShitBotCore/src/main/java/haaa/shitbot/core/config/SettingsFactory.java
+@@ -19,7 +19,7 @@ public final class SettingsFactory {
+         Settings.Command inventoryCommand = new Settings.Command(
+                 source.getBoolean("onebot.commands.inventory.enabled", true),
+                 listOrDefault(source.getStringList("onebot.commands.inventory.aliases"), "背包", "我的背包"),
+-                source.getString("onebot.commands.inventory.usage", "用法: 背包（仅可查询自己的绑定角色）"));
++                source.getString("onebot.commands.inventory.usage", "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"));
+ 
+         Settings.GroupJoinWelcome groupJoinWelcome = new Settings.GroupJoinWelcome(
+                 source.getBoolean("onebot.notices.group-join-welcome.enabled", true),
+@@ -144,6 +144,8 @@ public final class SettingsFactory {
+                 source.getString("messages.bind-database-error", "%at% 数据库操作失败，请联系管理员。"),
+                 source.getString("messages.online-failed", "%at% 在线人数图片生成失败，请稍后重试。"),
+                 source.getString("messages.inventory-not-bound", "%at% 你还没有绑定游戏ID。"),
++                source.getString("messages.inventory-player-not-bound",
++                        "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"),
+                 source.getString("messages.inventory-unavailable", "%at% 暂无你的背包快照，请先进入一次服务器。"),
+                 source.getString("messages.inventory-disabled", "%at% 背包查询当前未启用。"),
+                 source.getString("messages.inventory-failed", "%at% 背包查询失败，请稍后重试。"),
+diff --git a/ShitBotCore/src/main/java/haaa/shitbot/core/onebot/OneBotCommandHandler.java b/ShitBotCore/src/main/java/haaa/shitbot/core/onebot/OneBotCommandHandler.java
+index 79554f7..65d31b5 100644
+--- a/ShitBotCore/src/main/java/haaa/shitbot/core/onebot/OneBotCommandHandler.java
++++ b/ShitBotCore/src/main/java/haaa/shitbot/core/onebot/OneBotCommandHandler.java
+@@ -62,10 +62,12 @@ public final class OneBotCommandHandler {
+         if (settings.getOneBot().getInventoryCommand().isEnabled()) {
+             Match inventoryMatch = matchPrefix(raw, settings.getOneBot().getInventoryCommand().getAliases());
+             if (inventoryMatch != null) {
+-                if (!inventoryMatch.remaining.isEmpty()) {
++                String requestedPlayer = inventoryMatch.remaining.trim();
++                if (!requestedPlayer.isEmpty()
++                        && (requestedPlayer.contains(" ") || !TextUtil.isValidPlayerName(requestedPlayer))) {
+                     reply(message, settings.getOneBot().getInventoryCommand().getUsage(), null, null);
+                 } else if (!isCoolingDown(message, "inventory")) {
+-                    handleInventory(message);
++                    handleInventory(message, requestedPlayer.isEmpty() ? null : requestedPlayer);
+                 }
+                 return true;
+             }
+@@ -142,9 +144,9 @@ public final class OneBotCommandHandler {
+                 });
+     }
+ 
+-    private void handleInventory(final GroupMessage message) {
++    private void handleInventory(final GroupMessage message, final String requestedPlayer) {
+         final String qqId = String.valueOf(message.getUserId());
+-        inventoryService.queryForQq(qqId).thenCompose(
++        inventoryService.queryForQq(qqId, requestedPlayer).thenCompose(
+                 new java.util.function.Function<InventoryQueryResult,
+                         java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode>>() {
+                     @Override
+@@ -157,8 +159,13 @@ public final class OneBotCommandHandler {
+                             case NOT_BOUND:
+                                 reply(message, settings.getMessages().getInventoryNotBound(), null, qqId);
+                                 break;
++                            case PLAYER_NOT_BOUND:
++                                reply(message, settings.getMessages().getInventoryPlayerNotBound(),
++                                        requestedPlayer, qqId);
++                                break;
+                             case NO_SNAPSHOT:
+-                                reply(message, settings.getMessages().getInventoryUnavailable(), null, qqId);
++                                reply(message, settings.getMessages().getInventoryUnavailable(),
++                                        requestedPlayer, qqId);
+                                 break;
+                             case DISABLED:
+                             default:
+diff --git a/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryQueryResult.java b/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryQueryResult.java
+index 3bbed39..7adc2d4 100644
+--- a/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryQueryResult.java
++++ b/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryQueryResult.java
+@@ -6,6 +6,7 @@ public final class InventoryQueryResult {
+     public enum Status {
+         SUCCESS,
+         NOT_BOUND,
++        PLAYER_NOT_BOUND,
+         NO_SNAPSHOT,
+         DISABLED
+     }
+diff --git a/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryService.java b/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryService.java
+index da774f9..e9c5e75 100644
+--- a/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryService.java
++++ b/ShitBotCore/src/main/java/haaa/shitbot/core/service/InventoryService.java
+@@ -89,8 +89,18 @@ public final class InventoryService implements AutoCloseable {
+         }, 15L, 24L * 60L, TimeUnit.MINUTES);
+     }
+ 
+-    /** Queries only the player IDs bound to the supplied QQ number. */
++    /** Queries the automatically selected player ID bound to the supplied QQ number. */
+     public CompletableFuture<InventoryQueryResult> queryForQq(final String qqId) {
++        return queryForQq(qqId, null);
++    }
++
++    /**
++     * Queries one explicitly requested player ID after verifying that it is
++     * bound to the supplied QQ number. A blank player name keeps the legacy
++     * automatic-selection behavior.
++     */
++    public CompletableFuture<InventoryQueryResult> queryForQq(final String qqId,
++                                                               final String playerName) {
+         if (!settings.isEnabled()) {
+             return CompletableFuture.completedFuture(
+                     InventoryQueryResult.status(InventoryQueryResult.Status.DISABLED));
+@@ -99,19 +109,21 @@ public final class InventoryService implements AutoCloseable {
+             return FutureUtil.failedFuture(new IllegalStateException("Inventory service is closed"));
+         }
+         final String cleanQq = qqId == null ? "" : qqId.trim();
++        final String cleanPlayer = playerName == null ? "" : playerName.trim();
++        final String queryKey = cleanQq + '\u0000' + cleanPlayer;
+         final CompletableFuture<InventoryQueryResult> created;
+         synchronized (inFlightQueries) {
+-            CompletableFuture<InventoryQueryResult> existing = inFlightQueries.get(cleanQq);
++            CompletableFuture<InventoryQueryResult> existing = inFlightQueries.get(queryKey);
+             if (existing != null) {
+                 return existing;
+             }
+-            created = doQuery(cleanQq);
+-            inFlightQueries.put(cleanQq, created);
++            created = doQuery(cleanQq, cleanPlayer);
++            inFlightQueries.put(queryKey, created);
+         }
+         created.whenComplete(new java.util.function.BiConsumer<InventoryQueryResult, Throwable>() {
+             @Override
+             public void accept(InventoryQueryResult result, Throwable throwable) {
+-                inFlightQueries.remove(cleanQq, created);
++                inFlightQueries.remove(queryKey, created);
+             }
+         });
+         return created;
+@@ -150,7 +162,8 @@ public final class InventoryService implements AutoCloseable {
+         return result;
+     }
+ 
+-    private CompletableFuture<InventoryQueryResult> doQuery(final String qqId) {
++    private CompletableFuture<InventoryQueryResult> doQuery(final String qqId,
++                                                             final String requestedPlayer) {
+         return bindingRepository.findAllByQqId(qqId).thenCompose(
+                 new java.util.function.Function<List<BindingRecord>, CompletableFuture<InventoryQueryResult>>() {
+                     @Override
+@@ -159,15 +172,35 @@ public final class InventoryService implements AutoCloseable {
+                             return CompletableFuture.completedFuture(
+                                     InventoryQueryResult.status(InventoryQueryResult.Status.NOT_BOUND));
+                         }
+-                        final List<String> names = new ArrayList<String>(bindings.size());
+-                        for (BindingRecord binding : bindings) {
++
++                        final List<BindingRecord> selectedBindings;
++                        if (requestedPlayer.isEmpty()) {
++                            selectedBindings = bindings;
++                        } else {
++                            BindingRecord requestedBinding = null;
++                            for (BindingRecord binding : bindings) {
++                                if (requestedPlayer.equals(binding.getPlayerName())) {
++                                    requestedBinding = binding;
++                                    break;
++                                }
++                            }
++                            if (requestedBinding == null) {
++                                return CompletableFuture.completedFuture(
++                                        InventoryQueryResult.status(
++                                                InventoryQueryResult.Status.PLAYER_NOT_BOUND));
++                            }
++                            selectedBindings = Collections.singletonList(requestedBinding);
++                        }
++
++                        final List<String> names = new ArrayList<String>(selectedBindings.size());
++                        for (BindingRecord binding : selectedBindings) {
+                             names.add(binding.getPlayerName());
+                         }
+                         return captureBoundPlayers(names).thenCompose(
+                                 new java.util.function.Function<Map<String, InventorySnapshot>, CompletableFuture<InventoryQueryResult>>() {
+                                     @Override
+                                     public CompletableFuture<InventoryQueryResult> apply(Map<String, InventorySnapshot> liveSnapshots) {
+-                                        InventorySnapshot selectedLive = selectByBindingOrder(bindings, liveSnapshots);
++                                        InventorySnapshot selectedLive = selectByBindingOrder(selectedBindings, liveSnapshots);
+                                         if (selectedLive != null) {
+                                             final InventorySnapshot snapshot = selectedLive;
+                                             rememberAndPersist(new ArrayList<InventorySnapshot>(liveSnapshots.values()))
+diff --git a/ShitBotSpigot/src/main/resources/config.yml b/ShitBotSpigot/src/main/resources/config.yml
+index 8575184..6cff586 100644
+--- a/ShitBotSpigot/src/main/resources/config.yml
++++ b/ShitBotSpigot/src/main/resources/config.yml
+@@ -50,8 +50,8 @@ onebot:
+       aliases:
+         - "背包"
+         - "我的背包"
+-      # 不接受游戏 ID 参数，只根据消息发送者 QQ 查询其绑定角色。
+-      usage: "用法: 背包（仅可查询自己的绑定角色）"
++      # 不带参数时自动选择一个已绑定角色；带游戏 ID 时校验该角色是否属于消息发送者 QQ。
++      usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
+ 
+ forwarding:
+   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
+@@ -205,6 +205,8 @@ messages:
+   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
+   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+   inventory-not-bound: "%at% 你还没有绑定游戏ID。"
++  # 支持变量：%player%。当指定的游戏 ID 不属于消息发送者 QQ 时使用。
++  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
+   inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
+   inventory-disabled: "%at% 背包查询当前未启用。"
+   inventory-failed: "%at% 背包查询失败，请稍后重试。"
+diff --git a/ShitBotVelocity/src/main/resources/config.yml b/ShitBotVelocity/src/main/resources/config.yml
+index 563f792..5229ed7 100644
+--- a/ShitBotVelocity/src/main/resources/config.yml
++++ b/ShitBotVelocity/src/main/resources/config.yml
+@@ -50,8 +50,8 @@ onebot:
+       aliases:
+         - "背包"
+         - "我的背包"
+-      # 不接受游戏 ID 参数，只根据消息发送者 QQ 查询其绑定角色。
+-      usage: "用法: 背包（仅可查询自己的绑定角色）"
++      # 不带参数时自动选择一个已绑定角色；带游戏 ID 时校验该角色是否属于消息发送者 QQ。
++      usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
+ 
+ forwarding:
+   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
+@@ -205,6 +205,8 @@ messages:
+   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
+   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+   inventory-not-bound: "%at% 你还没有绑定游戏ID。"
++  # 支持变量：%player%。当指定的游戏 ID 不属于消息发送者 QQ 时使用。
++  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
+   inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
+   inventory-disabled: "%at% 背包查询当前未启用。"
+   inventory-failed: "%at% 背包查询失败，请稍后重试。"
+diff --git a/docs/inventory.md b/docs/inventory.md
+index 62c28bd..b00b761 100644
+--- a/docs/inventory.md
++++ b/docs/inventory.md
+@@ -2,9 +2,9 @@
+ 
+ ## 使用方式与权限边界
+ 
+-群成员只能发送 `背包` 或 `我的背包` 查询自己 QQ 已绑定的角色。config可改命令
++群成员可以发送 `背包` 或 `我的背包`，让系统从自己 QQ 已绑定的角色中自动选择一个查询；命令别名可在配置中修改。
+ 
+-若群成员有多个号，则会查询该查询号是否为他所绑定号。
++群成员有多个游戏 ID 时，可发送 `背包 <游戏ID>` 或 `我的背包 <游戏ID>` 自由查询其中任意一个。系统会先精确校验该游戏 ID 是否绑定到消息发送者的 QQ，只有校验通过才会读取并发送背包图片，不能借此查询他人的角色。
+ 
+ ## 支持离线查询
+ 

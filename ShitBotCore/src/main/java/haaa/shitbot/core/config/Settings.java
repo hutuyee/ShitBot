@@ -793,6 +793,7 @@ public final class Settings {
         private final String bindDatabaseError;
         private final String onlineFailed;
         private final String inventoryNotBound;
+        private final String inventoryPlayerNotBound;
         private final String inventoryUnavailable;
         private final String inventoryDisabled;
         private final String inventoryFailed;
@@ -813,6 +814,7 @@ public final class Settings {
                         String bindDatabaseError,
                         String onlineFailed,
                         String inventoryNotBound,
+                        String inventoryPlayerNotBound,
                         String inventoryUnavailable,
                         String inventoryDisabled,
                         String inventoryFailed,
@@ -834,6 +836,8 @@ public final class Settings {
             this.bindDatabaseError = text(bindDatabaseError, "%at% 数据库操作失败，请联系管理员。");
             this.onlineFailed = text(onlineFailed, "%at% 在线人数图片生成失败，请稍后重试。");
             this.inventoryNotBound = text(inventoryNotBound, "%at% 你还没有绑定游戏ID。");
+            this.inventoryPlayerNotBound = text(inventoryPlayerNotBound,
+                    "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。");
             this.inventoryUnavailable = text(inventoryUnavailable, "%at% 暂无你的背包快照，请先进入一次服务器。");
             this.inventoryDisabled = text(inventoryDisabled, "%at% 背包查询当前未启用。");
             this.inventoryFailed = text(inventoryFailed, "%at% 背包查询失败，请稍后重试。");
@@ -855,6 +859,7 @@ public final class Settings {
         public String getBindDatabaseError() { return bindDatabaseError; }
         public String getOnlineFailed() { return onlineFailed; }
         public String getInventoryNotBound() { return inventoryNotBound; }
+        public String getInventoryPlayerNotBound() { return inventoryPlayerNotBound; }
         public String getInventoryUnavailable() { return inventoryUnavailable; }
         public String getInventoryDisabled() { return inventoryDisabled; }
         public String getInventoryFailed() { return inventoryFailed; }

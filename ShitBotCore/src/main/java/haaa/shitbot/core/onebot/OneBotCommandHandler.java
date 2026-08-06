@@ -62,10 +62,12 @@ public final class OneBotCommandHandler {
         if (settings.getOneBot().getInventoryCommand().isEnabled()) {
             Match inventoryMatch = matchPrefix(raw, settings.getOneBot().getInventoryCommand().getAliases());
             if (inventoryMatch != null) {
-                if (!inventoryMatch.remaining.isEmpty()) {
+                String requestedPlayer = inventoryMatch.remaining.trim();
+                if (!requestedPlayer.isEmpty()
+                        && (requestedPlayer.contains(" ") || !TextUtil.isValidPlayerName(requestedPlayer))) {
                     reply(message, settings.getOneBot().getInventoryCommand().getUsage(), null, null);
                 } else if (!isCoolingDown(message, "inventory")) {
-                    handleInventory(message);
+                    handleInventory(message, requestedPlayer.isEmpty() ? null : requestedPlayer);
                 }
                 return true;
             }
@@ -142,9 +144,9 @@ public final class OneBotCommandHandler {
                 });
     }
 
-    private void handleInventory(final GroupMessage message) {
+    private void handleInventory(final GroupMessage message, final String requestedPlayer) {
         final String qqId = String.valueOf(message.getUserId());
-        inventoryService.queryForQq(qqId).thenCompose(
+        inventoryService.queryForQq(qqId, requestedPlayer).thenCompose(
                 new java.util.function.Function<InventoryQueryResult,
                         java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode>>() {
                     @Override
@@ -157,8 +159,13 @@ public final class OneBotCommandHandler {
                             case NOT_BOUND:
                                 reply(message, settings.getMessages().getInventoryNotBound(), null, qqId);
                                 break;
+                            case PLAYER_NOT_BOUND:
+                                reply(message, settings.getMessages().getInventoryPlayerNotBound(),
+                                        requestedPlayer, qqId);
+                                break;
                             case NO_SNAPSHOT:
-                                reply(message, settings.getMessages().getInventoryUnavailable(), null, qqId);
+                                reply(message, settings.getMessages().getInventoryUnavailable(),
+                                        requestedPlayer, qqId);
                                 break;
                             case DISABLED:
                             default:

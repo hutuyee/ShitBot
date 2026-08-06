@@ -6,6 +6,7 @@ public final class InventoryQueryResult {
     public enum Status {
         SUCCESS,
         NOT_BOUND,
+        PLAYER_NOT_BOUND,
         NO_SNAPSHOT,
         DISABLED
     }
