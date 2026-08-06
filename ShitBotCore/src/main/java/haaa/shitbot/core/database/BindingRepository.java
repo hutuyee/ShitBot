@@ -95,17 +95,36 @@ public final class BindingRepository {
 
     /** Removes every binding owned by the exact QQ number. */
     public CompletableFuture<Integer> removeByQqId(final String qqId) {
+        return removeByQqIdAndReturnBindings(qqId).thenApply(
+                new java.util.function.Function<List<BindingRecord>, Integer>() {
+                    @Override
+                    public Integer apply(List<BindingRecord> bindings) {
+                        return Integer.valueOf(bindings.size());
+                    }
+                });
+    }
+
+    /** Removes every binding owned by the exact QQ number and returns the removed records. */
+    public CompletableFuture<List<BindingRecord>> removeByQqIdAndReturnBindings(final String qqId) {
         if (!TextUtil.isValidQqId(qqId)) {
-            return CompletableFuture.completedFuture(Integer.valueOf(0));
+            return CompletableFuture.completedFuture(Collections.<BindingRecord>emptyList());
         }
         final String cleanQq = qqId.trim();
-        return database.supplyAsync(new DatabaseManager.SqlFunction<Integer>() {
+        final Object lock = bindLocks[(cleanQq.hashCode() & Integer.MAX_VALUE) % bindLocks.length];
+        return database.transactionAsync(new DatabaseManager.SqlFunction<List<BindingRecord>>() {
             @Override
-            public Integer apply(Connection connection) throws SQLException {
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "DELETE FROM shitbot_bindings WHERE qq_id=?")) {
-                    statement.setString(1, cleanQq);
-                    return Integer.valueOf(statement.executeUpdate());
+            public List<BindingRecord> apply(Connection connection) throws SQLException {
+                synchronized (lock) {
+                    List<BindingRecord> bindings = findAllByQqId(connection, cleanQq, true);
+                    if (bindings.isEmpty()) {
+                        return bindings;
+                    }
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "DELETE FROM shitbot_bindings WHERE qq_id=?")) {
+                        statement.setString(1, cleanQq);
+                        statement.executeUpdate();
+                    }
+                    return bindings;
                 }
             }
         });
@@ -864,9 +883,16 @@ public final class BindingRepository {
     }
 
     private List<BindingRecord> findAllByQqId(Connection connection, String qqId) throws SQLException {
+        return findAllByQqId(connection, qqId, false);
+    }
+
+    private List<BindingRecord> findAllByQqId(Connection connection,
+                                              String qqId,
+                                              boolean lock) throws SQLException {
         List<BindingRecord> result = new ArrayList<BindingRecord>();
         String sql = "SELECT player_name, player_uuid, qq_id, created_at, updated_at "
-                + "FROM shitbot_bindings WHERE qq_id=? ORDER BY updated_at DESC, id DESC";
+                + "FROM shitbot_bindings WHERE qq_id=? ORDER BY updated_at DESC, id DESC"
+                + (lock && database.getType() == Settings.Database.Type.MYSQL ? " FOR UPDATE" : "");
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, qqId);
             try (ResultSet resultSet = statement.executeQuery()) {

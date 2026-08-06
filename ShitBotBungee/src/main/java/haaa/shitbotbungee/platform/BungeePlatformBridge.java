@@ -13,9 +13,11 @@ import net.md_5.bungee.api.plugin.Plugin;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 public final class BungeePlatformBridge implements PlatformBridge {
@@ -62,6 +64,28 @@ public final class BungeePlatformBridge implements PlatformBridge {
     @Override
     public void broadcastMessage(String message) {
         ProxyServer.getInstance().broadcast(TextComponent.fromLegacyText(message == null ? "" : message));
+    }
+
+    @Override
+    public void disconnectPlayers(List<String> playerNames, String reason) {
+        if (playerNames == null || playerNames.isEmpty()) {
+            return;
+        }
+        Set<String> exactNames = new HashSet<String>();
+        for (String playerName : playerNames) {
+            if (playerName != null && !playerName.trim().isEmpty()) {
+                exactNames.add(playerName.trim());
+            }
+        }
+        if (exactNames.isEmpty()) {
+            return;
+        }
+        BaseComponent[] components = TextComponent.fromLegacyText(reason == null ? "" : reason);
+        for (ProxiedPlayer player : ProxyServer.getInstance().getPlayers()) {
+            if (player != null && exactNames.contains(player.getName())) {
+                player.disconnect(components);
+            }
+        }
     }
 
     @Override

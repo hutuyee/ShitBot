@@ -51,7 +51,7 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.database = new DatabaseManager(settings.getDatabase(), platform);
         this.repository = new BindingRepository(database, settings.getBinding());
         this.inventorySnapshotRepository = new InventorySnapshotRepository(database);
-        this.bindingService = new BindingService(settings, repository);
+        this.bindingService = new BindingService(settings, repository, platform);
         this.easyBotMigrationService = new EasyBotMigrationService(platform, repository);
         this.imageService = new OnlineImageService(settings.getImage(), platform);
         this.inventoryService = new InventoryService(

@@ -625,6 +625,27 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     }
 
     @Override
+    public void disconnectPlayers(final List<String> playerNames, final String reason) {
+        if (playerNames == null || playerNames.isEmpty()) {
+            return;
+        }
+        executeOnPlatformThread(new Runnable() {
+            @Override
+            public void run() {
+                for (String playerName : playerNames) {
+                    if (playerName == null || playerName.trim().isEmpty()) {
+                        continue;
+                    }
+                    Player player = Bukkit.getPlayerExact(playerName.trim());
+                    if (player != null && player.isOnline()) {
+                        player.kickPlayer(reason == null ? "" : reason);
+                    }
+                }
+            }
+        });
+    }
+
+    @Override
     public void broadcastRichMessage(final List<ChatPart> parts) {
         executeOnPlatformThread(new Runnable() {
             @Override

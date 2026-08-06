@@ -31,6 +31,9 @@ public interface PlatformBridge {
 
     void broadcastMessage(String message);
 
+    /** Disconnects currently-online players whose names exactly match the supplied list. */
+    void disconnectPlayers(List<String> playerNames, String reason);
+
     /** Broadcasts text with optional clickable URL parts. */
     default void broadcastRichMessage(List<ChatPart> parts) {
         StringBuilder builder = new StringBuilder();

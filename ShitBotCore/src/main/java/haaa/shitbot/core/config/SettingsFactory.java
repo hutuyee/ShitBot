@@ -132,6 +132,8 @@ public final class SettingsFactory {
         Settings.Messages messages = new Settings.Messages(
                 source.getString("messages.kick-unbound",
                         "&7欢迎 &a%player% &7加入服务器\n&7请在QQ群发送 &6绑定 %player% %code%\n&7验证码将在 &c%expire_minutes% 分钟 &7后失效"),
+                source.getString("messages.kick-after-unbind",
+                        "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。"),
                 source.getString("messages.kick-database-unavailable", "&c绑定系统暂时不可用，请稍后重试。"),
                 source.getString("messages.bind-usage", "用法: 绑定 <游戏ID> <验证码>"),
                 source.getString("messages.bind-success", "%at% 绑定成功：%player% -> %qq%"),

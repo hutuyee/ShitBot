@@ -782,6 +782,7 @@ public final class Settings {
 
     public static final class Messages {
         private final String kickUnbound;
+        private final String kickAfterUnbind;
         private final String kickDatabaseUnavailable;
         private final String bindUsage;
         private final String bindSuccess;
@@ -803,6 +804,7 @@ public final class Settings {
         private final String reloadFailed;
 
         public Messages(String kickUnbound,
+                        String kickAfterUnbind,
                         String kickDatabaseUnavailable,
                         String bindUsage,
                         String bindSuccess,
@@ -824,6 +826,8 @@ public final class Settings {
                         String reloadFailed) {
             this.kickUnbound = text(kickUnbound,
                     "&7欢迎 &a%player% &7加入服务器\n&7请在QQ群发送 &6绑定 %player% %code%\n&7验证码将在 &c%expire_minutes% 分钟 &7后失效");
+            this.kickAfterUnbind = text(kickAfterUnbind,
+                    "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。");
             this.kickDatabaseUnavailable = text(kickDatabaseUnavailable, "&c绑定系统暂时不可用，请稍后重试。");
             this.bindUsage = text(bindUsage, "用法: 绑定 <游戏ID> <验证码>");
             this.bindSuccess = text(bindSuccess, "%at% 绑定成功：%player% -> %qq%");
@@ -848,6 +852,7 @@ public final class Settings {
         }
 
         public String getKickUnbound() { return kickUnbound; }
+        public String getKickAfterUnbind() { return kickAfterUnbind; }
         public String getKickDatabaseUnavailable() { return kickDatabaseUnavailable; }
         public String getBindUsage() { return bindUsage; }
         public String getBindSuccess() { return bindSuccess; }

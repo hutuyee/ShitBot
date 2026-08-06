@@ -193,6 +193,7 @@ messages:
     &7欢迎 &a%player% &7加入服务器
     &7请在QQ群发送 &6绑定 %player% %code%
     &7验证码将在 &c%expire_minutes% 分钟 &7后失效
+  kick-after-unbind: "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。"
   kick-database-unavailable: "&c绑定系统暂时不可用，请稍后重试。"
   bind-usage: "用法: 绑定 <游戏ID> <验证码>"
   bind-success: "%at% 绑定成功：%player% -> %qq%"

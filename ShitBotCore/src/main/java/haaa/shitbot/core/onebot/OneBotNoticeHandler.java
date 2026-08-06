@@ -2,11 +2,13 @@ package haaa.shitbot.core.onebot;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.database.BindingRecord;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /** Handles OneBot group join and leave notices. */
@@ -70,17 +72,18 @@ public final class OneBotNoticeHandler {
         }
 
         final String qqId = String.valueOf(notice.getUserId());
-        CompletableFuture<Integer> future = bindingService.unbindByQqId(qqId);
-        future.whenComplete(new java.util.function.BiConsumer<Integer, Throwable>() {
+        CompletableFuture<List<BindingRecord>> future = bindingService.unbindByQqId(qqId);
+        future.whenComplete(new java.util.function.BiConsumer<List<BindingRecord>, Throwable>() {
             @Override
-            public void accept(Integer removedRows, Throwable throwable) {
+            public void accept(List<BindingRecord> removedBindings, Throwable throwable) {
                 if (throwable != null) {
                     platform.error("Failed to remove QQ binding after group leave: qq=" + qqId,
                             FutureUtil.unwrap(throwable));
                     return;
                 }
-                if (removedRows != null && removedRows.intValue() > 0) {
+                if (removedBindings != null && !removedBindings.isEmpty()) {
                     platform.info("Removed QQ binding after group leave: qq=" + qqId
+                            + ", bindings=" + removedBindings.size()
                             + ", group=" + notice.getGroupId()
                             + ", sub_type=" + notice.getSubType());
                 }

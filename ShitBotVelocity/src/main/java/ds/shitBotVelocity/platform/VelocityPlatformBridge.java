@@ -12,9 +12,11 @@ import org.slf4j.Logger;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 public final class VelocityPlatformBridge implements PlatformBridge {
@@ -67,6 +69,28 @@ public final class VelocityPlatformBridge implements PlatformBridge {
         Component component = LegacyComponentSerializer.legacySection().deserialize(message == null ? "" : message);
         for (Player player : server.getAllPlayers()) {
             player.sendMessage(component);
+        }
+    }
+
+    @Override
+    public void disconnectPlayers(List<String> playerNames, String reason) {
+        if (playerNames == null || playerNames.isEmpty()) {
+            return;
+        }
+        Set<String> exactNames = new HashSet<String>();
+        for (String playerName : playerNames) {
+            if (playerName != null && !playerName.trim().isEmpty()) {
+                exactNames.add(playerName.trim());
+            }
+        }
+        if (exactNames.isEmpty()) {
+            return;
+        }
+        Component component = LegacyComponentSerializer.legacySection().deserialize(reason == null ? "" : reason);
+        for (Player player : server.getAllPlayers()) {
+            if (player != null && exactNames.contains(player.getUsername())) {
+                player.disconnect(component);
+            }
         }
     }
 

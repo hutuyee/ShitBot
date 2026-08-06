@@ -5,8 +5,11 @@ import haaa.shitbot.core.database.BindResult;
 import haaa.shitbot.core.database.BindingRecord;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.IssuedBindCode;
+import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.TextUtil;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -14,10 +17,12 @@ import java.util.concurrent.CompletableFuture;
 public final class BindingService {
     private final Settings settings;
     private final BindingRepository repository;
+    private final PlatformBridge platform;
 
-    public BindingService(Settings settings, BindingRepository repository) {
+    public BindingService(Settings settings, BindingRepository repository, PlatformBridge platform) {
         this.settings = settings;
         this.repository = repository;
+        this.platform = platform;
     }
 
     public CompletableFuture<LoginDecision> checkLogin(final String playerName, final String playerUuid) {
@@ -75,7 +80,32 @@ public final class BindingService {
         return repository.findByQqId(qqId);
     }
 
-    public CompletableFuture<Integer> unbindByQqId(String qqId) {
-        return repository.removeByQqId(qqId);
+    public CompletableFuture<List<BindingRecord>> unbindByQqId(final String qqId) {
+        return repository.removeByQqIdAndReturnBindings(qqId).thenApply(
+                new java.util.function.Function<List<BindingRecord>, List<BindingRecord>>() {
+                    @Override
+                    public List<BindingRecord> apply(List<BindingRecord> bindings) {
+                        if (bindings == null || bindings.isEmpty()) {
+                            return bindings;
+                        }
+                        List<String> playerNames = new ArrayList<String>(bindings.size());
+                        for (BindingRecord binding : bindings) {
+                            if (binding != null && binding.getPlayerName() != null) {
+                                playerNames.add(binding.getPlayerName());
+                            }
+                        }
+                        if (!playerNames.isEmpty()) {
+                            try {
+                                platform.disconnectPlayers(
+                                        playerNames,
+                                        TextUtil.color(settings.getMessages().getKickAfterUnbind()));
+                            } catch (Throwable throwable) {
+                                platform.error("Failed to disconnect players after unbinding qq=" + qqId,
+                                        throwable);
+                            }
+                        }
+                        return bindings;
+                    }
+                });
     }
 }
