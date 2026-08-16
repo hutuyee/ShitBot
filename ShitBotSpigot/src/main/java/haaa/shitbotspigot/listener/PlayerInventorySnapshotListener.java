@@ -1,5 +1,6 @@
 package haaa.shitbotspigot.listener;
 
+import haaa.shitbot.core.inventory.InventorySnapshot;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotspigot.ShitBotSpigot;
@@ -22,8 +23,20 @@ public final class PlayerInventorySnapshotListener implements Listener {
         if (runtime == null || !runtime.getSettings().getInventory().isEnabled()) {
             return;
         }
+        final InventorySnapshot snapshot;
+        try {
+            snapshot = plugin.getPlatformBridge().captureInventorySnapshot(event.getPlayer());
+        } catch (Throwable throwable) {
+            // On Folia the quit event may already run outside the player's owning region
+            // thread; losing one quit snapshot is preferable to failing the handler.
+            plugin.getPlatformBridge().warn("Skipped quit inventory snapshot: " + throwable.getMessage());
+            return;
+        }
+        if (snapshot == null) {
+            return;
+        }
         runtime.getInventoryService()
-                .persistSnapshot(plugin.getPlatformBridge().captureInventorySnapshot(event.getPlayer()))
+                .persistSnapshot(snapshot)
                 .exceptionally(new java.util.function.Function<Throwable, Void>() {
                     @Override
                     public Void apply(Throwable throwable) {

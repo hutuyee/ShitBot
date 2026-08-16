@@ -20,7 +20,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 
 项目支持：
 
-- Spigot(Bukkit) 全版本
+- Spigot(Bukkit) 全版本（含 Folia 核心）
 - BungeeCord 全版本
 - Velocity 全版本
 

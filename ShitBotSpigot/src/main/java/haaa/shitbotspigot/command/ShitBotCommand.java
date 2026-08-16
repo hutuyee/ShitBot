@@ -43,7 +43,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
             plugin.reloadRuntime().whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {
                 @Override
                 public void accept(final Boolean success, Throwable throwable) {
-                    plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                    plugin.getPlatformBridge().executeOnSenderThread(sender, new Runnable() {
                         @Override
                         public void run() {
                             ShitBotRuntime current = plugin.getRuntime();
@@ -69,7 +69,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     new java.util.function.BiConsumer<EasyBotMigrationResult, Throwable>() {
                         @Override
                         public void accept(final EasyBotMigrationResult result, final Throwable throwable) {
-                            plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                            plugin.getPlatformBridge().executeOnSenderThread(sender, new Runnable() {
                                 @Override
                                 public void run() {
                                     if (throwable != null) {
@@ -88,7 +88,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     new java.util.function.BiConsumer<byte[], Throwable>() {
                         @Override
                         public void accept(byte[] bytes, final Throwable throwable) {
-                            plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                            plugin.getPlatformBridge().executeOnSenderThread(sender, new Runnable() {
                                 @Override
                                 public void run() {
                                     if (throwable != null) {

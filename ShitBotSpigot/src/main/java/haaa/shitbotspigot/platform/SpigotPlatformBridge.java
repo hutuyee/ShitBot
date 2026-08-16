@@ -6,6 +6,7 @@ import haaa.shitbot.core.platform.PlatformBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -34,6 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,10 +48,12 @@ public final class SpigotPlatformBridge implements PlatformBridge {
 
     private final JavaPlugin plugin;
     private final SpigotItemIdentityResolver itemIdentityResolver;
+    private final SchedulerAdapter scheduler;
 
     public SpigotPlatformBridge(JavaPlugin plugin) {
         this.plugin = plugin;
         this.itemIdentityResolver = new SpigotItemIdentityResolver();
+        this.scheduler = SchedulerAdapter.forPlugin(plugin);
     }
 
     @Override
@@ -93,6 +97,10 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     public CompletableFuture<List<InventorySnapshot>> captureOnlineInventories() {
         final CompletableFuture<List<InventorySnapshot>> future =
                 new CompletableFuture<List<InventorySnapshot>>();
+        if (scheduler.isFolia()) {
+            captureOnlineInventoriesFolia(future);
+            return future;
+        }
         runOnPrimaryThread(new Runnable() {
             @Override
             public void run() {
@@ -128,6 +136,10 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         }
         final CompletableFuture<Map<String, InventorySnapshot>> future =
                 new CompletableFuture<Map<String, InventorySnapshot>>();
+        if (scheduler.isFolia()) {
+            captureInventoriesFolia(requested, future);
+            return future;
+        }
         runOnPrimaryThread(new Runnable() {
             @Override
             public void run() {
@@ -149,12 +161,107 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         return future;
     }
 
-    /** Takes a synchronous snapshot for Bukkit events that still expose the Player object. */
+    /**
+     * Takes a synchronous snapshot for Bukkit events that still expose the Player object.
+     * Must run on the thread that owns the player: the primary thread on classic Bukkit
+     * servers, the player's region thread on Folia.
+     */
     public InventorySnapshot captureInventorySnapshot(Player player) {
-        if (!Bukkit.isPrimaryThread()) {
-            throw new IllegalStateException("Inventory snapshots must be captured on the Bukkit primary thread");
+        if (player != null && !scheduler.isOwnedByCurrentRegion(player)) {
+            throw new IllegalStateException(
+                    "Inventory snapshots must be captured on the thread that owns the player "
+                            + "(the player's region thread on Folia, the primary thread otherwise)");
         }
         return player == null ? null : snapshot(player);
+    }
+
+    /** Folia: each player's inventory can only be read on that player's own region thread. */
+    private void captureOnlineInventoriesFolia(
+            final CompletableFuture<List<InventorySnapshot>> future) {
+        final List<Player> online = new ArrayList<Player>();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player != null) {
+                online.add(player);
+            }
+        }
+        if (online.isEmpty()) {
+            future.complete(new ArrayList<InventorySnapshot>());
+            return;
+        }
+        final InventorySnapshot[] ordered = new InventorySnapshot[online.size()];
+        final AtomicInteger remaining = new AtomicInteger(online.size());
+        for (int i = 0; i < online.size(); i++) {
+            final int index = i;
+            final Player player = online.get(i);
+            scheduler.executeForPlayer(player, new Runnable() {
+                @Override
+                public void run() {
+                    InventorySnapshot captured = null;
+                    try {
+                        if (player.isOnline()) {
+                            captured = snapshot(player);
+                        }
+                    } catch (Throwable throwable) {
+                        plugin.getLogger().log(Level.WARNING,
+                                "Failed to capture inventory of " + player.getName(), throwable);
+                    }
+                    synchronized (ordered) {
+                        ordered[index] = captured;
+                        if (remaining.decrementAndGet() == 0) {
+                            List<InventorySnapshot> result = new ArrayList<InventorySnapshot>();
+                            for (InventorySnapshot item : ordered) {
+                                if (item != null) {
+                                    result.add(item);
+                                }
+                            }
+                            future.complete(result);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    /** Folia: capture only the requested online players, each on its own region thread. */
+    private void captureInventoriesFolia(final Set<String> requested,
+            final CompletableFuture<Map<String, InventorySnapshot>> future) {
+        final List<String> names = new ArrayList<String>(requested);
+        final Map<String, InventorySnapshot> result =
+                new LinkedHashMap<String, InventorySnapshot>();
+        final AtomicInteger remaining = new AtomicInteger(names.size());
+        for (final String playerName : names) {
+            final Player player = Bukkit.getPlayerExact(playerName);
+            if (player == null || !player.isOnline()) {
+                if (remaining.decrementAndGet() == 0) {
+                    synchronized (result) {
+                        future.complete(new LinkedHashMap<String, InventorySnapshot>(result));
+                    }
+                }
+                continue;
+            }
+            scheduler.executeForPlayer(player, new Runnable() {
+                @Override
+                public void run() {
+                    InventorySnapshot captured = null;
+                    try {
+                        if (player.isOnline()) {
+                            captured = snapshot(player);
+                        }
+                    } catch (Throwable throwable) {
+                        plugin.getLogger().log(Level.WARNING,
+                                "Failed to capture inventory of " + playerName, throwable);
+                    }
+                    synchronized (result) {
+                        if (captured != null) {
+                            result.put(playerName, captured);
+                        }
+                        if (remaining.decrementAndGet() == 0) {
+                            future.complete(new LinkedHashMap<String, InventorySnapshot>(result));
+                        }
+                    }
+                }
+            });
+        }
     }
 
     private InventorySnapshot snapshot(Player player) {
@@ -598,12 +705,9 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         private List<Integer> colors = Collections.emptyList();
     }
 
+    /** Schedules on the global server thread: primary thread on classic Bukkit, global region thread on Folia. */
     private void runOnPrimaryThread(Runnable runnable) {
-        if (Bukkit.isPrimaryThread()) {
-            runnable.run();
-        } else {
-            Bukkit.getScheduler().runTask(plugin, runnable);
-        }
+        scheduler.executeGlobal(runnable);
     }
 
     @Override
@@ -614,8 +718,46 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         runOnPrimaryThread(runnable);
     }
 
+    /**
+     * Runs on the thread that may interact with the sender: the sender's region thread
+     * when it is a player on Folia, the global thread otherwise. Command replies must use
+     * this instead of {@link #executeOnPlatformThread(Runnable)}, because on Folia a
+     * player's messages can only be sent from the region thread that owns the player.
+     */
+    public void executeOnSenderThread(final CommandSender sender, final Runnable runnable) {
+        if (runnable == null) {
+            return;
+        }
+        if (sender instanceof Player) {
+            scheduler.executeForPlayer((Player) sender, runnable);
+        } else {
+            scheduler.executeGlobal(runnable);
+        }
+    }
+
     @Override
     public void broadcastMessage(final String message) {
+        if (scheduler.isFolia()) {
+            // On Folia every player must be reached on its own region thread.
+            final String text = message == null ? "" : message;
+            scheduler.executeGlobal(new Runnable() {
+                @Override
+                public void run() {
+                    Bukkit.getConsoleSender().sendMessage(text);
+                }
+            });
+            for (final Player player : Bukkit.getOnlinePlayers()) {
+                scheduler.executeForPlayer(player, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (player.isOnline()) {
+                            player.sendMessage(text);
+                        }
+                    }
+                });
+            }
+            return;
+        }
         executeOnPlatformThread(new Runnable() {
             @Override
             public void run() {
@@ -627,6 +769,28 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     @Override
     public void disconnectPlayers(final List<String> playerNames, final String reason) {
         if (playerNames == null || playerNames.isEmpty()) {
+            return;
+        }
+        if (scheduler.isFolia()) {
+            // Kicks must happen on each player's own region thread.
+            final String kickReason = reason == null ? "" : reason;
+            for (String playerName : playerNames) {
+                if (playerName == null || playerName.trim().isEmpty()) {
+                    continue;
+                }
+                final Player player = Bukkit.getPlayerExact(playerName.trim());
+                if (player == null) {
+                    continue;
+                }
+                scheduler.executeForPlayer(player, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (player.isOnline()) {
+                            player.kickPlayer(kickReason);
+                        }
+                    }
+                });
+            }
             return;
         }
         executeOnPlatformThread(new Runnable() {
@@ -647,34 +811,52 @@ public final class SpigotPlatformBridge implements PlatformBridge {
 
     @Override
     public void broadcastRichMessage(final List<ChatPart> parts) {
+        if (scheduler.isFolia()) {
+            // Each player must receive the chat component on its own region thread.
+            for (final Player player : Bukkit.getOnlinePlayers()) {
+                scheduler.executeForPlayer(player, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (player.isOnline()) {
+                            player.spigot().sendMessage(buildRichComponents(parts));
+                        }
+                    }
+                });
+            }
+            return;
+        }
         executeOnPlatformThread(new Runnable() {
             @Override
             public void run() {
-                List<BaseComponent> components = new ArrayList<BaseComponent>();
-                if (parts != null) {
-                    for (ChatPart part : parts) {
-                        if (part == null || part.getText().isEmpty()) {
-                            continue;
-                        }
-                        BaseComponent[] parsed = TextComponent.fromLegacyText(part.getText());
-                        for (BaseComponent component : parsed) {
-                            if (part.hasClickUrl()) {
-                                component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, part.getClickUrl()));
-                                String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
-                                component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                        TextComponent.fromLegacyText("§7" + hover)));
-                            }
-                            components.add(component);
-                        }
-                    }
-                }
-                BaseComponent[] output = components.toArray(new BaseComponent[components.size()]);
+                BaseComponent[] output = buildRichComponents(parts);
                 Collection<? extends Player> onlinePlayers = Bukkit.getOnlinePlayers();
                 for (Player player : onlinePlayers) {
                     player.spigot().sendMessage(output);
                 }
             }
         });
+    }
+
+    private BaseComponent[] buildRichComponents(List<ChatPart> parts) {
+        List<BaseComponent> components = new ArrayList<BaseComponent>();
+        if (parts != null) {
+            for (ChatPart part : parts) {
+                if (part == null || part.getText().isEmpty()) {
+                    continue;
+                }
+                BaseComponent[] parsed = TextComponent.fromLegacyText(part.getText());
+                for (BaseComponent component : parsed) {
+                    if (part.hasClickUrl()) {
+                        component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, part.getClickUrl()));
+                        String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                        component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                TextComponent.fromLegacyText("§7" + hover)));
+                    }
+                    components.add(component);
+                }
+            }
+        }
+        return components.toArray(new BaseComponent[components.size()]);
     }
 
     @Override
