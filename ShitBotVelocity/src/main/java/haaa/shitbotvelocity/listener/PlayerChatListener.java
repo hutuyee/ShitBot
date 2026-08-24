@@ -1,9 +1,9 @@
-package ds.shitBotVelocity.listener;
+package haaa.shitbotvelocity.listener;
 
 import com.velocitypowered.api.event.PostOrder;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.player.PlayerChatEvent;
-import ds.shitBotVelocity.ShitBotVelocity;
+import haaa.shitbotvelocity.ShitBotVelocity;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 
 public final class PlayerChatListener {

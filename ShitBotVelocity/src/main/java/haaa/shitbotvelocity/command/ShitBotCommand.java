@@ -1,7 +1,7 @@
-package ds.shitBotVelocity.command;
+package haaa.shitbotvelocity.command;
 
 import com.velocitypowered.api.command.SimpleCommand;
-import ds.shitBotVelocity.ShitBotVelocity;
+import haaa.shitbotvelocity.ShitBotVelocity;
 import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.EasyBotMigrationService;

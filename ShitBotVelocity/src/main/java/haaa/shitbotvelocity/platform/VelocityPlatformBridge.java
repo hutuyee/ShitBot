@@ -1,4 +1,4 @@
-package ds.shitBotVelocity.platform;
+package haaa.shitbotvelocity.platform;
 
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;

@@ -1,4 +1,4 @@
-package ds.shitBotVelocity.config;
+package haaa.shitbotvelocity.config;
 
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;

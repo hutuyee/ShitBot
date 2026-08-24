@@ -1,4 +1,4 @@
-package ds.shitBotVelocity;
+package haaa.shitbotvelocity;
 
 import com.google.inject.Inject;
 import com.velocitypowered.api.command.CommandMeta;
@@ -7,11 +7,11 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
-import ds.shitBotVelocity.command.ShitBotCommand;
-import ds.shitBotVelocity.config.VelocityConfigLoader;
-import ds.shitBotVelocity.listener.PlayerChatListener;
-import ds.shitBotVelocity.listener.PlayerLoginListener;
-import ds.shitBotVelocity.platform.VelocityPlatformBridge;
+import haaa.shitbotvelocity.command.ShitBotCommand;
+import haaa.shitbotvelocity.config.VelocityConfigLoader;
+import haaa.shitbotvelocity.listener.PlayerChatListener;
+import haaa.shitbotvelocity.listener.PlayerLoginListener;
+import haaa.shitbotvelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
