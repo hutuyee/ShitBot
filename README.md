@@ -1,6 +1,6 @@
 # ShitBot 你的新一代波特
 
-[TODO]("https://github.com/hutuyee/ShitBot/blob/main/TODO.md")
+[TODO](https://github.com/hutuyee/ShitBot/blob/main/TODO.md)
 
 > [!WARNING]
 > 本插件由 AI 协助整理，内容仅供参考，请结合实际环境测试后使用。
