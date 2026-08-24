@@ -1,5 +1,7 @@
 # ShitBot 你的新一代波特
 
+[TODO]("https://github.com/hutuyee/ShitBot/blob/main/TODO.md")
+
 > [!WARNING]
 > 本插件由 AI 协助整理，内容仅供参考，请结合实际环境测试后使用。
 >
@@ -28,7 +30,9 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 
 ## How To 安装？
 
-- 下载你所需要的版本，若为群组服，仅需要下载一个插件装入BungeeCord/Velocity中
+- 普通群组服只需在 BungeeCord/Velocity 安装代理版。
+- 若要从 QQ 执行子服快捷命令或查询子服 TPS，还需在 Bukkit 子服安装 Spigot 版，并把子服 `config.yml` 的 `deployment.role` 改为 `backend`。
+- 代理和子服必须连接同一个 MySQL 数据库；不要让多个实例同时使用同一个 SQLite 文件。
 
 ---
 
@@ -41,7 +45,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 | `/shitbot status` | 查看 ShitBot 当前运行状态，包括数据库连接、OneBot WebSocket 连接和插件运行状态。 |
 | `/shitbot migrate easybot [EasyBot.db]` | 迁移 EasyBot 的 QQ 绑定数据。数据库文件需要放在 ShitBot 插件目录中，文件名不填写时默认使用 `EasyBot.db`。 |
 | `/shitbot image` | 手动生成一张当前服务器在线人数图片，用于测试图片生成功能。 |
-| `/shitbot reload` | 热重载 ShitBot 配置，包括数据库、OneBot、QQ 指令和在线人数图片配置。 |
+| `/shitbot reload` | 热重载 `config.yml`、`commands.yml`、数据库、OneBot 和图片配置。 |
 
 > 上述命令默认需要 `shitbot.admin` 权限。
 
@@ -51,7 +55,19 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - 玩家可在 QQ 群中发送自定义绑定指令完成绑定
 - 验证码支持有效期、最大尝试次数和自定义字符集
 - 验证码使用随机盐哈希保存，数据库中不保存明文验证码
-- 同一个 QQ 不能重复绑定多个游戏 ID
+
+### QQ 快捷命令与 TPS
+
+- 快捷命令白名单、别名、权限、执行位置、日志抓取时间和回复模板统一配置在 `commands.yml`。
+- `target: backend` 在 Bukkit 子服执行；`target: proxy` 在 BungeeCord/Velocity 代理执行。
+- 快捷命令或 TPS 后可直接加目标子服，例如 `lp编辑 survival`、`TPS lobby`；该参数会覆盖配置中的 `server`。
+- 代理优先使用 `backend-transport.endpoints` 的独立鉴权通道，因此目标子服零玩家也能执行；没有端点时才回退到需要在线玩家承载的插件消息。
+- 带 `permission` 的快捷命令会检查绑定角色：在线时直接查询，离线时依次查询 LuckPerms、Vault 和离线 OP 状态；留空才表示无需游戏权限。
+- 每个请求只选择一个子服，使用唯一请求 ID，并校验回包来源，因此不会在多个子服重复执行或重复回复。
+- TPS 优先读取 EssentialsX，之后读取服务端原生 TPS，均不可用时使用 ShitBot 自己的 1/5/15 分钟采样。
+- 代理 + 子服部署必须把 Spigot 端设为 `deployment.role: backend`，此模式不会连接 OneBot，因此不会与代理重复处理 QQ 消息。
+
+独立通道需要在代理 `commands.yml` 的 `backend-transport.endpoints.<子服名>` 填写子服地址、端口和至少 16 位的随机密钥，并在对应子服的 `backend-transport.listener` 中填写相同端口、密钥和子服名后启用。跨机器时只监听内网地址并通过防火墙限制为代理 IP；不要把该端口暴露到公网。
 
 ### [关于背包查询请点这里](https://github.com/hutuyee/ShitBot/blob/main/docs/inventory.md)
 ### OneBot v11
