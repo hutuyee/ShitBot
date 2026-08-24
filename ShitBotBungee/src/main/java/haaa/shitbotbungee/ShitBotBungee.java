@@ -1,6 +1,8 @@
 package haaa.shitbotbungee;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.console.ConsoleMessageCodec;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotbungee.command.ShitBotCommand;
@@ -24,13 +26,18 @@ public final class ShitBotBungee extends Plugin {
     public void onEnable() {
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);
+        ProxyServer.getInstance().registerChannel(ConsoleMessageCodec.CHANNEL);
+        ProxyServer.getInstance().getPluginManager().registerListener(
+                this, platformBridge.getConsoleGateway());
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerLoginListener(this));
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerChatListener(this));
         ProxyServer.getInstance().getPluginManager().registerCommand(this, new ShitBotCommand(this));
 
         try {
             Settings settings = configLoader.load();
-            ShitBotRuntime runtime = new ShitBotRuntime(settings, platformBridge);
+            ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
+            platformBridge.configureConsole(consoleSettings);
+            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
             startupUnavailable = false;
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
@@ -53,8 +60,11 @@ public final class ShitBotBungee extends Plugin {
     public CompletableFuture<Boolean> reloadRuntime() {
         final ShitBotRuntime oldRuntime = runtimeReference.get();
         final ShitBotRuntime newRuntime;
+        final ConsoleSettings consoleSettings;
         try {
-            newRuntime = new ShitBotRuntime(configLoader.load(), platformBridge);
+            consoleSettings = configLoader.loadConsoleSettings();
+            newRuntime = new ShitBotRuntime(
+                    configLoader.load(), consoleSettings, platformBridge);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -71,6 +81,7 @@ public final class ShitBotBungee extends Plugin {
                 if (oldRuntime != null) {
                     oldRuntime.close();
                 }
+                platformBridge.configureConsole(consoleSettings);
                 newRuntime.activate();
                 return Boolean.TRUE;
             }
@@ -94,6 +105,10 @@ public final class ShitBotBungee extends Plugin {
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
+        }
+        ProxyServer.getInstance().unregisterChannel(ConsoleMessageCodec.CHANNEL);
+        if (platformBridge != null) {
+            platformBridge.close();
         }
     }
 }

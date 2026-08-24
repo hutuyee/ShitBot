@@ -1,6 +1,8 @@
 package haaa.shitbotspigot;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.console.ConsoleMessageCodec;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotspigot.command.ShitBotCommand;
@@ -18,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ShitBotSpigot extends JavaPlugin {
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
+    private volatile boolean backendMode;
     private SpigotConfigLoader configLoader;
     private SpigotPlatformBridge platformBridge;
 
@@ -25,6 +28,9 @@ public final class ShitBotSpigot extends JavaPlugin {
     public void onEnable() {
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
+        getServer().getMessenger().registerIncomingPluginChannel(
+                this, ConsoleMessageCodec.CHANNEL, platformBridge.getConsoleController());
+        getServer().getMessenger().registerOutgoingPluginChannel(this, ConsoleMessageCodec.CHANNEL);
         getServer().getPluginManager().registerEvents(new PlayerLoginListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerInventorySnapshotListener(this), this);
@@ -39,7 +45,11 @@ public final class ShitBotSpigot extends JavaPlugin {
 
         try {
             Settings settings = configLoader.load();
-            ShitBotRuntime runtime = new ShitBotRuntime(settings, platformBridge);
+            ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
+            final boolean backendMode = configLoader.isBackendMode();
+            this.backendMode = backendMode;
+            platformBridge.configureConsole(consoleSettings, backendMode);
+            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
             startupUnavailable = false;
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
@@ -49,8 +59,11 @@ public final class ShitBotSpigot extends JavaPlugin {
                         runtime.close();
                         platformBridge.error("ShitBot failed to start", FutureUtil.unwrap(throwable));
                     } else {
-                        runtime.activate();
-                        platformBridge.info("ShitBotSpigot enabled.");
+                        if (!backendMode) {
+                            runtime.activate();
+                        }
+                        platformBridge.info("ShitBotSpigot enabled (role="
+                                + (backendMode ? "backend" : "standalone") + ").");
                     }
                 }
             });
@@ -62,8 +75,13 @@ public final class ShitBotSpigot extends JavaPlugin {
     public CompletableFuture<Boolean> reloadRuntime() {
         final ShitBotRuntime oldRuntime = runtimeReference.get();
         final ShitBotRuntime newRuntime;
+        final boolean configuredBackendMode;
+        final ConsoleSettings consoleSettings;
         try {
-            newRuntime = new ShitBotRuntime(configLoader.load(), platformBridge);
+            Settings settings = configLoader.load();
+            consoleSettings = configLoader.loadConsoleSettings();
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            configuredBackendMode = configLoader.isBackendMode();
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -80,7 +98,11 @@ public final class ShitBotSpigot extends JavaPlugin {
                 if (oldRuntime != null) {
                     oldRuntime.close();
                 }
-                newRuntime.activate();
+                platformBridge.configureConsole(consoleSettings, configuredBackendMode);
+                ShitBotSpigot.this.backendMode = configuredBackendMode;
+                if (!configuredBackendMode) {
+                    newRuntime.activate();
+                }
                 return Boolean.TRUE;
             }
         });
@@ -88,6 +110,10 @@ public final class ShitBotSpigot extends JavaPlugin {
 
     public boolean isStartupUnavailable() {
         return startupUnavailable;
+    }
+
+    public boolean isBackendMode() {
+        return backendMode;
     }
 
     public ShitBotRuntime getRuntime() {
@@ -103,6 +129,11 @@ public final class ShitBotSpigot extends JavaPlugin {
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
+        }
+        getServer().getMessenger().unregisterIncomingPluginChannel(this, ConsoleMessageCodec.CHANNEL);
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this, ConsoleMessageCodec.CHANNEL);
+        if (platformBridge != null) {
+            platformBridge.close();
         }
     }
 }

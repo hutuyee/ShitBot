@@ -2,3 +2,4 @@ name: ShitBotBungee
 version: '${project.version}'
 main: haaa.shitbotbungee.ShitBotBungee
 author: H_aaa
+softDepends: [ LuckPerms ]

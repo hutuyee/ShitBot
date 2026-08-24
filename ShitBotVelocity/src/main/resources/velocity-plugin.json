@@ -3,5 +3,11 @@
   "name": "ShitBotVelocity",
   "version": "${project.version}",
   "main": "haaa.shitbotvelocity.ShitBotVelocity",
-  "authors": ["DarkStation"]
+  "authors": ["DarkStation"],
+  "dependencies": [
+    {
+      "id": "luckperms",
+      "optional": true
+    }
+  ]
 }

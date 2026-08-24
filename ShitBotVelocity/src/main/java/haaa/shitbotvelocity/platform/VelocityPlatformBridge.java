@@ -3,7 +3,11 @@ package haaa.shitbotvelocity.platform;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.console.ConsoleRequest;
+import haaa.shitbot.core.console.ConsoleResult;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.platform.PlatformBridge;
+import com.velocitypowered.api.proxy.messages.ChannelIdentifier;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -23,11 +27,17 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     private final ProxyServer server;
     private final Logger logger;
     private final Path dataDirectory;
+    private final VelocityConsoleGateway consoleGateway;
 
-    public VelocityPlatformBridge(ProxyServer server, Logger logger, Path dataDirectory) {
+    public VelocityPlatformBridge(Object plugin,
+                                  ProxyServer server,
+                                  Logger logger,
+                                  Path dataDirectory,
+                                  ChannelIdentifier consoleChannel) {
         this.server = server;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
+        this.consoleGateway = new VelocityConsoleGateway(plugin, server, logger, consoleChannel);
     }
 
     @Override
@@ -38,6 +48,23 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     @Override
     public String getPlatformName() {
         return "Velocity";
+    }
+
+    @Override
+    public CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
+        return consoleGateway.execute(request);
+    }
+
+    public VelocityConsoleGateway getConsoleGateway() {
+        return consoleGateway;
+    }
+
+    public void configureConsole(ConsoleSettings settings) {
+        consoleGateway.configure(settings);
+    }
+
+    public void close() {
+        consoleGateway.close();
     }
 
     @Override

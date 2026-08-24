@@ -1,0 +1,66 @@
+# QQ 白名单控制台命令。修改后执行 /shitbot reload。
+enabled: true
+
+# 代理等待子服回包的基础超时；实际超时不会短于 capture-seconds + 5 秒。
+request-timeout-seconds: 15
+command-cooldown-seconds: 5
+
+backend-transport:
+  # 代理连接子服时使用；配置后不依赖任何在线玩家。
+  connect-timeout-ms: 3000
+  read-timeout-seconds: 40
+  # 未在 QQ 命令后指定子服时使用；留空且只有一个 endpoint 时自动选择该项。
+  default-server: ""
+  # 仅在 BungeeCord/Velocity 的 commands.yml 中配置目标子服。
+  endpoints: {}
+  # 示例：
+  # endpoints:
+  #   survival:
+  #     host: "127.0.0.1"
+  #     port: 25580
+  #     token: "替换成至少16位的强随机密钥"
+
+  # 仅在对应 Bukkit 子服的 commands.yml 中启用。
+  listener:
+    enabled: false
+    bind-address: "127.0.0.1"
+    port: 25580
+    token: ""
+    # 必须与代理 endpoints 下的键一致。
+    server-name: "survival"
+
+
+messages:
+  not-bound: "%at% 请先绑定游戏 ID。"
+  # 子服命令支持在线权限及 LuckPerms/Vault/离线 OP；代理命令的离线权限由代理 LuckPerms 查询。
+  no-permission: "%at% 你绑定的角色没有权限执行该操作。"
+  unavailable: "%at% 没有可用的子服，或请求执行超时。"
+  invalid-target: "%at% 用法：%command% [目标子服]"
+
+tps:
+  enabled: true
+  aliases:
+    - "TPS"
+    - "服务器TPS"
+  # 留空表示任何群成员都能查询。
+  permission: ""
+  # 代理模式下可指定子服名；留空时优先选择发送者绑定角色所在子服。
+  server: ""
+  message: "%at% 服务器 TPS（%source%）：%result%"
+  failed: "%at% TPS 获取失败：%result%"
+
+shortcuts:
+  luckperms-editor:
+    enabled: true
+    aliases:
+      - "lp编辑"
+    command: "lp editor"
+    permission: "shitbot.admin"
+    # backend：在 Bukkit 子服执行；proxy：在 BungeeCord/Velocity 代理执行。
+    # 单 Bukkit 部署会始终在本服执行。
+    target: "backend"
+    # backend 目标可指定子服名；留空时优先选择绑定角色所在子服。
+    server: ""
+    capture-seconds: 5
+    message: "%at% 执行成功（%source%）：\n%result%"
+    failed: "%at% 执行失败（%source%）：\n%result%"

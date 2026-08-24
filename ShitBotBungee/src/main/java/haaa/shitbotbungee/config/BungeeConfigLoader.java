@@ -3,6 +3,8 @@ package haaa.shitbotbungee.config;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.config.Configuration;
 import net.md_5.bungee.config.ConfigurationProvider;
@@ -17,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 public final class BungeeConfigLoader {
     private final Plugin plugin;
@@ -31,17 +35,27 @@ public final class BungeeConfigLoader {
         return SettingsFactory.create(new Source(configuration));
     }
 
+    public ConsoleSettings loadConsoleSettings() throws IOException {
+        File file = ensureFile("commands.yml");
+        Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
+        return ConsoleSettingsFactory.create(new Source(configuration));
+    }
+
     private File ensureConfigFile() throws IOException {
+        return ensureFile("config.yml");
+    }
+
+    private File ensureFile(String resourceName) throws IOException {
         if (!plugin.getDataFolder().exists() && !plugin.getDataFolder().mkdirs()) {
             throw new IOException("Cannot create plugin data directory: " + plugin.getDataFolder());
         }
-        File file = new File(plugin.getDataFolder(), "config.yml");
+        File file = new File(plugin.getDataFolder(), resourceName);
         if (file.isFile()) {
             return file;
         }
-        try (InputStream input = plugin.getResourceAsStream("config.yml")) {
+        try (InputStream input = plugin.getResourceAsStream(resourceName)) {
             if (input == null) {
-                throw new IOException("Embedded config.yml is missing");
+                throw new IOException("Embedded " + resourceName + " is missing");
             }
             Files.copy(input, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
@@ -118,6 +132,14 @@ public final class BungeeConfigLoader {
                 }
             }
             return result;
+        }
+
+        @Override
+        public Set<String> getSectionKeys(String path) {
+            Configuration section = configuration.getSection(path);
+            return section == null
+                    ? Collections.<String>emptySet()
+                    : new LinkedHashSet<String>(section.getKeys());
         }
     }
 }

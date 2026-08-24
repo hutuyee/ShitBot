@@ -3,6 +3,7 @@ version: '${project.version}'
 main: haaa.shitbotspigot.ShitBotSpigot
 folia-supported: true
 authors: [ H_aaa ]
+softdepend: [ LuckPerms, Vault, Essentials ]
 commands:
   shitbot:
     description: ShitBot management command

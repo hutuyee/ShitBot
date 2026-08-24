@@ -1,6 +1,7 @@
 package haaa.shitbot.core.runtime;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.DatabaseManager;
 import haaa.shitbot.core.database.InventorySnapshotRepository;
@@ -10,6 +11,7 @@ import haaa.shitbot.core.onebot.OneBotNoticeHandler;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.BindingService;
 import haaa.shitbot.core.service.EasyBotMigrationService;
+import haaa.shitbot.core.service.EasyConsoleService;
 import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.service.LoginDecision;
 import haaa.shitbot.core.service.MessageForwardingService;
@@ -37,6 +39,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final InventoryService inventoryService;
     private final OneBotClient oneBotClient;
     private final OneBotCommandHandler commandHandler;
+    private final EasyConsoleService easyConsoleService;
     private final OneBotNoticeHandler noticeHandler;
     private final MessageForwardingService forwardingService;
     private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(
@@ -46,6 +49,10 @@ public final class ShitBotRuntime implements AutoCloseable {
     private volatile CompletableFuture<Void> startFuture;
 
     public ShitBotRuntime(Settings settings, PlatformBridge platform) {
+        this(settings, new ConsoleSettings(false, 15, 5, "", "", "", "", null, null, null), platform);
+    }
+
+    public ShitBotRuntime(Settings settings, ConsoleSettings consoleSettings, PlatformBridge platform) {
         this.settings = settings;
         this.platform = platform;
         this.database = new DatabaseManager(settings.getDatabase(), platform);
@@ -60,13 +67,15 @@ public final class ShitBotRuntime implements AutoCloseable {
                 settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(), platform);
         this.commandHandler = new OneBotCommandHandler(
                 settings, platform, bindingService, imageService, inventoryService, oneBotClient);
+        this.easyConsoleService = new EasyConsoleService(
+                consoleSettings, platform, repository, oneBotClient);
         this.noticeHandler = new OneBotNoticeHandler(
                 settings, platform, bindingService, oneBotClient);
         this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
         this.oneBotClient.setGroupMessageConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupMessage>() {
             @Override
             public void accept(haaa.shitbot.core.onebot.GroupMessage message) {
-                if (!commandHandler.handle(message)) {
+                if (!commandHandler.handle(message) && !easyConsoleService.handle(message)) {
                     forwardingService.handleGroupMessage(message);
                 }
             }

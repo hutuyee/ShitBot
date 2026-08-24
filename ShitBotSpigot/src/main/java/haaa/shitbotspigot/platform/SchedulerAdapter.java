@@ -8,6 +8,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.function.Consumer;
 
 /**
  * Executes tasks on the correct server thread on both classic Bukkit servers and Folia.
@@ -47,6 +48,7 @@ final class SchedulerAdapter {
 
     private final Plugin plugin;
     private final Method globalExecute;           // GlobalRegionScheduler.execute(Plugin, Runnable)
+    private final Method globalRunAtFixedRate;    // GlobalRegionScheduler.runAtFixedRate(Plugin, Runnable, long, long)
     private final Method regionEntityExecute;     // RegionScheduler.execute(Plugin, Entity, Runnable) on old Folia
     private final Method entitySchedulerGetter;   // Entity.getScheduler()
     private final Method entitySchedulerExecute;  // EntityScheduler.execute(Plugin, Runnable, Runnable, long)
@@ -66,6 +68,14 @@ final class SchedulerAdapter {
             this.globalScheduler = globalGetter == null ? null : invokeSafe(globalGetter, null);
             this.regionScheduler = regionGetter == null ? null : invokeSafe(regionGetter, null);
             this.globalExecute = globalScheduler == null ? null : executeMethod(globalScheduler.getClass(), 2);
+            Method fixedRate = globalScheduler == null
+                    ? null : methodOrNull(globalScheduler.getClass(), "runAtFixedRate",
+                    Plugin.class, Consumer.class, long.class, long.class);
+            if (fixedRate == null && globalScheduler != null) {
+                fixedRate = methodOrNull(globalScheduler.getClass(), "runAtFixedRate",
+                        Plugin.class, Runnable.class, long.class, long.class);
+            }
+            this.globalRunAtFixedRate = fixedRate;
             this.regionEntityExecute = regionScheduler == null ? null : executeMethod(regionScheduler.getClass(), 3);
             this.entitySchedulerGetter = methodOrNull(Entity.class, "getScheduler");
             if (entitySchedulerGetter != null) {
@@ -78,6 +88,7 @@ final class SchedulerAdapter {
             }
         } else {
             this.globalExecute = null;
+            this.globalRunAtFixedRate = null;
             this.regionEntityExecute = null;
             this.entitySchedulerGetter = null;
             this.entitySchedulerExecute = null;
@@ -158,6 +169,32 @@ final class SchedulerAdapter {
         // Last resort: global region thread. The tasks guard with Player#isOnline(), so
         // a retired player is skipped safely and completion counters always finish.
         executeGlobal(task);
+    }
+
+    void runGlobalAtFixedRate(Runnable task, long initialDelayTicks, long periodTicks) {
+        if (task == null) {
+            return;
+        }
+        if (FOLIA && globalRunAtFixedRate != null && globalScheduler != null) {
+            Object scheduledTask = Consumer.class.isAssignableFrom(
+                    globalRunAtFixedRate.getParameterTypes()[1])
+                    ? new Consumer<Object>() {
+                        @Override
+                        public void accept(Object ignored) {
+                            task.run();
+                        }
+                    }
+                    : task;
+            invoke(globalRunAtFixedRate, globalScheduler, plugin, scheduledTask,
+                    Long.valueOf(Math.max(1L, initialDelayTicks)),
+                    Long.valueOf(Math.max(1L, periodTicks)));
+            return;
+        }
+        if (FOLIA) {
+            return;
+        }
+        Bukkit.getScheduler().runTaskTimer(plugin, task,
+                Math.max(1L, initialDelayTicks), Math.max(1L, periodTicks));
     }
 
     /** True when the current thread may touch global/primary-thread-only state. */

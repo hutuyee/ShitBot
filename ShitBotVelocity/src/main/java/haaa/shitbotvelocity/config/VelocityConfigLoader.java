@@ -3,6 +3,8 @@ package haaa.shitbotvelocity.config;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
@@ -17,7 +19,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 public final class VelocityConfigLoader {
     private final Path dataDirectory;
@@ -29,7 +33,15 @@ public final class VelocityConfigLoader {
     }
 
     public Settings load() throws IOException {
-        Path configFile = ensureConfigFile();
+        return SettingsFactory.create(loadSource("config.yml"));
+    }
+
+    public ConsoleSettings loadConsoleSettings() throws IOException {
+        return ConsoleSettingsFactory.create(loadSource("commands.yml"));
+    }
+
+    private Source loadSource(String resourceName) throws IOException {
+        Path configFile = ensureFile(resourceName);
         LoaderOptions loaderOptions = new LoaderOptions();
         loaderOptions.setAllowDuplicateKeys(false);
         loaderOptions.setMaxAliasesForCollections(50);
@@ -39,18 +51,18 @@ public final class VelocityConfigLoader {
             loaded = yaml.load(reader);
         }
         Map<?, ?> root = loaded instanceof Map ? (Map<?, ?>) loaded : Collections.emptyMap();
-        return SettingsFactory.create(new Source(root));
+        return new Source(root);
     }
 
-    private Path ensureConfigFile() throws IOException {
+    private Path ensureFile(String resourceName) throws IOException {
         Files.createDirectories(dataDirectory);
-        Path file = dataDirectory.resolve("config.yml");
+        Path file = dataDirectory.resolve(resourceName);
         if (Files.isRegularFile(file)) {
             return file;
         }
-        try (InputStream input = classLoader.getResourceAsStream("config.yml")) {
+        try (InputStream input = classLoader.getResourceAsStream(resourceName)) {
             if (input == null) {
-                throw new IOException("Embedded config.yml is missing");
+                throw new IOException("Embedded " + resourceName + " is missing");
             }
             Files.copy(input, file, StandardCopyOption.REPLACE_EXISTING);
         }
@@ -134,6 +146,21 @@ public final class VelocityConfigLoader {
                 try {
                     result.add(Long.valueOf(String.valueOf(element).trim()));
                 } catch (NumberFormatException ignored) {
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public Set<String> getSectionKeys(String path) {
+            Object value = value(path);
+            if (!(value instanceof Map)) {
+                return Collections.emptySet();
+            }
+            Set<String> result = new LinkedHashSet<String>();
+            for (Object key : ((Map<?, ?>) value).keySet()) {
+                if (key != null && !String.valueOf(key).trim().isEmpty()) {
+                    result.add(String.valueOf(key).trim());
                 }
             }
             return result;

@@ -1,6 +1,8 @@
 package haaa.shitbot.core.platform;
 
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.console.ConsoleRequest;
+import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.inventory.InventorySnapshot;
 
 import java.nio.file.Path;
@@ -28,6 +30,11 @@ public interface PlatformBridge {
     }
 
     void executeOnPlatformThread(Runnable runnable);
+
+    default CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
+        return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                request, "当前平台不支持控制台请求。", getPlatformName()));
+    }
 
     void broadcastMessage(String message);
 

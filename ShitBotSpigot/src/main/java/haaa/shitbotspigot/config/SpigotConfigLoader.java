@@ -3,12 +3,19 @@ package haaa.shitbotspigot.config;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class SpigotConfigLoader {
     private final JavaPlugin plugin;
@@ -21,6 +28,18 @@ public final class SpigotConfigLoader {
         plugin.saveDefaultConfig();
         plugin.reloadConfig();
         return SettingsFactory.create(new Source(plugin.getConfig()));
+    }
+
+    public ConsoleSettings loadConsoleSettings() {
+        File file = new File(plugin.getDataFolder(), "commands.yml");
+        if (!file.isFile()) {
+            plugin.saveResource("commands.yml", false);
+        }
+        return ConsoleSettingsFactory.create(new Source(YamlConfiguration.loadConfiguration(file)));
+    }
+
+    public boolean isBackendMode() {
+        return "backend".equalsIgnoreCase(plugin.getConfig().getString("deployment.role", "standalone"));
     }
 
     private static final class Source implements ConfigSource {
@@ -74,6 +93,14 @@ public final class SpigotConfigLoader {
                 }
             }
             return result;
+        }
+
+        @Override
+        public Set<String> getSectionKeys(String path) {
+            ConfigurationSection section = configuration.getConfigurationSection(path);
+            return section == null
+                    ? Collections.<String>emptySet()
+                    : new LinkedHashSet<String>(section.getKeys(false));
         }
     }
 }

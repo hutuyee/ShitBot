@@ -7,12 +7,16 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
+import com.velocitypowered.api.proxy.messages.ChannelIdentifier;
 import haaa.shitbotvelocity.command.ShitBotCommand;
 import haaa.shitbotvelocity.config.VelocityConfigLoader;
 import haaa.shitbotvelocity.listener.PlayerChatListener;
 import haaa.shitbotvelocity.listener.PlayerLoginListener;
 import haaa.shitbotvelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.console.ConsoleMessageCodec;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import org.slf4j.Logger;
@@ -29,6 +33,7 @@ public final class ShitBotVelocity {
     private volatile boolean startupUnavailable = true;
     private VelocityConfigLoader configLoader;
     private VelocityPlatformBridge platformBridge;
+    private ChannelIdentifier consoleChannel;
 
     @Inject
     public ShitBotVelocity(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -40,7 +45,10 @@ public final class ShitBotVelocity {
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
-        this.platformBridge = new VelocityPlatformBridge(server, logger, dataDirectory);
+        this.consoleChannel = MinecraftChannelIdentifier.from(ConsoleMessageCodec.CHANNEL);
+        server.getChannelRegistrar().register(consoleChannel);
+        this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory, consoleChannel);
+        server.getEventManager().register(this, platformBridge.getConsoleGateway());
         server.getEventManager().register(this, new PlayerLoginListener(this));
         server.getEventManager().register(this, new PlayerChatListener(this));
         CommandMeta commandMeta = server.getCommandManager().metaBuilder("shitbot")
@@ -50,7 +58,9 @@ public final class ShitBotVelocity {
 
         try {
             Settings settings = configLoader.load();
-            ShitBotRuntime runtime = new ShitBotRuntime(settings, platformBridge);
+            ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
+            platformBridge.configureConsole(consoleSettings);
+            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
             startupUnavailable = false;
             runtime.startAsync().whenComplete((ignored, throwable) -> {
@@ -70,8 +80,11 @@ public final class ShitBotVelocity {
     public CompletableFuture<Boolean> reloadRuntime() {
         final ShitBotRuntime oldRuntime = runtimeReference.get();
         final ShitBotRuntime newRuntime;
+        final ConsoleSettings consoleSettings;
         try {
-            newRuntime = new ShitBotRuntime(configLoader.load(), platformBridge);
+            consoleSettings = configLoader.loadConsoleSettings();
+            newRuntime = new ShitBotRuntime(
+                    configLoader.load(), consoleSettings, platformBridge);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -86,6 +99,7 @@ public final class ShitBotVelocity {
             if (oldRuntime != null) {
                 oldRuntime.close();
             }
+            platformBridge.configureConsole(consoleSettings);
             newRuntime.activate();
             return Boolean.TRUE;
         });
@@ -108,6 +122,12 @@ public final class ShitBotVelocity {
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
+        }
+        if (consoleChannel != null) {
+            server.getChannelRegistrar().unregister(consoleChannel);
+        }
+        if (platformBridge != null) {
+            platformBridge.close();
         }
     }
 }

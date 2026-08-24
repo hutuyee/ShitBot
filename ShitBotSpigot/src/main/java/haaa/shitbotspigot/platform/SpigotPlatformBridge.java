@@ -1,6 +1,9 @@
 package haaa.shitbotspigot.platform;
 
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.console.ConsoleRequest;
+import haaa.shitbot.core.console.ConsoleResult;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.inventory.InventorySnapshot;
 import haaa.shitbot.core.platform.PlatformBridge;
 import org.bukkit.Bukkit;
@@ -49,11 +52,13 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     private final JavaPlugin plugin;
     private final SpigotItemIdentityResolver itemIdentityResolver;
     private final SchedulerAdapter scheduler;
+    private final SpigotConsoleController consoleController;
 
     public SpigotPlatformBridge(JavaPlugin plugin) {
         this.plugin = plugin;
         this.itemIdentityResolver = new SpigotItemIdentityResolver();
         this.scheduler = SchedulerAdapter.forPlugin(plugin);
+        this.consoleController = new SpigotConsoleController(plugin, scheduler);
     }
 
     @Override
@@ -64,6 +69,24 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     @Override
     public String getPlatformName() {
         return "Spigot";
+    }
+
+    @Override
+    public CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
+        return consoleController.execute(request);
+    }
+
+    public SpigotConsoleController getConsoleController() {
+        return consoleController;
+    }
+
+    public void configureConsole(ConsoleSettings settings, boolean backendMode) {
+        consoleController.configureBackendListener(backendMode && settings != null
+                ? settings.getBackendTransport().getListener() : null);
+    }
+
+    public void close() {
+        consoleController.close();
     }
 
     @Override

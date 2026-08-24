@@ -1,5 +1,10 @@
 config-version: 1
 
+deployment:
+  # standalone：单 Bukkit 部署，由本插件连接 OneBot。
+  # backend：与 BungeeCord/Velocity 版配合，仅接收代理请求，不连接 OneBot，避免重复回复。
+  role: "standalone"
+
 onebot:
   enabled: true
   # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。

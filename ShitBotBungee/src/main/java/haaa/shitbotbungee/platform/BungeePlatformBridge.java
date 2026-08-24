@@ -1,6 +1,9 @@
 package haaa.shitbotbungee.platform;
 
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.console.ConsoleRequest;
+import haaa.shitbot.core.console.ConsoleResult;
+import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -22,9 +25,11 @@ import java.util.concurrent.CompletableFuture;
 
 public final class BungeePlatformBridge implements PlatformBridge {
     private final Plugin plugin;
+    private final BungeeConsoleGateway consoleGateway;
 
     public BungeePlatformBridge(Plugin plugin) {
         this.plugin = plugin;
+        this.consoleGateway = new BungeeConsoleGateway(plugin);
     }
 
     @Override
@@ -35,6 +40,23 @@ public final class BungeePlatformBridge implements PlatformBridge {
     @Override
     public String getPlatformName() {
         return "BungeeCord";
+    }
+
+    @Override
+    public CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
+        return consoleGateway.execute(request);
+    }
+
+    public BungeeConsoleGateway getConsoleGateway() {
+        return consoleGateway;
+    }
+
+    public void configureConsole(ConsoleSettings settings) {
+        consoleGateway.configure(settings);
+    }
+
+    public void close() {
+        consoleGateway.close();
     }
 
     @Override

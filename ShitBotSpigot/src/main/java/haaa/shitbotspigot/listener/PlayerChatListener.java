@@ -16,6 +16,9 @@ public final class PlayerChatListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
+        if (plugin.isBackendMode()) {
+            return;
+        }
         ShitBotRuntime runtime = plugin.getRuntime();
         if (runtime != null) {
             runtime.forwardGameMessage(event.getPlayer().getName(), event.getMessage());
