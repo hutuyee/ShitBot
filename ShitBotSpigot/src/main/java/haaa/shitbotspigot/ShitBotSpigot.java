@@ -21,11 +21,14 @@ public final class ShitBotSpigot extends JavaPlugin {
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
     private volatile boolean backendMode;
+    private volatile boolean stopping;
+    private CompletableFuture<Boolean> reloadFuture;
     private SpigotConfigLoader configLoader;
     private SpigotPlatformBridge platformBridge;
 
     @Override
     public void onEnable() {
+        stopping = false;
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
         getServer().getMessenger().registerIncomingPluginChannel(
@@ -51,14 +54,21 @@ public final class ShitBotSpigot extends JavaPlugin {
             platformBridge.configureConsole(consoleSettings, backendMode);
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
-            startupUnavailable = false;
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
                 @Override
                 public void accept(Void ignored, Throwable throwable) {
                     if (throwable != null) {
+                        if (runtimeReference.compareAndSet(runtime, null)) {
+                            startupUnavailable = true;
+                        }
                         runtime.close();
                         platformBridge.error("ShitBot failed to start", FutureUtil.unwrap(throwable));
                     } else {
+                        if (stopping || runtimeReference.get() != runtime) {
+                            runtime.close();
+                            return;
+                        }
+                        startupUnavailable = false;
                         if (!backendMode) {
                             runtime.activate();
                         }
@@ -72,7 +82,22 @@ public final class ShitBotSpigot extends JavaPlugin {
         }
     }
 
-    public CompletableFuture<Boolean> reloadRuntime() {
+    public synchronized CompletableFuture<Boolean> reloadRuntime() {
+        if (reloadFuture != null && !reloadFuture.isDone()) {
+            return reloadFuture;
+        }
+        final CompletableFuture<Boolean> created = reloadRuntimeInternal();
+        reloadFuture = created;
+        created.whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {
+            @Override
+            public void accept(Boolean ignored, Throwable throwable) {
+                clearReloadFuture(created);
+            }
+        });
+        return created;
+    }
+
+    private CompletableFuture<Boolean> reloadRuntimeInternal() {
         final ShitBotRuntime oldRuntime = runtimeReference.get();
         final ShitBotRuntime newRuntime;
         final boolean configuredBackendMode;
@@ -94,7 +119,10 @@ public final class ShitBotSpigot extends JavaPlugin {
                     platformBridge.error("New runtime failed to initialize; old runtime kept", FutureUtil.unwrap(throwable));
                     return Boolean.FALSE;
                 }
-                runtimeReference.set(newRuntime);
+                if (stopping || !runtimeReference.compareAndSet(oldRuntime, newRuntime)) {
+                    newRuntime.close();
+                    return Boolean.FALSE;
+                }
                 if (oldRuntime != null) {
                     oldRuntime.close();
                 }
@@ -103,9 +131,16 @@ public final class ShitBotSpigot extends JavaPlugin {
                 if (!configuredBackendMode) {
                     newRuntime.activate();
                 }
+                startupUnavailable = false;
                 return Boolean.TRUE;
             }
         });
+    }
+
+    private synchronized void clearReloadFuture(CompletableFuture<Boolean> completed) {
+        if (reloadFuture == completed) {
+            reloadFuture = null;
+        }
     }
 
     public boolean isStartupUnavailable() {
@@ -126,6 +161,7 @@ public final class ShitBotSpigot extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        stopping = true;
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();

@@ -31,6 +31,8 @@ public final class ShitBotVelocity {
     private final Path dataDirectory;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
+    private volatile boolean stopping;
+    private CompletableFuture<Boolean> reloadFuture;
     private VelocityConfigLoader configLoader;
     private VelocityPlatformBridge platformBridge;
     private ChannelIdentifier consoleChannel;
@@ -44,6 +46,7 @@ public final class ShitBotVelocity {
 
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
+        stopping = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.consoleChannel = MinecraftChannelIdentifier.from(ConsoleMessageCodec.CHANNEL);
         server.getChannelRegistrar().register(consoleChannel);
@@ -62,12 +65,19 @@ public final class ShitBotVelocity {
             platformBridge.configureConsole(consoleSettings);
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
-            startupUnavailable = false;
             runtime.startAsync().whenComplete((ignored, throwable) -> {
                 if (throwable != null) {
+                    if (runtimeReference.compareAndSet(runtime, null)) {
+                        startupUnavailable = true;
+                    }
                     runtime.close();
                     platformBridge.error("ShitBot failed to start", FutureUtil.unwrap(throwable));
                 } else {
+                    if (stopping || runtimeReference.get() != runtime) {
+                        runtime.close();
+                        return;
+                    }
+                    startupUnavailable = false;
                     runtime.activate();
                     platformBridge.info("ShitBotVelocity enabled.");
                 }
@@ -77,7 +87,17 @@ public final class ShitBotVelocity {
         }
     }
 
-    public CompletableFuture<Boolean> reloadRuntime() {
+    public synchronized CompletableFuture<Boolean> reloadRuntime() {
+        if (reloadFuture != null && !reloadFuture.isDone()) {
+            return reloadFuture;
+        }
+        final CompletableFuture<Boolean> created = reloadRuntimeInternal();
+        reloadFuture = created;
+        created.whenComplete((ignored, throwable) -> clearReloadFuture(created));
+        return created;
+    }
+
+    private CompletableFuture<Boolean> reloadRuntimeInternal() {
         final ShitBotRuntime oldRuntime = runtimeReference.get();
         final ShitBotRuntime newRuntime;
         final ConsoleSettings consoleSettings;
@@ -95,14 +115,24 @@ public final class ShitBotVelocity {
                 platformBridge.error("New runtime failed to initialize; old runtime kept", FutureUtil.unwrap(throwable));
                 return Boolean.FALSE;
             }
-            runtimeReference.set(newRuntime);
+            if (stopping || !runtimeReference.compareAndSet(oldRuntime, newRuntime)) {
+                newRuntime.close();
+                return Boolean.FALSE;
+            }
             if (oldRuntime != null) {
                 oldRuntime.close();
             }
             platformBridge.configureConsole(consoleSettings);
             newRuntime.activate();
+            startupUnavailable = false;
             return Boolean.TRUE;
         });
+    }
+
+    private synchronized void clearReloadFuture(CompletableFuture<Boolean> completed) {
+        if (reloadFuture == completed) {
+            reloadFuture = null;
+        }
     }
 
     public boolean isStartupUnavailable() {
@@ -119,6 +149,7 @@ public final class ShitBotVelocity {
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
+        stopping = true;
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
