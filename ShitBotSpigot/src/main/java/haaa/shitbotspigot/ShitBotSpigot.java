@@ -1,7 +1,6 @@
 package haaa.shitbotspigot;
 
 import haaa.shitbot.core.config.Settings;
-import haaa.shitbot.core.console.ConsoleMessageCodec;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
@@ -31,9 +30,6 @@ public final class ShitBotSpigot extends JavaPlugin {
         stopping = false;
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
-        getServer().getMessenger().registerIncomingPluginChannel(
-                this, ConsoleMessageCodec.CHANNEL, platformBridge.getConsoleController());
-        getServer().getMessenger().registerOutgoingPluginChannel(this, ConsoleMessageCodec.CHANNEL);
         getServer().getPluginManager().registerEvents(new PlayerLoginListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerInventorySnapshotListener(this), this);
@@ -166,8 +162,6 @@ public final class ShitBotSpigot extends JavaPlugin {
         if (runtime != null) {
             runtime.close();
         }
-        getServer().getMessenger().unregisterIncomingPluginChannel(this, ConsoleMessageCodec.CHANNEL);
-        getServer().getMessenger().unregisterOutgoingPluginChannel(this, ConsoleMessageCodec.CHANNEL);
         if (platformBridge != null) {
             platformBridge.close();
         }

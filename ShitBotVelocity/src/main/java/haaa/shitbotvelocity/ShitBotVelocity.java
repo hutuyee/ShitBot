@@ -7,15 +7,12 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
-import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
-import com.velocitypowered.api.proxy.messages.ChannelIdentifier;
 import haaa.shitbotvelocity.command.ShitBotCommand;
 import haaa.shitbotvelocity.config.VelocityConfigLoader;
 import haaa.shitbotvelocity.listener.PlayerChatListener;
 import haaa.shitbotvelocity.listener.PlayerLoginListener;
 import haaa.shitbotvelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
-import haaa.shitbot.core.console.ConsoleMessageCodec;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
@@ -35,7 +32,6 @@ public final class ShitBotVelocity {
     private CompletableFuture<Boolean> reloadFuture;
     private VelocityConfigLoader configLoader;
     private VelocityPlatformBridge platformBridge;
-    private ChannelIdentifier consoleChannel;
 
     @Inject
     public ShitBotVelocity(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -48,10 +44,7 @@ public final class ShitBotVelocity {
     public void onProxyInitialization(ProxyInitializeEvent event) {
         stopping = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
-        this.consoleChannel = MinecraftChannelIdentifier.from(ConsoleMessageCodec.CHANNEL);
-        server.getChannelRegistrar().register(consoleChannel);
-        this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory, consoleChannel);
-        server.getEventManager().register(this, platformBridge.getConsoleGateway());
+        this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
         server.getEventManager().register(this, new PlayerLoginListener(this));
         server.getEventManager().register(this, new PlayerChatListener(this));
         CommandMeta commandMeta = server.getCommandManager().metaBuilder("shitbot")
@@ -153,9 +146,6 @@ public final class ShitBotVelocity {
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
-        }
-        if (consoleChannel != null) {
-            server.getChannelRegistrar().unregister(consoleChannel);
         }
         if (platformBridge != null) {
             platformBridge.close();

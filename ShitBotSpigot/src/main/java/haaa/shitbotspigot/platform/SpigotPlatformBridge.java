@@ -76,10 +76,6 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         return consoleController.execute(request);
     }
 
-    public SpigotConsoleController getConsoleController() {
-        return consoleController;
-    }
-
     public void configureConsole(ConsoleSettings settings, boolean backendMode) {
         consoleController.configureBackendListener(backendMode && settings != null
                 ? settings.getBackendTransport().getListener() : null);

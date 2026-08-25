@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class ConsoleMessageCodec {
-    public static final String CHANNEL = "shitbot:console";
     private static final int MAGIC = 0x53424331;
     private static final int VERSION = 1;
     private static final int TYPE_REQUEST = 1;
@@ -63,8 +62,10 @@ public final class ConsoleMessageCodec {
         for (int index = 0; index < playerCount; index++) {
             playerNames.add(readText(input));
         }
-        return new ConsoleRequest(requestId, operation, target, command, permission,
+        ConsoleRequest request = new ConsoleRequest(requestId, operation, target, command, permission,
                 playerNames, server, captureSeconds, timeoutSeconds);
+        requireFullyConsumed(input);
+        return request;
     }
 
     public static byte[] encodeResult(ConsoleResult result) throws IOException {
@@ -86,7 +87,9 @@ public final class ConsoleMessageCodec {
         String requestId = readText(input);
         ConsoleResult.Status status = enumValue(
                 ConsoleResult.Status.values(), input.readUnsignedByte(), "status");
-        return new ConsoleResult(requestId, status, readText(input), readText(input));
+        ConsoleResult result = new ConsoleResult(requestId, status, readText(input), readText(input));
+        requireFullyConsumed(input);
+        return result;
     }
 
     private static DataInputStream open(byte[] data, int expectedType) throws IOException {
@@ -115,6 +118,12 @@ public final class ConsoleMessageCodec {
             throw new IOException("Plugin message text is too long");
         }
         return value;
+    }
+
+    private static void requireFullyConsumed(DataInputStream input) throws IOException {
+        if (input.available() != 0) {
+            throw new IOException("Trailing console message data");
+        }
     }
 
     private static <T> T enumValue(T[] values, int ordinal, String label) throws IOException {

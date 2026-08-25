@@ -1,7 +1,6 @@
 package haaa.shitbotbungee;
 
 import haaa.shitbot.core.config.Settings;
-import haaa.shitbot.core.console.ConsoleMessageCodec;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
@@ -29,9 +28,6 @@ public final class ShitBotBungee extends Plugin {
         stopping = false;
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);
-        ProxyServer.getInstance().registerChannel(ConsoleMessageCodec.CHANNEL);
-        ProxyServer.getInstance().getPluginManager().registerListener(
-                this, platformBridge.getConsoleGateway());
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerLoginListener(this));
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerChatListener(this));
         ProxyServer.getInstance().getPluginManager().registerCommand(this, new ShitBotCommand(this));
@@ -142,7 +138,6 @@ public final class ShitBotBungee extends Plugin {
         if (runtime != null) {
             runtime.close();
         }
-        ProxyServer.getInstance().unregisterChannel(ConsoleMessageCodec.CHANNEL);
         if (platformBridge != null) {
             platformBridge.close();
         }

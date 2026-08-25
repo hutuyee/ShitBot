@@ -1,6 +1,5 @@
 package haaa.shitbotbungee.platform;
 
-import haaa.shitbot.core.console.ConsoleMessageCodec;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -8,37 +7,23 @@ import haaa.shitbot.core.console.ConsoleSocketProtocol;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import net.md_5.bungee.api.CommandSender;
-import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
-import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.connection.Server;
-import net.md_5.bungee.api.event.PluginMessageEvent;
-import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
-import net.md_5.bungee.event.EventHandler;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class BungeeConsoleGateway implements Listener, AutoCloseable {
+public final class BungeeConsoleGateway implements AutoCloseable {
     private final Plugin plugin;
-    private final Map<String, PendingRequest> pending =
-            new ConcurrentHashMap<String, PendingRequest>();
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
     private volatile ConsoleRequest activeLocalRequest;
@@ -62,66 +47,14 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
         return sendToBackend(request);
     }
 
-    @EventHandler
-    public void onPluginMessage(PluginMessageEvent event) {
-        if (!ConsoleMessageCodec.CHANNEL.equals(event.getTag()) || !(event.getSender() instanceof Server)) {
-            return;
-        }
-        event.setCancelled(true);
-        try {
-            ConsoleResult result = ConsoleMessageCodec.decodeResult(event.getData());
-            PendingRequest request = pending.get(result.getRequestId());
-            String sourceServer = ((Server) event.getSender()).getInfo().getName();
-            if (request != null && request.serverName.equals(sourceServer)
-                    && pending.remove(result.getRequestId(), request)) {
-                request.future.complete(new ConsoleResult(result.getRequestId(), result.getStatus(),
-                        result.getOutput(), sourceServer));
-            }
-        } catch (Exception exception) {
-            plugin.getLogger().warning("Ignored invalid ShitBot console response: " + exception.getMessage());
-        }
-    }
-
     private CompletableFuture<ConsoleResult> sendToBackend(final ConsoleRequest request) {
         final ConsoleSettings.BackendEndpoint endpoint = selectEndpoint(request);
         if (endpoint != null) {
             return sendToSocket(request, endpoint);
         }
-        final ServerInfo target = selectServer(request);
-        if (target == null) {
-            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "没有在线玩家可承载代理与子服通信。", "BungeeCord"));
-        }
-        final CompletableFuture<ConsoleResult> future = new CompletableFuture<ConsoleResult>();
-        final PendingRequest pendingRequest = new PendingRequest(target.getName(), future);
-        if (pending.putIfAbsent(request.getRequestId(), pendingRequest) != null) {
-            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "重复的控制台请求已被拒绝。", "BungeeCord"));
-        }
-        try {
-            boolean sent = target.sendData(
-                    ConsoleMessageCodec.CHANNEL, ConsoleMessageCodec.encodeRequest(request), false);
-            if (!sent) {
-                pending.remove(request.getRequestId(), pendingRequest);
-                return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                        request, "子服通道不可用。", target.getName()));
-            }
-        } catch (Exception exception) {
-            pending.remove(request.getRequestId(), pendingRequest);
-            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, exception.getMessage(), target.getName()));
-        }
-        long timeout = Math.max(request.getTimeoutSeconds(), request.getCaptureSeconds() + 5L);
-        plugin.getProxy().getScheduler().schedule(plugin, new Runnable() {
-            @Override
-            public void run() {
-                if (pending.remove(request.getRequestId(), pendingRequest)) {
-                    future.complete(ConsoleResult.unavailable(
-                            request, "等待子服响应超时。", target.getName()));
-                }
-            }
-        }, timeout, TimeUnit.SECONDS);
-        return future;
+        return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                request, "目标子服未配置已认证的 Console Socket，已拒绝不安全的 Plugin Message 回退。",
+                "BungeeCord"));
     }
 
     private CompletableFuture<ConsoleResult> sendToSocket(
@@ -165,41 +98,6 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
             return defaultEndpoint;
         }
         return transport.getOnlyEndpoint();
-    }
-
-    private ServerInfo selectServer(ConsoleRequest request) {
-        ProxyServer proxy = plugin.getProxy();
-        if (!request.getServer().isEmpty()) {
-            ServerInfo configured = proxy.getServers().get(request.getServer());
-            return configured != null && !configured.getPlayers().isEmpty() ? configured : null;
-        }
-        for (String playerName : request.getPlayerNames()) {
-            ProxiedPlayer player = proxy.getPlayer(playerName);
-            if (player != null && player.getServer() != null) {
-                return player.getServer().getInfo();
-            }
-        }
-        ConsoleSettings.BackendTransport transport = backendTransport;
-        if (transport != null && !transport.getDefaultServer().isEmpty()) {
-            ServerInfo configured = proxy.getServers().get(transport.getDefaultServer());
-            return configured != null && !configured.getPlayers().isEmpty() ? configured : null;
-        }
-        if (transport != null && !transport.getEndpoints().isEmpty()) {
-            return null;
-        }
-        List<ServerInfo> servers = new ArrayList<ServerInfo>(proxy.getServers().values());
-        Collections.sort(servers, new Comparator<ServerInfo>() {
-            @Override
-            public int compare(ServerInfo first, ServerInfo second) {
-                return first.getName().compareToIgnoreCase(second.getName());
-            }
-        });
-        for (ServerInfo server : servers) {
-            if (!server.getPlayers().isEmpty()) {
-                return server;
-            }
-        }
-        return null;
     }
 
     private CompletableFuture<ConsoleResult> executeLocally(final ConsoleRequest request) {
@@ -321,11 +219,6 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
 
     @Override
     public void close() {
-        for (Map.Entry<String, PendingRequest> entry : pending.entrySet()) {
-            if (pending.remove(entry.getKey(), entry.getValue())) {
-                entry.getValue().future.completeExceptionally(new IllegalStateException("Plugin disabled"));
-            }
-        }
         CompletableFuture<ConsoleResult> future = activeLocalFuture;
         ConsoleRequest request = activeLocalRequest;
         if (future != null && request != null) {
@@ -341,16 +234,6 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
         if (activeLocalFuture == future) {
             activeLocalFuture = null;
             activeLocalRequest = null;
-        }
-    }
-
-    private static final class PendingRequest {
-        private final String serverName;
-        private final CompletableFuture<ConsoleResult> future;
-
-        private PendingRequest(String serverName, CompletableFuture<ConsoleResult> future) {
-            this.serverName = serverName;
-            this.future = future;
         }
     }
 

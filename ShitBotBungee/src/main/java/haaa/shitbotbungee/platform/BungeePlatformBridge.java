@@ -47,10 +47,6 @@ public final class BungeePlatformBridge implements PlatformBridge {
         return consoleGateway.execute(request);
     }
 
-    public BungeeConsoleGateway getConsoleGateway() {
-        return consoleGateway;
-    }
-
     public void configureConsole(ConsoleSettings settings) {
         consoleGateway.configure(settings);
     }

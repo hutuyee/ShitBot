@@ -7,7 +7,6 @@ import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.platform.PlatformBridge;
-import com.velocitypowered.api.proxy.messages.ChannelIdentifier;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -32,12 +31,11 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     public VelocityPlatformBridge(Object plugin,
                                   ProxyServer server,
                                   Logger logger,
-                                  Path dataDirectory,
-                                  ChannelIdentifier consoleChannel) {
+                                  Path dataDirectory) {
         this.server = server;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
-        this.consoleGateway = new VelocityConsoleGateway(plugin, server, logger, consoleChannel);
+        this.consoleGateway = new VelocityConsoleGateway(plugin, server);
     }
 
     @Override
@@ -53,10 +51,6 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     @Override
     public CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
         return consoleGateway.execute(request);
-    }
-
-    public VelocityConsoleGateway getConsoleGateway() {
-        return consoleGateway;
     }
 
     public void configureConsole(ConsoleSettings settings) {

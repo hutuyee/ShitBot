@@ -1,6 +1,5 @@
 package haaa.shitbotspigot.platform;
 
-import haaa.shitbot.core.console.ConsoleMessageCodec;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -8,9 +7,7 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.messaging.PluginMessageListener;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
@@ -29,7 +26,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public final class SpigotConsoleController implements PluginMessageListener, AutoCloseable {
+public final class SpigotConsoleController implements AutoCloseable {
     private static final int MAX_LOG_LINES = 100;
     private static final int MAX_LOG_CHARACTERS = 4000;
 
@@ -40,8 +37,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
     private final Deque<PendingCommand> commandQueue = new ArrayDeque<PendingCommand>();
     private final TpsMonitor tpsMonitor;
     private final SpigotPermissionResolver permissionResolver;
-    private final ConcurrentMap<String, Boolean> remoteRequestIds =
-            new ConcurrentHashMap<String, Boolean>();
     private final ConcurrentMap<String, Boolean> cancelledRequestIds =
             new ConcurrentHashMap<String, Boolean>();
     private boolean commandRunning;
@@ -132,69 +127,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
             newServer.close();
             plugin.getLogger().severe("Unable to start ShitBot console listener: " + exception.getMessage());
         }
-    }
-
-    @Override
-    public void onPluginMessageReceived(String channel, final Player player, byte[] data) {
-        if (!ConsoleMessageCodec.CHANNEL.equals(channel) || player == null) {
-            return;
-        }
-        final ConsoleRequest request;
-        try {
-            request = ConsoleMessageCodec.decodeRequest(data);
-        } catch (Exception exception) {
-            plugin.getLogger().warning("Ignored invalid ShitBot console request: " + exception.getMessage());
-            return;
-        }
-        if (remoteRequestIds.putIfAbsent(request.getRequestId(), Boolean.TRUE) != null) {
-            return;
-        }
-        timer.schedule(new Runnable() {
-            @Override
-            public void run() {
-                remoteRequestIds.remove(request.getRequestId());
-            }
-        }, Math.max(60L, request.getTimeoutSeconds() * 2L), TimeUnit.SECONDS);
-        execute(request).whenComplete(new java.util.function.BiConsumer<ConsoleResult, Throwable>() {
-            @Override
-            public void accept(ConsoleResult result, Throwable throwable) {
-                ConsoleResult response = result;
-                if (throwable != null || response == null) {
-                    response = ConsoleResult.unavailable(request,
-                            throwable == null ? "执行无返回" : throwable.getMessage(), serverName());
-                }
-                sendResponse(response, player);
-            }
-        });
-    }
-
-    private void sendResponse(final ConsoleResult result, final Player originalCarrier) {
-        final byte[] payload;
-        try {
-            payload = ConsoleMessageCodec.encodeResult(result);
-        } catch (Exception exception) {
-            plugin.getLogger().warning("Unable to encode console response: " + exception.getMessage());
-            return;
-        }
-        scheduler.executeGlobal(new Runnable() {
-            @Override
-            public void run() {
-                final Player carrier = originalCarrier != null && originalCarrier.isOnline()
-                        ? originalCarrier : firstOnlinePlayer();
-                if (carrier == null) {
-                    plugin.getLogger().warning("Console response dropped because no player can carry plugin messages.");
-                    return;
-                }
-                scheduler.executeForPlayer(carrier, new Runnable() {
-                    @Override
-                    public void run() {
-                        if (carrier.isOnline()) {
-                            carrier.sendPluginMessage(plugin, ConsoleMessageCodec.CHANNEL, payload);
-                        }
-                    }
-                });
-            }
-        });
     }
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {
@@ -343,15 +275,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
                 });
     }
 
-    private Player firstOnlinePlayer() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player != null && player.isOnline()) {
-                return player;
-            }
-        }
-        return null;
-    }
-
     private String serverName() {
         String name = Bukkit.getServer().getName();
         return name == null || name.trim().isEmpty() ? "Bukkit" : name;
@@ -374,7 +297,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
             commandQueue.clear();
             commandRunning = false;
         }
-        remoteRequestIds.clear();
         cancelledRequestIds.clear();
     }
 

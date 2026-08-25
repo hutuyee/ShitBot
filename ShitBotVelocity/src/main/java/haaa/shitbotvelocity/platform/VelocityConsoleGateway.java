@@ -1,17 +1,11 @@
 package haaa.shitbotvelocity.platform;
 
-import com.velocitypowered.api.event.Subscribe;
-import com.velocitypowered.api.event.connection.PluginMessageEvent;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.plugin.PluginContainer;
 import com.velocitypowered.api.proxy.ConsoleCommandSource;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-import com.velocitypowered.api.proxy.ServerConnection;
-import com.velocitypowered.api.proxy.messages.ChannelIdentifier;
-import com.velocitypowered.api.proxy.server.RegisteredServer;
-import haaa.shitbot.core.console.ConsoleMessageCodec;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -23,15 +17,9 @@ import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.pointer.Pointers;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ExecutorService;
@@ -40,22 +28,14 @@ import java.util.concurrent.Executors;
 public final class VelocityConsoleGateway implements AutoCloseable {
     private final Object plugin;
     private final ProxyServer server;
-    private final Logger logger;
-    private final ChannelIdentifier channel;
-    private final Map<String, PendingRequest> pending = new ConcurrentHashMap<>();
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private final ExecutorService socketExecutor = Executors.newFixedThreadPool(2,
             new NamedThreadFactory("shitbot-velocity-console", true));
     private volatile ConsoleSettings.BackendTransport backendTransport;
 
-    public VelocityConsoleGateway(Object plugin,
-                                  ProxyServer server,
-                                  Logger logger,
-                                  ChannelIdentifier channel) {
+    public VelocityConsoleGateway(Object plugin, ProxyServer server) {
         this.plugin = plugin;
         this.server = server;
-        this.logger = logger;
-        this.channel = channel;
     }
 
     public CompletableFuture<ConsoleResult> execute(ConsoleRequest request) {
@@ -70,62 +50,14 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         backendTransport = settings == null ? null : settings.getBackendTransport();
     }
 
-    @Subscribe
-    public void onPluginMessage(PluginMessageEvent event) {
-        if (!channel.equals(event.getIdentifier()) || !(event.getSource() instanceof ServerConnection)) {
-            return;
-        }
-        event.setResult(PluginMessageEvent.ForwardResult.handled());
-        try {
-            ConsoleResult result = ConsoleMessageCodec.decodeResult(event.getData());
-            PendingRequest request = pending.get(result.getRequestId());
-            String sourceServer = ((ServerConnection) event.getSource()).getServerInfo().getName();
-            if (request != null && request.serverName.equals(sourceServer)
-                    && pending.remove(result.getRequestId(), request)) {
-                request.future.complete(new ConsoleResult(result.getRequestId(), result.getStatus(),
-                        result.getOutput(), sourceServer));
-            }
-        } catch (Exception exception) {
-            logger.warn("Ignored invalid ShitBot console response: {}", exception.getMessage());
-        }
-    }
-
     private CompletableFuture<ConsoleResult> sendToBackend(final ConsoleRequest request) {
         final ConsoleSettings.BackendEndpoint endpoint = selectEndpoint(request);
         if (endpoint != null) {
             return sendToSocket(request, endpoint);
         }
-        final RegisteredServer target = selectServer(request);
-        if (target == null) {
-            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "没有在线玩家可承载代理与子服通信。", "Velocity"));
-        }
-        final CompletableFuture<ConsoleResult> future = new CompletableFuture<>();
-        final PendingRequest pendingRequest = new PendingRequest(target.getServerInfo().getName(), future);
-        if (pending.putIfAbsent(request.getRequestId(), pendingRequest) != null) {
-            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "重复的控制台请求已被拒绝。", "Velocity"));
-        }
-        try {
-            boolean sent = target.sendPluginMessage(channel, ConsoleMessageCodec.encodeRequest(request));
-            if (!sent) {
-                pending.remove(request.getRequestId(), pendingRequest);
-                return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                        request, "子服通道不可用。", target.getServerInfo().getName()));
-            }
-        } catch (Exception exception) {
-            pending.remove(request.getRequestId(), pendingRequest);
-            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, exception.getMessage(), target.getServerInfo().getName()));
-        }
-        long timeout = Math.max(request.getTimeoutSeconds(), request.getCaptureSeconds() + 5L);
-        server.getScheduler().buildTask(plugin, () -> {
-            if (pending.remove(request.getRequestId(), pendingRequest)) {
-                future.complete(ConsoleResult.unavailable(
-                        request, "等待子服响应超时。", target.getServerInfo().getName()));
-            }
-        }).delay(timeout, TimeUnit.SECONDS).schedule();
-        return future;
+        return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                request, "目标子服未配置已认证的 Console Socket，已拒绝不安全的 Plugin Message 回退。",
+                "Velocity"));
     }
 
     private CompletableFuture<ConsoleResult> sendToSocket(
@@ -166,37 +98,6 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             return defaultEndpoint;
         }
         return transport.getOnlyEndpoint();
-    }
-
-    private RegisteredServer selectServer(ConsoleRequest request) {
-        if (!request.getServer().isEmpty()) {
-            Optional<RegisteredServer> configured = server.getServer(request.getServer());
-            return configured.isPresent() && !configured.get().getPlayersConnected().isEmpty()
-                    ? configured.get() : null;
-        }
-        for (String playerName : request.getPlayerNames()) {
-            Optional<Player> player = server.getPlayer(playerName);
-            if (player.isPresent() && player.get().getCurrentServer().isPresent()) {
-                return player.get().getCurrentServer().get().getServer();
-            }
-        }
-        ConsoleSettings.BackendTransport transport = backendTransport;
-        if (transport != null && !transport.getDefaultServer().isEmpty()) {
-            Optional<RegisteredServer> configured = server.getServer(transport.getDefaultServer());
-            return configured.isPresent() && !configured.get().getPlayersConnected().isEmpty()
-                    ? configured.get() : null;
-        }
-        if (transport != null && !transport.getEndpoints().isEmpty()) {
-            return null;
-        }
-        List<RegisteredServer> servers = new ArrayList<>(server.getAllServers());
-        servers.sort(Comparator.comparing(item -> item.getServerInfo().getName(), String.CASE_INSENSITIVE_ORDER));
-        for (RegisteredServer registered : servers) {
-            if (!registered.getPlayersConnected().isEmpty()) {
-                return registered;
-            }
-        }
-        return null;
     }
 
     private CompletableFuture<ConsoleResult> executeLocally(final ConsoleRequest request) {
@@ -281,22 +182,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
 
     @Override
     public void close() {
-        for (Map.Entry<String, PendingRequest> entry : pending.entrySet()) {
-            if (pending.remove(entry.getKey(), entry.getValue())) {
-                entry.getValue().future.completeExceptionally(new IllegalStateException("Plugin disabled"));
-            }
-        }
         socketExecutor.shutdownNow();
-    }
-
-    private static final class PendingRequest {
-        private final String serverName;
-        private final CompletableFuture<ConsoleResult> future;
-
-        private PendingRequest(String serverName, CompletableFuture<ConsoleResult> future) {
-            this.serverName = serverName;
-            this.future = future;
-        }
     }
 
     private static final class CapturingCommandSource implements CommandSource {
