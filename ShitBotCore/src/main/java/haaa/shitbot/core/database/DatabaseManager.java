@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import haaa.shitbot.core.util.NetworkUtil;
 
 import java.nio.file.Files;
 import java.sql.Connection;
@@ -68,6 +69,7 @@ public final class DatabaseManager implements AutoCloseable {
         }
         try {
             Files.createDirectories(platform.getDataDirectory());
+            warnIfInsecureRemoteMysql();
             loadDriver();
             if (settings.getType() == Settings.Database.Type.SQLITE) {
                 initializeSqlite();
@@ -78,6 +80,22 @@ public final class DatabaseManager implements AutoCloseable {
                     + ", schema v" + SCHEMA_VERSION);
         } catch (Throwable throwable) {
             throw new CompletionException("Failed to initialize database", throwable);
+        }
+    }
+
+    private void warnIfInsecureRemoteMysql() {
+        if (settings.getType() != Settings.Database.Type.MYSQL
+                || NetworkUtil.isLoopbackHost(settings.getMysqlHost())) {
+            return;
+        }
+        String parameters = settings.getMysqlParameters().toLowerCase(Locale.ROOT);
+        boolean tlsRequired = parameters.contains("requiressl=true")
+                || parameters.contains("sslmode=required")
+                || parameters.contains("sslmode=verify_ca")
+                || parameters.contains("sslmode=verify_identity");
+        if (!tlsRequired) {
+            platform.warn("Remote MySQL connection does not require TLS; credentials and data may be exposed: "
+                    + settings.getMysqlHost() + ":" + settings.getMysqlPort());
         }
     }
 

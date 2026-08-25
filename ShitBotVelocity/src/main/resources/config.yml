@@ -3,6 +3,7 @@ config-version: 1
 onebot:
   enabled: true
   # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。
+  # 跨主机连接请使用 wss://；远程 ws:// 会在启动时输出安全警告。
   websocket-url: "ws://127.0.0.1:3001"
   # 非空时会在 WebSocket 握手 Header 中发送：Authorization: Bearer <token>
   access-token: ""
@@ -117,6 +118,7 @@ database:
     database: "shitbot"
     username: "shitbot"
     password: "SHITBOTPASSWORD"
+    # 下列参数只适合本机 MySQL；跨主机请配置 sslMode=VERIFY_IDENTITY 等强制 TLS 参数。
     parameters: "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true"
   pool:
     maximum-pool-size: 10
@@ -124,8 +126,10 @@ database:
     connection-timeout-ms: 5000
     validation-timeout-ms: 3000
     idle-timeout-ms: 600000
-    maximum-lifetime-ms: 80000
-    keepalive-time-ms: 40000
+    # 默认 30 分钟；应略低于 MySQL/NAT 的连接回收时间。
+    maximum-lifetime-ms: 1800000
+    # 默认 5 分钟；设置 0 可关闭 keepalive。
+    keepalive-time-ms: 300000
   # SQLite 会自动强制为 1，MySQL 可按负载调整。
   async-threads: 2
 

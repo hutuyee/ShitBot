@@ -87,8 +87,8 @@ public final class SettingsFactory {
                 source.getLong("database.pool.connection-timeout-ms", 5000L),
                 source.getLong("database.pool.validation-timeout-ms", 3000L),
                 source.getLong("database.pool.idle-timeout-ms", 600000L),
-                source.getLong("database.pool.maximum-lifetime-ms", 80000L),
-                source.getLong("database.pool.keepalive-time-ms", 40000L),
+                source.getLong("database.pool.maximum-lifetime-ms", 1800000L),
+                source.getLong("database.pool.keepalive-time-ms", 300000L),
                 source.getInt("database.async-threads", 2));
 
         Settings.Image image = new Settings.Image(

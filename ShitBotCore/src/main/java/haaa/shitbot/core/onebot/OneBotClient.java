@@ -9,6 +9,7 @@ import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import haaa.shitbot.core.util.NetworkUtil;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.enums.ReadyState;
@@ -86,6 +87,7 @@ public final class OneBotClient implements AutoCloseable {
         if (!settings.isEnabled() || closed.get()) {
             return;
         }
+        warnIfInsecureRemoteWebSocket();
         scheduler.execute(new Runnable() {
             @Override
             public void run() {
@@ -98,6 +100,23 @@ public final class OneBotClient implements AutoCloseable {
                 checkHeartbeat();
             }
         }, 10L, 10L, TimeUnit.SECONDS);
+    }
+
+    private void warnIfInsecureRemoteWebSocket() {
+        try {
+            URI uri = URI.create(settings.getWebsocketUrl());
+            if (!"ws".equalsIgnoreCase(uri.getScheme()) || NetworkUtil.isLoopbackHost(uri.getHost())) {
+                return;
+            }
+            if (settings.getAccessToken().isEmpty()) {
+                platform.warn("Remote OneBot uses unencrypted ws:// without an access token: " + uri);
+            } else {
+                platform.warn("Remote OneBot uses unencrypted ws://; the Bearer token and messages are exposed in transit: "
+                        + uri);
+            }
+        } catch (IllegalArgumentException ignored) {
+            // connectNow reports malformed URLs through the normal connection error path.
+        }
     }
 
     private void connectNow() {

@@ -498,8 +498,10 @@ public final class Settings {
             this.connectionTimeoutMs = clampLong(connectionTimeoutMs, 1000L, 120000L, 5000L);
             this.validationTimeoutMs = clampLong(validationTimeoutMs, 500L, this.connectionTimeoutMs, 3000L);
             this.idleTimeoutMs = clampLong(idleTimeoutMs, 10000L, 1800000L, 600000L);
-            this.maximumLifetimeMs = clampLong(maximumLifetimeMs, 30000L, 3600000L, 80000L);
-            this.keepaliveTimeMs = clampLong(keepaliveTimeMs, 0L, this.maximumLifetimeMs - 1000L, 40000L);
+            this.maximumLifetimeMs = clampLong(maximumLifetimeMs, 30000L, 3600000L, 1800000L);
+            long keepaliveFallback = this.maximumLifetimeMs > 301000L ? 300000L : 0L;
+            this.keepaliveTimeMs = clampLong(
+                    keepaliveTimeMs, 0L, this.maximumLifetimeMs - 1000L, keepaliveFallback);
             this.asyncThreads = clamp(asyncThreads, 1, 16, 2);
         }
 
