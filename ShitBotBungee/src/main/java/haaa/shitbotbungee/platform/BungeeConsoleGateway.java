@@ -7,7 +7,9 @@ import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.connection.Server;
@@ -16,6 +18,11 @@ import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.event.EventHandler;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,18 +34,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
 
 public final class BungeeConsoleGateway implements Listener, AutoCloseable {
     private final Plugin plugin;
     private final Map<String, PendingRequest> pending =
             new ConcurrentHashMap<String, PendingRequest>();
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
-    private volatile Logger activeLogger;
-    private volatile Handler activeHandler;
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
     private volatile ConsoleRequest activeLocalRequest;
     private final ExecutorService socketExecutor = Executors.newFixedThreadPool(2,
@@ -248,23 +249,19 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
     private CompletableFuture<ConsoleResult> executeAuthorizedLocal(final ConsoleRequest request) {
         if (!localCommandRunning.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "已有代理控制台命令正在抓取日志。", "BungeeCord"));
+                    request, "已有代理控制台命令正在执行。", "BungeeCord"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<ConsoleResult>();
-        final Logger logger = plugin.getProxy().getLogger();
-        final CapturingHandler handler = new CapturingHandler();
-        logger.addHandler(handler);
-        activeLogger = logger;
-        activeHandler = handler;
+        final CommandOutputCapture capture = new CommandOutputCapture();
+        CommandSender sender = capturingSender(plugin.getProxy().getConsole(), capture);
         activeLocalFuture = future;
         activeLocalRequest = request;
         final boolean accepted;
         try {
             accepted = plugin.getProxy().getPluginManager().dispatchCommand(
-                    plugin.getProxy().getConsole(), request.getCommand());
+                    sender, request.getCommand());
         } catch (Throwable throwable) {
-            logger.removeHandler(handler);
-            clearLocalCapture(handler);
+            clearLocalCapture(future);
             localCommandRunning.set(false);
             future.complete(new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
                     throwable.getMessage(), "BungeeCord"));
@@ -273,11 +270,10 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
         plugin.getProxy().getScheduler().schedule(plugin, new Runnable() {
             @Override
             public void run() {
-                logger.removeHandler(handler);
-                clearLocalCapture(handler);
-                String output = handler.output();
+                clearLocalCapture(future);
+                String output = capture.output();
                 if (output.isEmpty()) {
-                    output = accepted ? "命令已执行，未捕获到日志。" : "命令不存在或执行器拒绝执行。";
+                    output = accepted ? "命令已执行，未返回输出。" : "命令不存在或执行器拒绝执行。";
                 }
                 future.complete(new ConsoleResult(request.getRequestId(),
                         accepted ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
@@ -286,6 +282,25 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
             }
         }, Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS);
         return future;
+    }
+
+    private CommandSender capturingSender(final CommandSender delegate, final CommandOutputCapture capture) {
+        return (CommandSender) Proxy.newProxyInstance(
+                CommandSender.class.getClassLoader(),
+                new Class<?>[]{CommandSender.class},
+                new InvocationHandler() {
+                    @Override
+                    public Object invoke(Object proxy, Method method, Object[] arguments) throws Throwable {
+                        if ("sendMessage".equals(method.getName())) {
+                            capture.appendArguments(arguments);
+                        }
+                        try {
+                            return method.invoke(delegate, arguments);
+                        } catch (InvocationTargetException exception) {
+                            throw exception.getCause();
+                        }
+                    }
+                });
     }
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {
@@ -311,28 +326,19 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
                 entry.getValue().future.completeExceptionally(new IllegalStateException("Plugin disabled"));
             }
         }
-        Handler handler = activeHandler;
-        Logger logger = activeLogger;
-        if (handler != null && logger != null) {
-            logger.removeHandler(handler);
-        }
         CompletableFuture<ConsoleResult> future = activeLocalFuture;
         ConsoleRequest request = activeLocalRequest;
         if (future != null && request != null) {
             future.complete(ConsoleResult.unavailable(request, "插件已关闭", "BungeeCord"));
         }
-        activeHandler = null;
-        activeLogger = null;
         activeLocalFuture = null;
         activeLocalRequest = null;
         localCommandRunning.set(false);
         socketExecutor.shutdownNow();
     }
 
-    private void clearLocalCapture(Handler handler) {
-        if (activeHandler == handler) {
-            activeHandler = null;
-            activeLogger = null;
+    private void clearLocalCapture(CompletableFuture<ConsoleResult> future) {
+        if (activeLocalFuture == future) {
             activeLocalFuture = null;
             activeLocalRequest = null;
         }
@@ -348,29 +354,64 @@ public final class BungeeConsoleGateway implements Listener, AutoCloseable {
         }
     }
 
-    private static final class CapturingHandler extends Handler {
+    private static final class CommandOutputCapture {
         private final StringBuilder output = new StringBuilder();
         private int lines;
 
-        @Override
-        public synchronized void publish(LogRecord record) {
-            if (record == null || !isLoggable(record) || lines >= 100 || output.length() >= 4000) {
+        private synchronized void appendArguments(Object[] arguments) {
+            if (arguments == null) {
                 return;
             }
-            if (output.length() > 0) {
-                output.append('\n');
+            for (Object argument : arguments) {
+                appendArgument(argument);
             }
-            output.append('[').append(record.getLevel() == null ? Level.INFO.getName()
-                    : record.getLevel().getName()).append("] ")
-                    .append(record.getMessage() == null ? "" : record.getMessage());
-            lines++;
+        }
+
+        private void appendArgument(Object argument) {
+            if (argument == null) {
+                return;
+            }
+            if (argument instanceof String) {
+                append((String) argument);
+                return;
+            }
+            if (argument instanceof BaseComponent) {
+                append(((BaseComponent) argument).toLegacyText());
+                return;
+            }
+            if (argument instanceof BaseComponent[]) {
+                append(BaseComponent.toLegacyText((BaseComponent[]) argument));
+                return;
+            }
+            Class<?> type = argument.getClass();
+            if (type.isArray()) {
+                int length = Array.getLength(argument);
+                for (int index = 0; index < length; index++) {
+                    appendArgument(Array.get(argument, index));
+                }
+            }
+        }
+
+        private synchronized void append(String message) {
+            if (message == null || lines >= 100 || output.length() >= 4000) {
+                return;
+            }
+            String[] messageLines = message.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
+            for (String line : messageLines) {
+                if (lines >= 100 || output.length() >= 4000) {
+                    break;
+                }
+                if (output.length() > 0) {
+                    output.append('\n');
+                }
+                int remaining = 4000 - output.length();
+                output.append(line, 0, Math.min(line.length(), remaining));
+                lines++;
+            }
         }
 
         private synchronized String output() {
             return output.toString().trim();
         }
-
-        @Override public void flush() { }
-        @Override public void close() { }
     }
 }

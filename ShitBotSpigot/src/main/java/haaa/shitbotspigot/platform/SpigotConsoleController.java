@@ -6,12 +6,17 @@ import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -23,10 +28,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
 
 public final class SpigotConsoleController implements PluginMessageListener, AutoCloseable {
     private static final int MAX_LOG_LINES = 100;
@@ -44,8 +45,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
     private final ConcurrentMap<String, Boolean> cancelledRequestIds =
             new ConcurrentHashMap<String, Boolean>();
     private boolean commandRunning;
-    private Logger activeLogger;
-    private Handler activeHandler;
     private SpigotConsoleSocketServer socketServer;
 
     public SpigotConsoleController(JavaPlugin plugin, SchedulerAdapter scheduler) {
@@ -293,34 +292,22 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
                     startNextCommand();
                     return;
                 }
-                final CapturingHandler handler = new CapturingHandler();
-                final Logger root = Logger.getLogger("");
-                root.addHandler(handler);
-                synchronized (commandQueue) {
-                    activeLogger = root;
-                    activeHandler = handler;
-                }
+                final CommandOutputCapture capture = new CommandOutputCapture();
+                CommandSender sender = capturingSender(Bukkit.getConsoleSender(), capture);
                 boolean dispatched;
                 try {
-                    dispatched = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), pending.request.getCommand());
+                    dispatched = Bukkit.dispatchCommand(sender, pending.request.getCommand());
                 } catch (Throwable throwable) {
-                    handler.append(Level.SEVERE, throwable.getMessage());
+                    capture.append("命令执行异常：" + throwable.getMessage());
                     dispatched = false;
                 }
                 final boolean commandAccepted = dispatched;
                 timer.schedule(new Runnable() {
                     @Override
                     public void run() {
-                        root.removeHandler(handler);
-                        synchronized (commandQueue) {
-                            if (activeHandler == handler) {
-                                activeHandler = null;
-                                activeLogger = null;
-                            }
-                        }
-                        String output = handler.output();
+                        String output = capture.output();
                         if (output.isEmpty()) {
-                            output = commandAccepted ? "命令已执行，未捕获到日志。" : "命令不存在或执行器拒绝执行。";
+                            output = commandAccepted ? "命令已执行，未返回输出。" : "命令不存在或执行器拒绝执行。";
                         }
                         pending.future.complete(new ConsoleResult(
                                 pending.request.getRequestId(),
@@ -335,6 +322,25 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
                 }, Math.max(1, pending.request.getCaptureSeconds()), TimeUnit.SECONDS);
             }
         });
+    }
+
+    private CommandSender capturingSender(final ConsoleCommandSender delegate, final CommandOutputCapture capture) {
+        return (CommandSender) Proxy.newProxyInstance(
+                ConsoleCommandSender.class.getClassLoader(),
+                new Class<?>[]{ConsoleCommandSender.class},
+                new InvocationHandler() {
+                    @Override
+                    public Object invoke(Object proxy, Method method, Object[] arguments) throws Throwable {
+                        if ("sendMessage".equals(method.getName()) || "sendRawMessage".equals(method.getName())) {
+                            capture.appendArguments(arguments);
+                        }
+                        try {
+                            return method.invoke(delegate, arguments);
+                        } catch (InvocationTargetException exception) {
+                            throw exception.getCause();
+                        }
+                    }
+                });
     }
 
     private Player firstOnlinePlayer() {
@@ -361,11 +367,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
             }
         }
         synchronized (commandQueue) {
-            if (activeLogger != null && activeHandler != null) {
-                activeLogger.removeHandler(activeHandler);
-                activeLogger = null;
-                activeHandler = null;
-            }
             for (PendingCommand pending : commandQueue) {
                 pending.future.complete(ConsoleResult.unavailable(
                         pending.request, "插件已关闭", serverName()));
@@ -386,30 +387,41 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
         }
     }
 
-    private static final class CapturingHandler extends Handler {
+    private static final class CommandOutputCapture {
         private final StringBuilder output = new StringBuilder();
         private int lines;
 
-        @Override
-        public synchronized void publish(LogRecord record) {
-            if (record != null && isLoggable(record)) {
-                append(record.getLevel(), record.getMessage());
-                if (record.getThrown() != null) {
-                    append(Level.SEVERE, record.getThrown().toString());
+        private synchronized void appendArguments(Object[] arguments) {
+            if (arguments == null) {
+                return;
+            }
+            for (Object argument : arguments) {
+                if (argument instanceof String) {
+                    append((String) argument);
+                } else if (argument instanceof String[]) {
+                    for (String value : (String[]) argument) {
+                        append(value);
+                    }
                 }
             }
         }
 
-        private synchronized void append(Level level, String message) {
-            if (lines >= MAX_LOG_LINES || output.length() >= MAX_LOG_CHARACTERS) {
+        private synchronized void append(String message) {
+            if (message == null || lines >= MAX_LOG_LINES || output.length() >= MAX_LOG_CHARACTERS) {
                 return;
             }
-            if (output.length() > 0) {
-                output.append('\n');
+            String[] messageLines = message.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
+            for (String line : messageLines) {
+                if (lines >= MAX_LOG_LINES || output.length() >= MAX_LOG_CHARACTERS) {
+                    break;
+                }
+                if (output.length() > 0) {
+                    output.append('\n');
+                }
+                int remaining = MAX_LOG_CHARACTERS - output.length();
+                output.append(line, 0, Math.min(line.length(), remaining));
+                lines++;
             }
-            output.append('[').append(level == null ? "INFO" : level.getName()).append("] ")
-                    .append(message == null ? "" : message);
-            lines++;
         }
 
         private synchronized String output() {
@@ -418,9 +430,6 @@ public final class SpigotConsoleController implements PluginMessageListener, Aut
             }
             return output.toString().trim();
         }
-
-        @Override public void flush() { }
-        @Override public void close() { }
     }
 
     private static final class TpsMonitor {
