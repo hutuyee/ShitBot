@@ -212,20 +212,10 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         for (int i = 0; i < online.size(); i++) {
             final int index = i;
             final Player player = online.get(i);
-            scheduler.executeForPlayer(player, new Runnable() {
+            final Runnable completion = new Runnable() {
                 @Override
                 public void run() {
-                    InventorySnapshot captured = null;
-                    try {
-                        if (player.isOnline()) {
-                            captured = snapshot(player);
-                        }
-                    } catch (Throwable throwable) {
-                        plugin.getLogger().log(Level.WARNING,
-                                "Failed to capture inventory of " + player.getName(), throwable);
-                    }
                     synchronized (ordered) {
-                        ordered[index] = captured;
                         if (remaining.decrementAndGet() == 0) {
                             List<InventorySnapshot> result = new ArrayList<InventorySnapshot>();
                             for (InventorySnapshot item : ordered) {
@@ -237,7 +227,26 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                         }
                     }
                 }
-            });
+            };
+            scheduler.executeForPlayer(player, new Runnable() {
+                @Override
+                public void run() {
+                    InventorySnapshot captured = null;
+                    try {
+                        if (player.isOnline()) {
+                            captured = snapshot(player);
+                        }
+                    } catch (Throwable throwable) {
+                        plugin.getLogger().log(Level.WARNING,
+                                "Failed to capture inventory of " + player.getName(), throwable);
+                    } finally {
+                        synchronized (ordered) {
+                            ordered[index] = captured;
+                        }
+                        completion.run();
+                    }
+                }
+            }, completion);
         }
     }
 
@@ -258,6 +267,16 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                 }
                 continue;
             }
+            final Runnable completion = new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (result) {
+                        if (remaining.decrementAndGet() == 0) {
+                            future.complete(new LinkedHashMap<String, InventorySnapshot>(result));
+                        }
+                    }
+                }
+            };
             scheduler.executeForPlayer(player, new Runnable() {
                 @Override
                 public void run() {
@@ -269,17 +288,16 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                     } catch (Throwable throwable) {
                         plugin.getLogger().log(Level.WARNING,
                                 "Failed to capture inventory of " + playerName, throwable);
-                    }
-                    synchronized (result) {
+                    } finally {
                         if (captured != null) {
-                            result.put(playerName, captured);
+                            synchronized (result) {
+                                result.put(playerName, captured);
+                            }
                         }
-                        if (remaining.decrementAndGet() == 0) {
-                            future.complete(new LinkedHashMap<String, InventorySnapshot>(result));
-                        }
+                        completion.run();
                     }
                 }
-            });
+            }, completion);
         }
     }
 

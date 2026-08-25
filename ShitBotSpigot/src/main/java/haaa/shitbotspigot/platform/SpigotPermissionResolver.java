@@ -58,6 +58,11 @@ final class SpigotPermissionResolver {
                     result.complete(Boolean.FALSE);
                 }
             }
+        }, new Runnable() {
+            @Override
+            public void run() {
+                result.complete(Boolean.FALSE);
+            }
         });
         return result;
     }

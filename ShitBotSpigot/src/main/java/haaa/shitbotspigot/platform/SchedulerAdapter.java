@@ -9,6 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Executes tasks on the correct server thread on both classic Bukkit servers and Folia.
@@ -25,9 +26,9 @@ import java.util.function.Consumer;
  * <p>Per-entity work on Folia is scheduled with the entity scheduler
  * ({@code Entity#getScheduler().execute(plugin, run, retired, delay)}); the region
  * scheduler only schedules by location, not by entity. The adapter looks every API up
- * defensively and falls back gracefully (old-Folia region scheduler entity overload,
- * then the global region scheduler), so a Folia API drift on any future version can
- * never prevent the plugin from enabling.</p>
+ * defensively and falls back to the old-Folia region scheduler entity overload. Player
+ * work is never moved to the global region thread because that thread does not own the
+ * player entity.</p>
  */
 final class SchedulerAdapter {
     /**
@@ -57,6 +58,7 @@ final class SchedulerAdapter {
     private final Method ownedRegionCheck;        // Bukkit.isOwnedByCurrentRegion(Entity)
     private final Object globalScheduler;
     private final Object regionScheduler;
+    private final AtomicBoolean entityCompatibilityWarningLogged = new AtomicBoolean();
 
     private SchedulerAdapter(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -140,35 +142,75 @@ final class SchedulerAdapter {
      * onto the region the current thread itself owns.
      */
     void executeForPlayer(Player player, Runnable task) {
+        executeForPlayer(player, task, NOOP);
+    }
+
+    /**
+     * Runs either {@code task} on the player's owning thread or {@code retired} when the
+     * player can no longer be scheduled. The two callbacks are guarded so at most one can
+     * run, including Folia versions that invoke the retired callback while returning false.
+     */
+    void executeForPlayer(Player player, Runnable task, Runnable retired) {
+        final Runnable retiredCallback = retired == null ? NOOP : retired;
         if (task == null || player == null) {
+            retiredCallback.run();
             return;
         }
+        final AtomicBoolean claimed = new AtomicBoolean();
+        final Runnable guardedTask = once(claimed, task);
+        final Runnable guardedRetired = once(claimed, retiredCallback);
         if (!FOLIA) {
-            executeGlobal(task);
+            executeGlobal(guardedTask);
             return;
         }
-        if (isOwnedByCurrentRegion(player)) {
-            task.run();
+        boolean owned = false;
+        try {
+            owned = isOwnedByCurrentRegion(player);
+        } catch (Throwable ignored) {
+            // Continue through the entity scheduler when an ownership probe is unavailable.
+        }
+        if (owned) {
+            guardedTask.run();
             return;
         }
-        // Modern Folia: entity scheduler (Entity#getScheduler). If it reports the entity
-        // retired (execute returns false), fall through so the task still runs somewhere
-        // and callers that count completions can never hang.
+        // Modern Folia: entity scheduler (Entity#getScheduler).
         Object entityScheduler = entitySchedulerGetter == null ? null : invokeSafe(entitySchedulerGetter, player);
         if (entityScheduler != null && entitySchedulerExecute != null) {
-            Object scheduled = invokeSafe(entitySchedulerExecute, entityScheduler, plugin, task, NOOP, Long.valueOf(0L));
-            if (!Boolean.FALSE.equals(scheduled)) {
+            Object scheduled = invokeSafe(entitySchedulerExecute, entityScheduler,
+                    plugin, guardedTask, guardedRetired, Long.valueOf(0L));
+            if (Boolean.TRUE.equals(scheduled)) {
+                return;
+            }
+            if (Boolean.FALSE.equals(scheduled)) {
+                guardedRetired.run();
                 return;
             }
         }
         // Very old Folia: region scheduler entity overload.
         if (regionEntityExecute != null && regionScheduler != null) {
-            invoke(regionEntityExecute, regionScheduler, plugin, player, task);
-            return;
+            try {
+                invoke(regionEntityExecute, regionScheduler, plugin, player, guardedTask);
+                return;
+            } catch (Throwable ignored) {
+                // Report once below and complete through the failure callback.
+            }
         }
-        // Last resort: global region thread. The tasks guard with Player#isOnline(), so
-        // a retired player is skipped safely and completion counters always finish.
-        executeGlobal(task);
+        if (entityCompatibilityWarningLogged.compareAndSet(false, true)) {
+            plugin.getLogger().warning(
+                    "Folia entity scheduler is unavailable; player-owned work will be skipped safely.");
+        }
+        guardedRetired.run();
+    }
+
+    private static Runnable once(final AtomicBoolean claimed, final Runnable callback) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                if (claimed.compareAndSet(false, true)) {
+                    callback.run();
+                }
+            }
+        };
     }
 
     void runGlobalAtFixedRate(Runnable task, long initialDelayTicks, long periodTicks) {
