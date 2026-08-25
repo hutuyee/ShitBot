@@ -7,6 +7,9 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbot.core.util.TextUtil;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -34,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,6 +64,9 @@ public final class OnlineImageService implements AutoCloseable {
     private static final int FOOTER_HEIGHT = 66;
     private static final int SERVER_GAP = 20;
     private static final int MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_AVATAR_DIMENSION = 1024;
+    private static final long MAX_AVATAR_PIXELS = 1024L * 1024L;
+    private static final int MAX_AVATAR_MEMORY_ENTRIES = 256;
     private static final Color[] PLACEHOLDER_COLORS = new Color[]{
             new Color(73, 139, 255),
             new Color(92, 196, 164),
@@ -637,12 +644,12 @@ public final class OnlineImageService implements AutoCloseable {
             } finally {
                 input.close();
             }
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
-            if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
+            BufferedImage image = decodeAvatar(bytes);
+            if (image == null) {
                 return findCachedAvatar(playerName, true);
             }
             long now = System.currentTimeMillis();
-            avatarMemory.put(playerKey(playerName), new AvatarEntry(image, now));
+            cacheAvatar(playerKey(playerName), image, now);
             writeAvatarCache(playerName, image);
             return image;
         } catch (Throwable ignored) {
@@ -683,19 +690,102 @@ public final class OnlineImageService implements AutoCloseable {
             if (!Files.isRegularFile(cacheFile)) {
                 return null;
             }
+            if (Files.size(cacheFile) > MAX_AVATAR_BYTES) {
+                Files.deleteIfExists(cacheFile);
+                return null;
+            }
             long modified = Files.getLastModifiedTime(cacheFile).toMillis();
             if (!allowStale && now - modified > ttl) {
                 return null;
             }
-            BufferedImage image = ImageIO.read(cacheFile.toFile());
+            BufferedImage image;
+            try {
+                try (ImageInputStream input = ImageIO.createImageInputStream(cacheFile.toFile())) {
+                    image = decodeAvatar(input);
+                }
+            } catch (IOException invalidImage) {
+                Files.deleteIfExists(cacheFile);
+                return null;
+            }
             if (image == null) {
                 Files.deleteIfExists(cacheFile);
                 return null;
             }
-            avatarMemory.put(key, new AvatarEntry(image, modified));
+            cacheAvatar(key, image, modified);
             return image;
         } catch (IOException ignored) {
             return null;
+        }
+    }
+
+    private BufferedImage decodeAvatar(byte[] bytes) throws IOException {
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            return decodeAvatar(input);
+        }
+    }
+
+    private BufferedImage decodeAvatar(ImageInputStream input) throws IOException {
+        if (input == null) {
+            return null;
+        }
+        Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+        if (!readers.hasNext()) {
+            return null;
+        }
+        ImageReader reader = readers.next();
+        try {
+            reader.setInput(input, true, true);
+            int width = reader.getWidth(0);
+            int height = reader.getHeight(0);
+            if (width <= 0 || height <= 0
+                    || width > MAX_AVATAR_DIMENSION || height > MAX_AVATAR_DIMENSION
+                    || (long) width * (long) height > MAX_AVATAR_PIXELS) {
+                throw new IOException("Avatar dimensions are too large: " + width + "x" + height);
+            }
+
+            int targetSize = settings.getAvatarSize();
+            int subsampling = Math.max(1, Math.min(width / targetSize, height / targetSize));
+            ImageReadParam parameters = reader.getDefaultReadParam();
+            if (subsampling > 1) {
+                parameters.setSourceSubsampling(subsampling, subsampling, 0, 0);
+            }
+            BufferedImage decoded = reader.read(0, parameters);
+            if (decoded == null) {
+                return null;
+            }
+            return scaleAvatar(decoded, targetSize);
+        } finally {
+            reader.dispose();
+        }
+    }
+
+    private BufferedImage scaleAvatar(BufferedImage source, int size) {
+        BufferedImage scaled = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaled.createGraphics();
+        try {
+            configureGraphics(graphics);
+            graphics.setComposite(AlphaComposite.Src);
+            graphics.drawImage(source, 0, 0, size, size, null);
+        } finally {
+            graphics.dispose();
+        }
+        return scaled;
+    }
+
+    private synchronized void cacheAvatar(String key, BufferedImage image, long loadedAt) {
+        avatarMemory.put(key, new AvatarEntry(image, loadedAt));
+        while (avatarMemory.size() > MAX_AVATAR_MEMORY_ENTRIES) {
+            String oldestKey = null;
+            AvatarEntry oldest = null;
+            for (Map.Entry<String, AvatarEntry> entry : avatarMemory.entrySet()) {
+                if (oldest == null || entry.getValue().loadedAt < oldest.loadedAt) {
+                    oldestKey = entry.getKey();
+                    oldest = entry.getValue();
+                }
+            }
+            if (oldestKey == null || !avatarMemory.remove(oldestKey, oldest)) {
+                break;
+            }
         }
     }
 
