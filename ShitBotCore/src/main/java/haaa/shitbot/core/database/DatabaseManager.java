@@ -28,10 +28,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * moved from Spigot to BungeeCord or Velocity without conversion.
  */
 public final class DatabaseManager implements AutoCloseable {
-    public static final int SCHEMA_VERSION = 4;
+    public static final int SCHEMA_VERSION = 5;
 
     private static final String BINDINGS_TABLE = "shitbot_bindings";
     private static final String CODES_TABLE = "shitbot_bind_codes";
+    private static final String BIND_ATTEMPTS_TABLE = "shitbot_bind_attempts";
     private static final String INVENTORY_SNAPSHOTS_TABLE = "shitbot_inventory_snapshots";
     private static final String LEGACY_PLAYER_KEY_COLUMN = "player_name_key";
 
@@ -194,8 +195,8 @@ public final class DatabaseManager implements AutoCloseable {
             boolean bindingsExist = tableExists(connection, BINDINGS_TABLE);
             boolean codesExist = tableExists(connection, CODES_TABLE);
             if (!bindingsExist && !codesExist) {
-                createVersion4Schema(connection);
-                writeSchemaVersion(connection, 4);
+                createVersion5Schema(connection);
+                writeSchemaVersion(connection, 5);
                 return;
             }
             boolean legacySchema = columnExists(connection, BINDINGS_TABLE, LEGACY_PLAYER_KEY_COLUMN)
@@ -221,6 +222,11 @@ public final class DatabaseManager implements AutoCloseable {
         if (currentVersion < 4) {
             migrateToVersion4(connection);
             currentVersion = 4;
+            writeSchemaVersion(connection, currentVersion);
+        }
+        if (currentVersion < 5) {
+            migrateToVersion5(connection);
+            currentVersion = 5;
             writeSchemaVersion(connection, currentVersion);
         }
         enforceCaseSensitivePlayerColumns(connection);
@@ -270,6 +276,13 @@ public final class DatabaseManager implements AutoCloseable {
     }
 
     /** Creates the current schema. QQ numbers are indexed but intentionally not unique. */
+    private void createVersion5Schema(Connection connection) throws SQLException {
+        createVersion4Schema(connection);
+        createBindAttemptTable(connection);
+        enforceCaseSensitivePlayerColumns(connection);
+        ensureCurrentIndexes(connection);
+    }
+
     private void createVersion4Schema(Connection connection) throws SQLException {
         createVersion3Schema(connection);
         createInventorySnapshotTable(connection);
@@ -314,6 +327,20 @@ public final class DatabaseManager implements AutoCloseable {
                     + "player_uuid VARCHAR(36) NULL, server_name VARCHAR(128) NOT NULL, "
                     + "captured_at BIGINT NOT NULL, format_version INTEGER NOT NULL, "
                     + "payload " + payloadColumn + ", updated_at BIGINT NOT NULL)" + tableOptions);
+        }
+    }
+
+    private void createBindAttemptTable(Connection connection) throws SQLException {
+        String playerNameColumn = settings.getType() == Settings.Database.Type.MYSQL
+                ? "VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL"
+                : "VARCHAR(16) NOT NULL";
+        String tableOptions = settings.getType() == Settings.Database.Type.MYSQL
+                ? " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci" : "";
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS " + BIND_ATTEMPTS_TABLE + " ("
+                    + "player_name " + playerNameColumn + ", qq_id VARCHAR(20) NOT NULL, "
+                    + "attempts INTEGER NOT NULL, expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, "
+                    + "PRIMARY KEY(player_name, qq_id))" + tableOptions);
         }
     }
 
@@ -500,6 +527,12 @@ public final class DatabaseManager implements AutoCloseable {
         ensureCurrentIndexes(connection);
     }
 
+    private void migrateToVersion5(Connection connection) throws SQLException {
+        createBindAttemptTable(connection);
+        enforceCaseSensitivePlayerColumns(connection);
+        ensureCurrentIndexes(connection);
+    }
+
     private void migrateSqliteBindingsToVersion3(Connection connection) throws SQLException {
         final String temporaryTable = "shitbot_bindings_v3_tmp";
         boolean previousAutoCommit = connection.getAutoCommit();
@@ -543,6 +576,7 @@ public final class DatabaseManager implements AutoCloseable {
             return;
         }
         boolean inventorySnapshotsExist = tableExists(connection, INVENTORY_SNAPSHOTS_TABLE);
+        boolean bindAttemptsExist = tableExists(connection, BIND_ATTEMPTS_TABLE);
         try (Statement statement = connection.createStatement()) {
             statement.execute("ALTER TABLE " + BINDINGS_TABLE
                     + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
@@ -552,6 +586,10 @@ public final class DatabaseManager implements AutoCloseable {
                 statement.execute("ALTER TABLE " + INVENTORY_SNAPSHOTS_TABLE
                         + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
             }
+            if (bindAttemptsExist) {
+                statement.execute("ALTER TABLE " + BIND_ATTEMPTS_TABLE
+                        + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
+            }
         }
     }
 
@@ -559,6 +597,10 @@ public final class DatabaseManager implements AutoCloseable {
         ensureIndex(connection, BINDINGS_TABLE, "idx_shitbot_bindings_uuid", "player_uuid");
         ensureIndex(connection, BINDINGS_TABLE, "idx_shitbot_bindings_qq", "qq_id");
         ensureIndex(connection, CODES_TABLE, "idx_shitbot_bind_codes_expires", "expires_at");
+        if (tableExists(connection, BIND_ATTEMPTS_TABLE)) {
+            ensureIndex(connection, BIND_ATTEMPTS_TABLE,
+                    "idx_shitbot_bind_attempts_expires", "expires_at");
+        }
         if (tableExists(connection, INVENTORY_SNAPSHOTS_TABLE)) {
             ensureIndex(connection, INVENTORY_SNAPSHOTS_TABLE,
                     "idx_shitbot_inventory_captured", "captured_at");

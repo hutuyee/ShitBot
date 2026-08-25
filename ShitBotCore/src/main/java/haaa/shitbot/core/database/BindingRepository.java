@@ -147,6 +147,7 @@ public final class BindingRepository {
             @Override
             public IssuedBindCode apply(Connection connection) throws SQLException {
                 deleteExpiredCodes(connection, now);
+                deleteExpiredAttempts(connection, now);
                 CodeRow existing = readCode(
                         connection,
                         cleanName,
@@ -160,6 +161,7 @@ public final class BindingRepository {
                 String salt = HashUtil.toHex(HashUtil.randomBytes(16));
                 String hash = HashUtil.sha256Hex(salt, code);
                 long expiresAt = now + settings.getExpireMinutes() * 60_000L;
+                deleteAttempts(connection, cleanName);
                 if (database.getType() == Settings.Database.Type.SQLITE) {
                     int updated;
                     try (PreparedStatement statement = connection.prepareStatement(
@@ -270,24 +272,16 @@ public final class BindingRepository {
             deleteCode(connection, playerName);
             return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
         }
-        if (codeRow.attempts >= settings.getMaximumAttempts()) {
-            deleteCode(connection, playerName);
+        int attempts = readAttempts(connection, playerName, qqId, now);
+        if (attempts >= settings.getMaximumAttempts()) {
             return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
         }
 
         String submittedHash = HashUtil.sha256Hex(codeRow.salt, submittedCode);
         if (!HashUtil.constantTimeEquals(codeRow.hash, submittedHash)) {
-            int attempts = codeRow.attempts + 1;
+            attempts = incrementAttempts(connection, playerName, qqId, codeRow.expiresAt, now);
             if (attempts >= settings.getMaximumAttempts()) {
-                deleteCode(connection, playerName);
                 return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
-            }
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "UPDATE shitbot_bind_codes SET attempts=?, updated_at=? WHERE player_name=?")) {
-                statement.setInt(1, attempts);
-                statement.setLong(2, now);
-                statement.setString(3, playerName);
-                statement.executeUpdate();
             }
             return BindResult.of(BindResult.Status.INVALID_CODE);
         }
@@ -904,7 +898,9 @@ public final class BindingRepository {
         return database.supplyAsync(new DatabaseManager.SqlFunction<Integer>() {
             @Override
             public Integer apply(Connection connection) throws SQLException {
-                return Integer.valueOf(deleteExpiredCodes(connection, now));
+                int deletedCodes = deleteExpiredCodes(connection, now);
+                deleteExpiredAttempts(connection, now);
+                return Integer.valueOf(deletedCodes);
             }
         });
     }
@@ -997,7 +993,7 @@ public final class BindingRepository {
     }
 
     private CodeRow readCode(Connection connection, String playerName, boolean lock) throws SQLException {
-        String sql = "SELECT code_hash, code_salt, expires_at, attempts "
+        String sql = "SELECT code_hash, code_salt, expires_at "
                 + "FROM shitbot_bind_codes WHERE player_name=?"
                 + (lock ? " FOR UPDATE" : "");
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -1009,16 +1005,97 @@ public final class BindingRepository {
                 return new CodeRow(
                         resultSet.getString("code_hash"),
                         resultSet.getString("code_salt"),
-                        resultSet.getLong("expires_at"),
-                        resultSet.getInt("attempts"));
+                        resultSet.getLong("expires_at"));
             }
         }
+    }
+
+    private int readAttempts(Connection connection,
+                             String playerName,
+                             String qqId,
+                             long now) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT attempts, expires_at FROM shitbot_bind_attempts WHERE player_name=? AND qq_id=?")) {
+            statement.setString(1, playerName);
+            statement.setString(2, qqId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return 0;
+                }
+                if (resultSet.getLong("expires_at") > now) {
+                    return resultSet.getInt("attempts");
+                }
+            }
+        }
+        deleteAttempts(connection, playerName, qqId);
+        return 0;
+    }
+
+    private int incrementAttempts(Connection connection,
+                                  String playerName,
+                                  String qqId,
+                                  long expiresAt,
+                                  long now) throws SQLException {
+        if (database.getType() == Settings.Database.Type.SQLITE) {
+            int updated;
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE shitbot_bind_attempts SET attempts=attempts+1, expires_at=?, updated_at=? "
+                            + "WHERE player_name=? AND qq_id=?")) {
+                statement.setLong(1, expiresAt);
+                statement.setLong(2, now);
+                statement.setString(3, playerName);
+                statement.setString(4, qqId);
+                updated = statement.executeUpdate();
+            }
+            if (updated == 0) {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO shitbot_bind_attempts(player_name, qq_id, attempts, expires_at, updated_at) "
+                                + "VALUES(?, ?, 1, ?, ?)")) {
+                    statement.setString(1, playerName);
+                    statement.setString(2, qqId);
+                    statement.setLong(3, expiresAt);
+                    statement.setLong(4, now);
+                    statement.executeUpdate();
+                }
+            }
+        } else {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO shitbot_bind_attempts(player_name, qq_id, attempts, expires_at, updated_at) "
+                            + "VALUES(?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE "
+                            + "attempts=attempts+1, expires_at=VALUES(expires_at), updated_at=VALUES(updated_at)")) {
+                statement.setString(1, playerName);
+                statement.setString(2, qqId);
+                statement.setLong(3, expiresAt);
+                statement.setLong(4, now);
+                statement.executeUpdate();
+            }
+        }
+        return readAttempts(connection, playerName, qqId, now);
     }
 
     private void deleteCode(Connection connection, String playerName) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
                 "DELETE FROM shitbot_bind_codes WHERE player_name=?")) {
             statement.setString(1, playerName);
+            statement.executeUpdate();
+        }
+        deleteAttempts(connection, playerName);
+        ISSUED_CODES.remove(playerName);
+    }
+
+    private void deleteAttempts(Connection connection, String playerName) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM shitbot_bind_attempts WHERE player_name=?")) {
+            statement.setString(1, playerName);
+            statement.executeUpdate();
+        }
+    }
+
+    private void deleteAttempts(Connection connection, String playerName, String qqId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM shitbot_bind_attempts WHERE player_name=? AND qq_id=?")) {
+            statement.setString(1, playerName);
+            statement.setString(2, qqId);
             statement.executeUpdate();
         }
     }
@@ -1028,6 +1105,14 @@ public final class BindingRepository {
                 "DELETE FROM shitbot_bind_codes WHERE expires_at<=?")) {
             statement.setLong(1, now);
             return statement.executeUpdate();
+        }
+    }
+
+    private void deleteExpiredAttempts(Connection connection, long now) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM shitbot_bind_attempts WHERE expires_at<=?")) {
+            statement.setLong(1, now);
+            statement.executeUpdate();
         }
     }
 
@@ -1099,13 +1184,11 @@ public final class BindingRepository {
         private final String hash;
         private final String salt;
         private final long expiresAt;
-        private final int attempts;
 
-        private CodeRow(String hash, String salt, long expiresAt, int attempts) {
+        private CodeRow(String hash, String salt, long expiresAt) {
             this.hash = hash;
             this.salt = salt;
             this.expiresAt = expiresAt;
-            this.attempts = attempts;
         }
     }
 }
