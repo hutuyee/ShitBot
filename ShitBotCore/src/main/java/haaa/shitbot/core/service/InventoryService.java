@@ -113,6 +113,9 @@ public final class InventoryService implements AutoCloseable {
         final String queryKey = cleanQq + '\u0000' + cleanPlayer;
         final CompletableFuture<InventoryQueryResult> created;
         synchronized (inFlightQueries) {
+            if (closed.get()) {
+                return FutureUtil.failedFuture(new IllegalStateException("Inventory service is closed"));
+            }
             CompletableFuture<InventoryQueryResult> existing = inFlightQueries.get(queryKey);
             if (existing != null) {
                 return existing;
@@ -413,7 +416,16 @@ public final class InventoryService implements AutoCloseable {
         if (currentCleanupTask != null) {
             currentCleanupTask.cancel(false);
         }
-        inFlightQueries.clear();
+        List<CompletableFuture<InventoryQueryResult>> pendingQueries;
+        synchronized (inFlightQueries) {
+            pendingQueries = new ArrayList<CompletableFuture<InventoryQueryResult>>(
+                    inFlightQueries.values());
+            inFlightQueries.clear();
+        }
+        IllegalStateException closedFailure = new IllegalStateException("Inventory service is closed");
+        for (CompletableFuture<InventoryQueryResult> pendingQuery : pendingQueries) {
+            pendingQuery.completeExceptionally(closedFailure);
+        }
         memorySnapshots.clear();
         renderExecutor.shutdownNow();
         resourceExecutor.shutdownNow();
