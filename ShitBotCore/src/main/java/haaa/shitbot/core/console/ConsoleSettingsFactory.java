@@ -76,6 +76,7 @@ public final class ConsoleSettingsFactory {
                 source.getString("messages.not-bound", "%at% 请先绑定游戏 ID。"),
                 source.getString("messages.no-permission", "%at% 你绑定的角色没有权限执行该操作。"),
                 source.getString("messages.unavailable", "%at% 没有可用的子服，或请求执行超时。"),
+                source.getString("messages.result-timeout", "%at% %result%"),
                 source.getString("messages.invalid-target", "%at% 用法：%command% [目标子服]"),
                 backendTransport,
                 tps,

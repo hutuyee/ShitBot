@@ -29,6 +29,8 @@ public final class VelocityConsoleGateway implements AutoCloseable {
     private final Object plugin;
     private final ProxyServer server;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
+    private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
+    private volatile ConsoleRequest activeLocalRequest;
     private final ExecutorService socketExecutor = Executors.newFixedThreadPool(2,
             new NamedThreadFactory("shitbot-velocity-console", true));
     private volatile ConsoleSettings.BackendTransport backendTransport;
@@ -102,6 +104,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
 
     private CompletableFuture<ConsoleResult> executeLocally(final ConsoleRequest request) {
         final Object gate = new Object();
+        final AtomicBoolean commandDispatched = new AtomicBoolean();
         final CompletableFuture<ConsoleResult> result = new CompletableFuture<>();
         hasPermission(request).whenComplete((allowed, throwable) -> {
             final CompletableFuture<ConsoleResult> execution;
@@ -115,7 +118,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                             "绑定角色没有代理权限 " + request.getPermission(), "Velocity"));
                     return;
                 }
-                execution = executeAuthorizedLocal(request);
+                execution = executeAuthorizedLocal(request, commandDispatched);
             }
             execution.whenComplete((value, failure) -> {
                 if (failure == null) {
@@ -128,37 +131,56 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         long timeout = Math.max(request.getTimeoutSeconds(), request.getCaptureSeconds() + 5L);
         server.getScheduler().buildTask(plugin, () -> {
             synchronized (gate) {
-                result.complete(ConsoleResult.unavailable(
-                        request, "代理控制台请求执行超时。", "Velocity"));
+                if (commandDispatched.get()) {
+                    result.complete(new ConsoleResult(request.getRequestId(),
+                            ConsoleResult.Status.RESULT_TIMEOUT,
+                            "命令已提交执行，但结果捕获超时；请确认执行结果后再决定是否重试。",
+                            "Velocity"));
+                } else {
+                    result.complete(ConsoleResult.unavailable(
+                            request, "代理控制台请求在命令提交前超时。", "Velocity"));
+                }
             }
         }).delay(timeout, TimeUnit.SECONDS).schedule();
         return result;
     }
 
-    private CompletableFuture<ConsoleResult> executeAuthorizedLocal(final ConsoleRequest request) {
+    private CompletableFuture<ConsoleResult> executeAuthorizedLocal(final ConsoleRequest request,
+                                                                     AtomicBoolean commandDispatched) {
         if (!localCommandRunning.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
                     request, "已有代理控制台命令正在执行。", "Velocity"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<>();
         final CapturingCommandSource source = new CapturingCommandSource(server.getConsoleCommandSource());
-        server.getCommandManager().executeAsync(source, request.getCommand())
-                .whenComplete((result, throwable) -> server.getScheduler().buildTask(plugin, () -> {
-                    localCommandRunning.set(false);
-                    if (throwable != null) {
-                        future.complete(new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
-                                throwable.getMessage(), "Velocity"));
-                        return;
-                    }
-                    boolean success = Boolean.TRUE.equals(result);
-                    String output = source.output();
-                    if (output.isEmpty()) {
-                        output = success ? "命令已执行，未捕获到输出。" : "命令不存在或执行器拒绝执行。";
-                    }
-                    future.complete(new ConsoleResult(request.getRequestId(),
-                            success ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
-                            output, "Velocity"));
-                }).delay(Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS).schedule());
+        activeLocalFuture = future;
+        activeLocalRequest = request;
+        try {
+            commandDispatched.set(true);
+            server.getCommandManager().executeAsync(source, request.getCommand())
+                    .whenComplete((result, throwable) -> server.getScheduler().buildTask(plugin, () -> {
+                        clearLocalCapture(future);
+                        localCommandRunning.set(false);
+                        if (throwable != null) {
+                            future.complete(new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
+                                    throwable.getMessage(), "Velocity"));
+                            return;
+                        }
+                        boolean success = Boolean.TRUE.equals(result);
+                        String output = source.output();
+                        if (output.isEmpty()) {
+                            output = success ? "命令已执行，未捕获到输出。" : "命令不存在或执行器拒绝执行。";
+                        }
+                        future.complete(new ConsoleResult(request.getRequestId(),
+                                success ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
+                                output, "Velocity"));
+                    }).delay(Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS).schedule());
+        } catch (Throwable throwable) {
+            clearLocalCapture(future);
+            localCommandRunning.set(false);
+            future.complete(new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
+                    throwable.getMessage(), "Velocity"));
+        }
         return future;
     }
 
@@ -182,7 +204,22 @@ public final class VelocityConsoleGateway implements AutoCloseable {
 
     @Override
     public void close() {
+        CompletableFuture<ConsoleResult> future = activeLocalFuture;
+        ConsoleRequest request = activeLocalRequest;
+        if (future != null && request != null) {
+            future.complete(ConsoleResult.unavailable(request, "插件已关闭", "Velocity"));
+        }
+        activeLocalFuture = null;
+        activeLocalRequest = null;
+        localCommandRunning.set(false);
         socketExecutor.shutdownNow();
+    }
+
+    private void clearLocalCapture(CompletableFuture<ConsoleResult> future) {
+        if (activeLocalFuture == future) {
+            activeLocalFuture = null;
+            activeLocalRequest = null;
+        }
     }
 
     private static final class CapturingCommandSource implements CommandSource {

@@ -35,6 +35,8 @@ messages:
   # 子服命令支持在线权限及 LuckPerms/Vault/离线 OP；代理命令的离线权限由代理 LuckPerms 查询。
   no-permission: "%at% 你绑定的角色没有权限执行该操作。"
   unavailable: "%at% 没有可用的子服，或请求执行超时。"
+  # 命令已经提交但没有及时捕获到结果时使用，保留 %result% 可显示防重复执行提示。
+  result-timeout: "%at% %result%"
   invalid-target: "%at% 用法：%command% [目标子服]"
 
 tps:

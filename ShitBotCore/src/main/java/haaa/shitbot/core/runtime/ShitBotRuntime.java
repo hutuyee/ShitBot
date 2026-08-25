@@ -49,7 +49,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private volatile CompletableFuture<Void> startFuture;
 
     public ShitBotRuntime(Settings settings, PlatformBridge platform) {
-        this(settings, new ConsoleSettings(false, 15, 5, "", "", "", "", null, null, null), platform);
+        this(settings, new ConsoleSettings(false, 15, 5, "", "", "", "", "", null, null, null), platform);
     }
 
     public ShitBotRuntime(Settings settings, ConsoleSettings consoleSettings, PlatformBridge platform) {

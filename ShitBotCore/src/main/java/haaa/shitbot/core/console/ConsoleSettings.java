@@ -14,6 +14,7 @@ public final class ConsoleSettings {
     private final String notBoundMessage;
     private final String noPermissionMessage;
     private final String unavailableMessage;
+    private final String resultTimeoutMessage;
     private final String invalidTargetMessage;
     private final BackendTransport backendTransport;
     private final Tps tps;
@@ -25,6 +26,7 @@ public final class ConsoleSettings {
                            String notBoundMessage,
                            String noPermissionMessage,
                            String unavailableMessage,
+                           String resultTimeoutMessage,
                            String invalidTargetMessage,
                            BackendTransport backendTransport,
                            Tps tps,
@@ -35,6 +37,7 @@ public final class ConsoleSettings {
         this.notBoundMessage = text(notBoundMessage, "%at% 请先绑定游戏 ID。");
         this.noPermissionMessage = text(noPermissionMessage, "%at% 你绑定的角色没有权限执行该操作。");
         this.unavailableMessage = text(unavailableMessage, "%at% 没有可用的子服，或请求执行超时。");
+        this.resultTimeoutMessage = text(resultTimeoutMessage, "%at% %result%");
         this.invalidTargetMessage = text(invalidTargetMessage, "%at% 用法：%command% [目标子服]");
         this.backendTransport = backendTransport == null ? BackendTransport.disabled() : backendTransport;
         this.tps = tps == null ? Tps.disabled() : tps;
@@ -49,6 +52,7 @@ public final class ConsoleSettings {
     public String getNotBoundMessage() { return notBoundMessage; }
     public String getNoPermissionMessage() { return noPermissionMessage; }
     public String getUnavailableMessage() { return unavailableMessage; }
+    public String getResultTimeoutMessage() { return resultTimeoutMessage; }
     public String getInvalidTargetMessage() { return invalidTargetMessage; }
     public BackendTransport getBackendTransport() { return backendTransport; }
     public Tps getTps() { return tps; }

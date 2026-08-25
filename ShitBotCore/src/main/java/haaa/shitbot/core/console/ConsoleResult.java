@@ -5,7 +5,8 @@ public final class ConsoleResult {
         SUCCESS,
         FAILED,
         NO_PERMISSION,
-        UNAVAILABLE
+        UNAVAILABLE,
+        RESULT_TIMEOUT
     }
 
     private final String requestId;

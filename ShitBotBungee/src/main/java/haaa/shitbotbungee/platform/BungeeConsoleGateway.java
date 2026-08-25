@@ -102,6 +102,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
 
     private CompletableFuture<ConsoleResult> executeLocally(final ConsoleRequest request) {
         final Object gate = new Object();
+        final AtomicBoolean commandDispatched = new AtomicBoolean();
         final CompletableFuture<ConsoleResult> result = new CompletableFuture<ConsoleResult>();
         hasPermission(request).whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {
             @Override
@@ -117,7 +118,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                                 "绑定角色没有代理权限 " + request.getPermission(), "BungeeCord"));
                         return;
                     }
-                    execution = executeAuthorizedLocal(request);
+                    execution = executeAuthorizedLocal(request, commandDispatched);
                 }
                 execution.whenComplete(new java.util.function.BiConsumer<ConsoleResult, Throwable>() {
                     @Override
@@ -136,15 +137,23 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             @Override
             public void run() {
                 synchronized (gate) {
-                    result.complete(ConsoleResult.unavailable(
-                            request, "代理控制台请求执行超时。", "BungeeCord"));
+                    if (commandDispatched.get()) {
+                        result.complete(new ConsoleResult(request.getRequestId(),
+                                ConsoleResult.Status.RESULT_TIMEOUT,
+                                "命令已提交执行，但结果捕获超时；请确认执行结果后再决定是否重试。",
+                                "BungeeCord"));
+                    } else {
+                        result.complete(ConsoleResult.unavailable(
+                                request, "代理控制台请求在命令提交前超时。", "BungeeCord"));
+                    }
                 }
             }
         }, timeout, TimeUnit.SECONDS);
         return result;
     }
 
-    private CompletableFuture<ConsoleResult> executeAuthorizedLocal(final ConsoleRequest request) {
+    private CompletableFuture<ConsoleResult> executeAuthorizedLocal(final ConsoleRequest request,
+                                                                     AtomicBoolean commandDispatched) {
         if (!localCommandRunning.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
                     request, "已有代理控制台命令正在执行。", "BungeeCord"));
@@ -156,6 +165,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         activeLocalRequest = request;
         final boolean accepted;
         try {
+            commandDispatched.set(true);
             accepted = plugin.getProxy().getPluginManager().dispatchCommand(
                     sender, request.getCommand());
         } catch (Throwable throwable) {

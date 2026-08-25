@@ -101,6 +101,9 @@ public final class EasyConsoleService {
                         } else if (result.getStatus() == ConsoleResult.Status.UNAVAILABLE) {
                             reply(message, settings.getUnavailableMessage(), result.getOutput(), result.getSource(),
                                     firstAlias(shortcut.getAliases()), targetServer);
+                        } else if (result.getStatus() == ConsoleResult.Status.RESULT_TIMEOUT) {
+                            reply(message, settings.getResultTimeoutMessage(), result.getOutput(), result.getSource(),
+                                    firstAlias(shortcut.getAliases()), targetServer);
                         } else {
                             reply(message, result.isSuccess() ? shortcut.getSuccessMessage() : shortcut.getFailedMessage(),
                                     result.getOutput(), result.getSource(),
@@ -139,6 +142,9 @@ public final class EasyConsoleService {
                                     firstAlias(tps.getAliases()), targetServer);
                         } else if (result.getStatus() == ConsoleResult.Status.UNAVAILABLE) {
                             reply(message, settings.getUnavailableMessage(), result.getOutput(), result.getSource(),
+                                    firstAlias(tps.getAliases()), targetServer);
+                        } else if (result.getStatus() == ConsoleResult.Status.RESULT_TIMEOUT) {
+                            reply(message, settings.getResultTimeoutMessage(), result.getOutput(), result.getSource(),
                                     firstAlias(tps.getAliases()), targetServer);
                         } else {
                             reply(message, result.isSuccess() ? tps.getSuccessMessage() : tps.getFailedMessage(),
