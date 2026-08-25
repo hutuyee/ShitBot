@@ -33,11 +33,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /** All SQL related to bindings and one-time verification codes. */
 public final class BindingRepository {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int BIND_LOCK_STRIPES = 64;
+    private static final ConcurrentMap<String, IssuedBindCode> ISSUED_CODES =
+            new ConcurrentHashMap<String, IssuedBindCode>();
 
     private final DatabaseManager database;
     private final Settings.Binding settings;
@@ -137,16 +141,25 @@ public final class BindingRepository {
             return failed;
         }
         final String cleanName = playerName.trim();
-        final String code = generateCode();
-        final String salt = HashUtil.toHex(HashUtil.randomBytes(16));
-        final String hash = HashUtil.sha256Hex(salt, code);
         final long now = System.currentTimeMillis();
-        final long expiresAt = now + settings.getExpireMinutes() * 60_000L;
 
         return database.transactionAsync(new DatabaseManager.SqlFunction<IssuedBindCode>() {
             @Override
             public IssuedBindCode apply(Connection connection) throws SQLException {
                 deleteExpiredCodes(connection, now);
+                CodeRow existing = readCode(
+                        connection,
+                        cleanName,
+                        database.getType() == Settings.Database.Type.MYSQL);
+                IssuedBindCode cached = matchingCachedCode(cleanName, existing, now);
+                if (cached != null) {
+                    return cached;
+                }
+
+                String code = generateCode();
+                String salt = HashUtil.toHex(HashUtil.randomBytes(16));
+                String hash = HashUtil.sha256Hex(salt, code);
+                long expiresAt = now + settings.getExpireMinutes() * 60_000L;
                 if (database.getType() == Settings.Database.Type.SQLITE) {
                     int updated;
                     try (PreparedStatement statement = connection.prepareStatement(
@@ -178,9 +191,33 @@ public final class BindingRepository {
                         statement.executeUpdate();
                     }
                 }
-                return new IssuedBindCode(cleanName, code, expiresAt);
+                IssuedBindCode issued = new IssuedBindCode(cleanName, code, expiresAt);
+                return issued;
+            }
+        }).thenApply(new java.util.function.Function<IssuedBindCode, IssuedBindCode>() {
+            @Override
+            public IssuedBindCode apply(IssuedBindCode issued) {
+                ISSUED_CODES.put(cleanName, issued);
+                return issued;
             }
         });
+    }
+
+    private IssuedBindCode matchingCachedCode(String playerName, CodeRow row, long now) {
+        if (row == null || row.expiresAt <= now) {
+            ISSUED_CODES.remove(playerName);
+            return null;
+        }
+        IssuedBindCode cached = ISSUED_CODES.get(playerName);
+        if (cached == null) {
+            return null;
+        }
+        if (cached.getExpiresAt() != row.expiresAt
+                || !HashUtil.constantTimeEquals(row.hash, HashUtil.sha256Hex(row.salt, cached.getCode()))) {
+            ISSUED_CODES.remove(playerName, cached);
+            return null;
+        }
+        return cached;
     }
 
     private void setCodeParameters(PreparedStatement statement,
@@ -863,12 +900,22 @@ public final class BindingRepository {
 
     public CompletableFuture<Integer> cleanupExpiredCodes() {
         final long now = System.currentTimeMillis();
+        cleanupExpiredCachedCodes(now);
         return database.supplyAsync(new DatabaseManager.SqlFunction<Integer>() {
             @Override
             public Integer apply(Connection connection) throws SQLException {
                 return Integer.valueOf(deleteExpiredCodes(connection, now));
             }
         });
+    }
+
+    private void cleanupExpiredCachedCodes(long now) {
+        for (Map.Entry<String, IssuedBindCode> entry : ISSUED_CODES.entrySet()) {
+            IssuedBindCode issued = entry.getValue();
+            if (issued.getExpiresAt() <= now) {
+                ISSUED_CODES.remove(entry.getKey(), issued);
+            }
+        }
     }
 
     private Optional<BindingRecord> findByPlayerName(Connection connection, String playerName) throws SQLException {
