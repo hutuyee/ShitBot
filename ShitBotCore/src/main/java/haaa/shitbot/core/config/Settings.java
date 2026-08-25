@@ -875,12 +875,10 @@ public final class Settings {
     }
 
     private static int clamp(int value, int minimum, int maximum, int fallback) {
-        int actual = value <= 0 ? fallback : value;
-        return Math.max(minimum, Math.min(maximum, actual));
+        return value < minimum || value > maximum ? fallback : value;
     }
 
     private static long clampLong(long value, long minimum, long maximum, long fallback) {
-        long actual = value <= 0L ? fallback : value;
-        return Math.max(minimum, Math.min(maximum, actual));
+        return value < minimum || value > maximum ? fallback : value;
     }
 }

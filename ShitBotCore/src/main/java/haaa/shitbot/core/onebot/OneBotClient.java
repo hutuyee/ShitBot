@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,7 +93,6 @@ public final class OneBotClient implements AutoCloseable {
             @Override
             public void run() {
                 checkHeartbeat();
-                expirePendingActions();
             }
         }, 10L, 10L, TimeUnit.SECONDS);
     }
@@ -179,14 +179,23 @@ public final class OneBotClient implements AutoCloseable {
         request.put("echo", echo);
 
         CompletableFuture<JsonNode> future = new CompletableFuture<JsonNode>();
-        PendingAction pending = new PendingAction(future,
-                System.currentTimeMillis() + settings.getActionTimeoutSeconds() * 1000L);
+        final PendingAction pending = new PendingAction(future);
         pendingActions.put(echo, pending);
         try {
+            pending.setTimeoutTask(scheduler.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    if (pendingActions.remove(echo, pending)) {
+                        pending.future.completeExceptionally(new TimeoutException("OneBot action timed out"));
+                    }
+                }
+            }, settings.getActionTimeoutSeconds(), TimeUnit.SECONDS));
             current.send(objectMapper.writeValueAsString(request));
         } catch (Throwable throwable) {
-            pendingActions.remove(echo);
-            future.completeExceptionally(throwable);
+            if (pendingActions.remove(echo, pending)) {
+                pending.cancelTimeout();
+                future.completeExceptionally(throwable);
+            }
         }
         return future;
     }
@@ -269,6 +278,7 @@ public final class OneBotClient implements AutoCloseable {
         if (pending == null) {
             return;
         }
+        pending.cancelTimeout();
         String status = root.path("status").asText("");
         int retCode = root.path("retcode").asInt(0);
         if ("ok".equalsIgnoreCase(status) && retCode == 0) {
@@ -686,20 +696,11 @@ public final class OneBotClient implements AutoCloseable {
         }
     }
 
-    private void expirePendingActions() {
-        long now = System.currentTimeMillis();
-        for (Map.Entry<String, PendingAction> entry : pendingActions.entrySet()) {
-            PendingAction pending = entry.getValue();
-            if (pending.deadlineAt <= now && pendingActions.remove(entry.getKey(), pending)) {
-                pending.future.completeExceptionally(new TimeoutException("OneBot action timed out"));
-            }
-        }
-    }
-
     private void failAllPending(Throwable throwable) {
         for (Map.Entry<String, PendingAction> entry : pendingActions.entrySet()) {
             PendingAction pending = entry.getValue();
             if (pendingActions.remove(entry.getKey(), pending)) {
+                pending.cancelTimeout();
                 pending.future.completeExceptionally(throwable);
             }
         }
@@ -766,11 +767,25 @@ public final class OneBotClient implements AutoCloseable {
 
     private static final class PendingAction {
         private final CompletableFuture<JsonNode> future;
-        private final long deadlineAt;
+        private ScheduledFuture<?> timeoutTask;
 
-        private PendingAction(CompletableFuture<JsonNode> future, long deadlineAt) {
+        private PendingAction(CompletableFuture<JsonNode> future) {
             this.future = future;
-            this.deadlineAt = deadlineAt;
+        }
+
+        private synchronized void setTimeoutTask(ScheduledFuture<?> timeoutTask) {
+            if (future.isDone()) {
+                timeoutTask.cancel(false);
+                return;
+            }
+            this.timeoutTask = timeoutTask;
+        }
+
+        private synchronized void cancelTimeout() {
+            if (timeoutTask != null) {
+                timeoutTask.cancel(false);
+                timeoutTask = null;
+            }
         }
     }
 }
