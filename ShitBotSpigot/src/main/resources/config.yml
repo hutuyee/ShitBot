@@ -11,11 +11,15 @@ onebot:
   websocket-url: "ws://127.0.0.1:3001"
   # 非空时会在 WebSocket 握手 Header 中发送：Authorization: Bearer <token>
   access-token: ""
-  # 留空表示允许所有群；建议生产环境只填写自己的群号。
+  # 默认 false；只有显式开启时才接收任意群消息。
+  allow-all-groups: false
+  # 允许接收的群。列表为空且 allow-all-groups=false 时拒绝所有群消息。
   allowed-group-ids:
     - 123456789
   connect-timeout-seconds: 10
   action-timeout-seconds: 15
+  # 同时等待 OneBot 响应的 action 上限；达到后新请求会快速失败，避免无界堆积。
+  maximum-pending-actions: 256
   heartbeat-timeout-seconds: 120
   reconnect:
     initial-seconds: 3

@@ -103,8 +103,10 @@ public final class Settings {
         private final String websocketUrl;
         private final String accessToken;
         private final List<Long> allowedGroupIds;
+        private final boolean allowAllGroups;
         private final int connectTimeoutSeconds;
         private final int actionTimeoutSeconds;
+        private final int maximumPendingActions;
         private final int heartbeatTimeoutSeconds;
         private final int reconnectInitialSeconds;
         private final int reconnectMaximumSeconds;
@@ -120,8 +122,10 @@ public final class Settings {
                       String websocketUrl,
                       String accessToken,
                       List<Long> allowedGroupIds,
+                      boolean allowAllGroups,
                       int connectTimeoutSeconds,
                       int actionTimeoutSeconds,
+                      int maximumPendingActions,
                       int heartbeatTimeoutSeconds,
                       int reconnectInitialSeconds,
                       int reconnectMaximumSeconds,
@@ -138,8 +142,10 @@ public final class Settings {
             this.allowedGroupIds = allowedGroupIds == null
                     ? Collections.<Long>emptyList()
                     : Collections.unmodifiableList(new ArrayList<Long>(allowedGroupIds));
+            this.allowAllGroups = allowAllGroups;
             this.connectTimeoutSeconds = clamp(connectTimeoutSeconds, 1, 60, 10);
             this.actionTimeoutSeconds = clamp(actionTimeoutSeconds, 1, 120, 15);
+            this.maximumPendingActions = clamp(maximumPendingActions, 16, 4096, 256);
             this.heartbeatTimeoutSeconds = clamp(heartbeatTimeoutSeconds, 15, 600, 120);
             this.reconnectInitialSeconds = clamp(reconnectInitialSeconds, 1, 60, 3);
             this.reconnectMaximumSeconds = clamp(reconnectMaximumSeconds, this.reconnectInitialSeconds, 600, 60);
@@ -168,12 +174,20 @@ public final class Settings {
             return allowedGroupIds;
         }
 
+        public boolean isAllowAllGroups() {
+            return allowAllGroups;
+        }
+
         public int getConnectTimeoutSeconds() {
             return connectTimeoutSeconds;
         }
 
         public int getActionTimeoutSeconds() {
             return actionTimeoutSeconds;
+        }
+
+        public int getMaximumPendingActions() {
+            return maximumPendingActions;
         }
 
         public int getHeartbeatTimeoutSeconds() {
@@ -217,7 +231,7 @@ public final class Settings {
         }
 
         public boolean isGroupAllowed(long groupId) {
-            return allowedGroupIds.isEmpty() || allowedGroupIds.contains(Long.valueOf(groupId));
+            return allowAllGroups || allowedGroupIds.contains(Long.valueOf(groupId));
         }
     }
 

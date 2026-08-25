@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +53,7 @@ public final class OneBotClient implements AutoCloseable {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-onebot", true));
     private final ConcurrentHashMap<String, PendingAction> pendingActions = new ConcurrentHashMap<String, PendingAction>();
+    private final Semaphore pendingCapacity;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean reconnectScheduled = new AtomicBoolean();
     private final AtomicInteger reconnectDelaySeconds;
@@ -68,6 +70,7 @@ public final class OneBotClient implements AutoCloseable {
         this.settings = settings;
         this.mediaMode = mediaMode == null ? Settings.MediaMode.BROWSER : mediaMode;
         this.platform = platform;
+        this.pendingCapacity = new Semaphore(settings.getMaximumPendingActions());
         this.reconnectDelaySeconds = new AtomicInteger(settings.getReconnectInitialSeconds());
     }
 
@@ -171,8 +174,12 @@ public final class OneBotClient implements AutoCloseable {
         if (closed.get() || current == null || !current.isOpen()) {
             return FutureUtil.failedFuture(new IllegalStateException("OneBot WebSocket is not connected"));
         }
+        if (!pendingCapacity.tryAcquire()) {
+            return FutureUtil.failedFuture(new IllegalStateException(
+                    "OneBot pending action limit reached: " + settings.getMaximumPendingActions()));
+        }
 
-        String echo = UUID.randomUUID().toString();
+        final String echo = UUID.randomUUID().toString();
         ObjectNode request = objectMapper.createObjectNode();
         request.put("action", action);
         request.set("params", parameters == null ? objectMapper.createObjectNode() : parameters);
@@ -186,6 +193,7 @@ public final class OneBotClient implements AutoCloseable {
                 @Override
                 public void run() {
                     if (pendingActions.remove(echo, pending)) {
+                        pending.releaseCapacity(pendingCapacity);
                         pending.future.completeExceptionally(new TimeoutException("OneBot action timed out"));
                     }
                 }
@@ -194,6 +202,7 @@ public final class OneBotClient implements AutoCloseable {
         } catch (Throwable throwable) {
             if (pendingActions.remove(echo, pending)) {
                 pending.cancelTimeout();
+                pending.releaseCapacity(pendingCapacity);
                 future.completeExceptionally(throwable);
             }
         }
@@ -279,6 +288,7 @@ public final class OneBotClient implements AutoCloseable {
             return;
         }
         pending.cancelTimeout();
+        pending.releaseCapacity(pendingCapacity);
         String status = root.path("status").asText("");
         int retCode = root.path("retcode").asInt(0);
         if ("ok".equalsIgnoreCase(status) && retCode == 0) {
@@ -701,6 +711,7 @@ public final class OneBotClient implements AutoCloseable {
             PendingAction pending = entry.getValue();
             if (pendingActions.remove(entry.getKey(), pending)) {
                 pending.cancelTimeout();
+                pending.releaseCapacity(pendingCapacity);
                 pending.future.completeExceptionally(throwable);
             }
         }
@@ -767,6 +778,7 @@ public final class OneBotClient implements AutoCloseable {
 
     private static final class PendingAction {
         private final CompletableFuture<JsonNode> future;
+        private final AtomicBoolean capacityReleased = new AtomicBoolean();
         private ScheduledFuture<?> timeoutTask;
 
         private PendingAction(CompletableFuture<JsonNode> future) {
@@ -785,6 +797,12 @@ public final class OneBotClient implements AutoCloseable {
             if (timeoutTask != null) {
                 timeoutTask.cancel(false);
                 timeoutTask = null;
+            }
+        }
+
+        private void releaseCapacity(Semaphore capacity) {
+            if (capacityReleased.compareAndSet(false, true)) {
+                capacity.release();
             }
         }
     }
