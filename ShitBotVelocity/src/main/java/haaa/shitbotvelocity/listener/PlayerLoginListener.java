@@ -4,8 +4,10 @@ import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
-import haaa.shitbotvelocity.ShitBotVelocity;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
+import haaa.shitbotvelocity.ShitBotVelocity;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public final class PlayerLoginListener {
@@ -58,5 +60,23 @@ public final class PlayerLoginListener {
         if (runtime != null && runtime.isReady()) {
             runtime.checkLogin(event.getPlayer().getUsername(), event.getPlayer().getUniqueId().toString());
         }
+        final com.velocitypowered.api.proxy.Player player = event.getPlayer();
+        if (!player.hasPermission("shitbot.admin")) {
+            return;
+        }
+        final UpdateChecker updateChecker = plugin.getUpdateChecker();
+        if (updateChecker == null) {
+            return;
+        }
+        updateChecker.latestForNotificationAsync().thenAccept((UpdateInfo info) -> {
+            if (!updateChecker.isUpdateAvailable(info)) {
+                return;
+            }
+            plugin.getPlatformBridge().executeOnPlatformThread(() -> {
+                if (player.isActive()) {
+                    plugin.sendUpdateNotice(player, info);
+                }
+            });
+        });
     }
 }

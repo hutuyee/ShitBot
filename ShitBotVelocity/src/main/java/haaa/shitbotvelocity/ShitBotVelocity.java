@@ -2,6 +2,7 @@ package haaa.shitbotvelocity;
 
 import com.google.inject.Inject;
 import com.velocitypowered.api.command.CommandMeta;
+import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
@@ -15,7 +16,13 @@ import haaa.shitbotvelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
@@ -32,6 +39,7 @@ public final class ShitBotVelocity {
     private CompletableFuture<Boolean> reloadFuture;
     private VelocityConfigLoader configLoader;
     private VelocityPlatformBridge platformBridge;
+    private UpdateChecker updateChecker;
 
     @Inject
     public ShitBotVelocity(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -45,6 +53,8 @@ public final class ShitBotVelocity {
         stopping = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
+        this.updateChecker = new UpdateChecker(resolvePluginVersion(), platformBridge);
+        startUpdateCheck();
         server.getEventManager().register(this, new PlayerLoginListener(this));
         server.getEventManager().register(this, new PlayerChatListener(this));
         CommandMeta commandMeta = server.getCommandManager().metaBuilder("shitbot")
@@ -140,9 +150,59 @@ public final class ShitBotVelocity {
         return platformBridge;
     }
 
+    public UpdateChecker getUpdateChecker() {
+        return updateChecker;
+    }
+
+    public void sendUpdateNotice(CommandSource sender, UpdateInfo info) {
+        if (sender == null || info == null || updateChecker == null) {
+            return;
+        }
+        LegacyComponentSerializer serializer = LegacyComponentSerializer.legacySection();
+        sender.sendMessage(serializer.deserialize("§e[ShitBot] 发现新版本: §f"
+                + updateChecker.getCurrentVersion() + " §7-> §a" + info.getLatestVersion()));
+        Component link = serializer.deserialize("§b§n" + info.getReleaseUrl())
+                .clickEvent(ClickEvent.openUrl(info.getReleaseUrl()))
+                .hoverEvent(HoverEvent.showText(Component.text("点击打开 Release 页面")));
+        sender.sendMessage(link);
+    }
+
+    private void startUpdateCheck() {
+        updateChecker.checkAsync().whenComplete((info, throwable) -> {
+            if (throwable != null) {
+                if (!stopping) {
+                    platformBridge.warn("Unable to check for ShitBot updates: "
+                            + errorMessage(throwable));
+                }
+                return;
+            }
+            if (updateChecker.isUpdateAvailable(info)) {
+                platformBridge.info("ShitBot update available: " + updateChecker.getCurrentVersion()
+                        + " -> " + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
+            }
+        });
+    }
+
+    private String resolvePluginVersion() {
+        return server.getPluginManager().getPlugin("shitbotvelocity")
+                .flatMap(container -> container.getDescription().getVersion())
+                .orElse("unknown");
+    }
+
+    private String errorMessage(Throwable throwable) {
+        Throwable cause = FutureUtil.unwrap(throwable);
+        String message = cause.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? cause.getClass().getSimpleName()
+                : message;
+    }
+
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         stopping = true;
+        if (updateChecker != null) {
+            updateChecker.close();
+        }
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
