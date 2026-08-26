@@ -210,6 +210,13 @@ public final class ConsoleSettings {
         private final String serverName;
         private final int authenticationTimeoutMillis;
         private final List<String> allowedProxyAddresses;
+        private final boolean allowInsecureRemotePlaintext;
+        private final boolean tlsEnabled;
+        private final String tlsKeyStore;
+        private final String tlsKeyStorePassword;
+        private final String tlsTrustStore;
+        private final String tlsTrustStorePassword;
+        private final boolean tlsRequireClientCertificate;
 
         public BackendListener(boolean enabled,
                                String bindAddress,
@@ -217,7 +224,14 @@ public final class ConsoleSettings {
                                String token,
                                String serverName,
                                int authenticationTimeoutMillis,
-                               List<String> allowedProxyAddresses) {
+                               List<String> allowedProxyAddresses,
+                               boolean allowInsecureRemotePlaintext,
+                               boolean tlsEnabled,
+                               String tlsKeyStore,
+                               String tlsKeyStorePassword,
+                               String tlsTrustStore,
+                               String tlsTrustStorePassword,
+                               boolean tlsRequireClientCertificate) {
             this.enabled = enabled;
             this.bindAddress = text(bindAddress, "127.0.0.1");
             this.port = clamp(port, 1, 65535, 25580);
@@ -228,11 +242,19 @@ public final class ConsoleSettings {
             this.allowedProxyAddresses = cleanedAddresses.isEmpty()
                     ? Collections.unmodifiableList(Arrays.asList("127.0.0.1", "::1"))
                     : cleanedAddresses;
+            this.allowInsecureRemotePlaintext = allowInsecureRemotePlaintext;
+            this.tlsEnabled = tlsEnabled;
+            this.tlsKeyStore = tlsKeyStore == null ? "" : tlsKeyStore.trim();
+            this.tlsKeyStorePassword = tlsKeyStorePassword == null ? "" : tlsKeyStorePassword;
+            this.tlsTrustStore = tlsTrustStore == null ? "" : tlsTrustStore.trim();
+            this.tlsTrustStorePassword = tlsTrustStorePassword == null ? "" : tlsTrustStorePassword;
+            this.tlsRequireClientCertificate = tlsRequireClientCertificate;
         }
 
         private static BackendListener disabled() {
             return new BackendListener(false, "127.0.0.1", 25580, "", "backend",
-                    2000, Arrays.asList("127.0.0.1", "::1"));
+                    2000, Arrays.asList("127.0.0.1", "::1"), false,
+                    false, "", "", "", "", false);
         }
 
         public boolean isEnabled() { return enabled; }
@@ -242,6 +264,13 @@ public final class ConsoleSettings {
         public String getServerName() { return serverName; }
         public int getAuthenticationTimeoutMillis() { return authenticationTimeoutMillis; }
         public List<String> getAllowedProxyAddresses() { return allowedProxyAddresses; }
+        public boolean isAllowInsecureRemotePlaintext() { return allowInsecureRemotePlaintext; }
+        public boolean isTlsEnabled() { return tlsEnabled; }
+        public String getTlsKeyStore() { return tlsKeyStore; }
+        public String getTlsKeyStorePassword() { return tlsKeyStorePassword; }
+        public String getTlsTrustStore() { return tlsTrustStore; }
+        public String getTlsTrustStorePassword() { return tlsTrustStorePassword; }
+        public boolean isTlsRequireClientCertificate() { return tlsRequireClientCertificate; }
     }
 
     public static final class BackendEndpoint {
@@ -249,18 +278,45 @@ public final class ConsoleSettings {
         private final String host;
         private final int port;
         private final String token;
+        private final boolean allowInsecureRemotePlaintext;
+        private final boolean tlsEnabled;
+        private final String tlsTrustStore;
+        private final String tlsTrustStorePassword;
+        private final String tlsKeyStore;
+        private final String tlsKeyStorePassword;
 
-        public BackendEndpoint(String name, String host, int port, String token) {
+        public BackendEndpoint(String name,
+                               String host,
+                               int port,
+                               String token,
+                               boolean allowInsecureRemotePlaintext,
+                               boolean tlsEnabled,
+                               String tlsTrustStore,
+                               String tlsTrustStorePassword,
+                               String tlsKeyStore,
+                               String tlsKeyStorePassword) {
             this.name = name == null ? "" : name.trim();
             this.host = text(host, "127.0.0.1");
             this.port = clamp(port, 1, 65535, 25580);
             this.token = token == null ? "" : token.trim();
+            this.allowInsecureRemotePlaintext = allowInsecureRemotePlaintext;
+            this.tlsEnabled = tlsEnabled;
+            this.tlsTrustStore = tlsTrustStore == null ? "" : tlsTrustStore.trim();
+            this.tlsTrustStorePassword = tlsTrustStorePassword == null ? "" : tlsTrustStorePassword;
+            this.tlsKeyStore = tlsKeyStore == null ? "" : tlsKeyStore.trim();
+            this.tlsKeyStorePassword = tlsKeyStorePassword == null ? "" : tlsKeyStorePassword;
         }
 
         public String getName() { return name; }
         public String getHost() { return host; }
         public int getPort() { return port; }
         public String getToken() { return token; }
+        public boolean isAllowInsecureRemotePlaintext() { return allowInsecureRemotePlaintext; }
+        public boolean isTlsEnabled() { return tlsEnabled; }
+        public String getTlsTrustStore() { return tlsTrustStore; }
+        public String getTlsTrustStorePassword() { return tlsTrustStorePassword; }
+        public String getTlsKeyStore() { return tlsKeyStore; }
+        public String getTlsKeyStorePassword() { return tlsKeyStorePassword; }
     }
 
     private static List<String> cleanAliases(List<String> aliases) {

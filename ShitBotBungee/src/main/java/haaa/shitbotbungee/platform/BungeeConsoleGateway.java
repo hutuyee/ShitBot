@@ -22,10 +22,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -39,8 +41,13 @@ public final class BungeeConsoleGateway implements AutoCloseable {
     private volatile ConsoleRequest activeLocalRequest;
     private volatile Logger activeLogger;
     private volatile Handler activeHandler;
-    private final ExecutorService socketExecutor = Executors.newFixedThreadPool(2,
-            new NamedThreadFactory("shitbot-bungee-console", true));
+    private final ThreadPoolExecutor socketExecutor = new ThreadPoolExecutor(
+            2, 2, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<Runnable>(32),
+            new NamedThreadFactory("shitbot-bungee-console", true),
+            new ThreadPoolExecutor.AbortPolicy());
+    private final Map<String, EndpointCircuit> endpointCircuits =
+            new ConcurrentHashMap<String, EndpointCircuit>();
     private volatile ConsoleSettings.BackendTransport backendTransport;
 
     public BungeeConsoleGateway(Plugin plugin) {
@@ -115,17 +122,80 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             final ConsoleRequest request,
             final ConsoleSettings.BackendEndpoint endpoint) {
         final ConsoleSettings.BackendTransport transport = backendTransport;
-        return CompletableFuture.supplyAsync(new java.util.function.Supplier<ConsoleResult>() {
-            @Override
-            public ConsoleResult get() {
-                try {
-                    return ConsoleSocketProtocol.exchange(endpoint, transport, request);
-                } catch (Exception exception) {
-                    return ConsoleResult.unavailable(request,
-                            "无法连接目标子服：" + exception.getMessage(), endpoint.getName());
+        final CompletableFuture<ConsoleResult> result = new CompletableFuture<ConsoleResult>();
+        final long deadlineNanos = System.nanoTime()
+                + TimeUnit.SECONDS.toNanos(request.getTimeoutSeconds());
+        try {
+            socketExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    if (System.nanoTime() >= deadlineNanos) {
+                        result.complete(ConsoleResult.unavailable(
+                                request, "请求在等待后端连接前已过期。", endpoint.getName()));
+                        return;
+                    }
+                    EndpointCircuit circuit = endpointCircuit(endpoint);
+                    if (circuit.isOpen(System.nanoTime())) {
+                        result.complete(ConsoleResult.unavailable(
+                                request, "目标子服连接连续失败，短暂熔断中。", endpoint.getName()));
+                        return;
+                    }
+                    try {
+                        ConsoleResult response = ConsoleSocketProtocol.exchange(
+                                endpoint, transport, request, plugin.getDataFolder().toPath(), deadlineNanos);
+                        circuit.recordSuccess();
+                        result.complete(response);
+                    } catch (Exception exception) {
+                        circuit.recordFailure(System.nanoTime());
+                        result.complete(ConsoleResult.unavailable(request,
+                                "无法连接目标子服：" + safeMessage(exception), endpoint.getName()));
+                    }
                 }
+            });
+        } catch (RejectedExecutionException exception) {
+            result.complete(ConsoleResult.unavailable(
+                    request, "后端请求繁忙，等待队列已满。", endpoint.getName()));
+        }
+        return result;
+    }
+
+    private EndpointCircuit endpointCircuit(ConsoleSettings.BackendEndpoint endpoint) {
+        String key = endpoint.getName().toLowerCase(java.util.Locale.ROOT);
+        EndpointCircuit created = new EndpointCircuit();
+        EndpointCircuit existing = endpointCircuits.putIfAbsent(key, created);
+        return existing == null ? created : existing;
+    }
+
+    private String safeMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? current.getClass().getSimpleName() : message;
+    }
+
+    private static final class EndpointCircuit {
+        private int consecutiveFailures;
+        private long openUntilNanos;
+
+        private synchronized boolean isOpen(long nowNanos) {
+            return nowNanos < openUntilNanos;
+        }
+
+        private synchronized void recordSuccess() {
+            consecutiveFailures = 0;
+            openUntilNanos = 0L;
+        }
+
+        private synchronized void recordFailure(long nowNanos) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= 3) {
+                openUntilNanos = nowNanos + TimeUnit.SECONDS.toNanos(5L);
+                consecutiveFailures = 0;
             }
-        }, socketExecutor);
+        }
     }
 
     private ConsoleSettings.BackendEndpoint selectEndpoint(ConsoleRequest request) {
@@ -357,6 +427,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         activeLocalRequest = null;
         localCommandRunning.set(false);
         socketExecutor.shutdownNow();
+        endpointCircuits.clear();
     }
 
     private void clearLocalCapture(CompletableFuture<ConsoleResult> future) {

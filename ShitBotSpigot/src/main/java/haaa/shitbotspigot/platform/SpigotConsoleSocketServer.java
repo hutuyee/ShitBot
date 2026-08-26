@@ -4,7 +4,9 @@ import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
+import haaa.shitbot.core.console.ConsoleTlsSupport;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import haaa.shitbot.core.util.NetworkUtil;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -43,6 +45,8 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
             new NamedThreadFactory("shitbot-console-worker", true));
     private final Map<String, Long> acceptedNonces = new ConcurrentHashMap<String, Long>();
     private final Map<String, Long> acceptedRequestIds = new ConcurrentHashMap<String, Long>();
+    private final Map<String, FailureLogState> rejectionLogStates =
+            new ConcurrentHashMap<String, FailureLogState>();
     private final AtomicLong lastAddressRejectionLog = new AtomicLong();
     private volatile Set<InetAddress> allowedProxyAddresses = Collections.emptySet();
     private volatile ServerSocket serverSocket;
@@ -61,8 +65,15 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
         if (settings.getToken().length() < 16) {
             throw new IOException("backend-transport.listener.token must contain at least 16 characters");
         }
+        if (!settings.isTlsEnabled()
+                && !NetworkUtil.isLoopbackHost(settings.getBindAddress())
+                && !settings.isAllowInsecureRemotePlaintext()) {
+            throw new IOException("Remote console listener requires TLS; plaintext was not explicitly allowed");
+        }
         allowedProxyAddresses = resolveAllowedProxyAddresses();
-        ServerSocket socket = new ServerSocket();
+        ServerSocket socket = settings.isTlsEnabled()
+                ? ConsoleTlsSupport.createServerSocket(settings, plugin.getDataFolder().toPath())
+                : new ServerSocket();
         socket.setReuseAddress(true);
         socket.bind(new InetSocketAddress(settings.getBindAddress(), settings.getPort()), 32);
         serverSocket = socket;
@@ -74,7 +85,8 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
         });
         plugin.getLogger().info("ShitBot console listener started on "
                 + settings.getBindAddress() + ':' + settings.getPort()
-                + " as " + settings.getServerName() + '.');
+                + " as " + settings.getServerName()
+                + (settings.isTlsEnabled() ? " with TLS." : "."));
     }
 
     private void acceptLoop() {
@@ -143,7 +155,16 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
                 && settings.getToken().equals(candidate.getToken())
                 && settings.getServerName().equals(candidate.getServerName())
                 && settings.getAuthenticationTimeoutMillis() == candidate.getAuthenticationTimeoutMillis()
-                && settings.getAllowedProxyAddresses().equals(candidate.getAllowedProxyAddresses());
+                && settings.getAllowedProxyAddresses().equals(candidate.getAllowedProxyAddresses())
+                && settings.isAllowInsecureRemotePlaintext()
+                == candidate.isAllowInsecureRemotePlaintext()
+                && settings.isTlsEnabled() == candidate.isTlsEnabled()
+                && settings.getTlsKeyStore().equals(candidate.getTlsKeyStore())
+                && settings.getTlsKeyStorePassword().equals(candidate.getTlsKeyStorePassword())
+                && settings.getTlsTrustStore().equals(candidate.getTlsTrustStore())
+                && settings.getTlsTrustStorePassword().equals(candidate.getTlsTrustStorePassword())
+                && settings.isTlsRequireClientCertificate()
+                == candidate.isTlsRequireClientCertificate();
     }
 
     boolean usesSamePort(ConsoleSettings.BackendListener candidate) {
@@ -152,8 +173,13 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
 
     private void handle(Socket client, long acceptedAt) {
         try {
+            if (client instanceof javax.net.ssl.SSLSocket) {
+                ((javax.net.ssl.SSLSocket) client).startHandshake();
+            }
+            byte[] challenge = ConsoleSocketProtocol.writeChallenge(client.getOutputStream());
             ConsoleSocketProtocol.AuthenticatedRequest authenticated =
-                    ConsoleSocketProtocol.readRequest(client.getInputStream(), settings.getToken());
+                    ConsoleSocketProtocol.readRequest(
+                            client.getInputStream(), settings.getToken(), challenge);
             if (acceptedNonces.putIfAbsent(authenticated.getNonceKey(),
                     Long.valueOf(authenticated.getTimestamp())) != null) {
                 throw new IOException("Repeated console socket nonce");
@@ -182,15 +208,49 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
             ConsoleResult namedResult = new ConsoleResult(result.getRequestId(), result.getStatus(),
                     result.getOutput(), settings.getServerName());
             ConsoleSocketProtocol.writeResult(
-                    client.getOutputStream(), settings.getToken(), authenticated.getNonce(), namedResult);
+                    client.getOutputStream(), settings.getToken(), challenge,
+                    authenticated.getNonce(), namedResult);
         } catch (Throwable throwable) {
-            plugin.getLogger().warning("Console socket request rejected: " + safeMessage(throwable));
+            logRejectedRequest(client.getInetAddress(), throwable);
         } finally {
             try {
                 client.close();
             } catch (IOException ignored) {
             }
         }
+    }
+
+    private void logRejectedRequest(InetAddress address, Throwable throwable) {
+        Throwable cause = rootCause(throwable);
+        String addressText = address == null ? "unknown" : address.getHostAddress();
+        String key = addressText + ':' + cause.getClass().getName();
+        FailureLogState created = new FailureLogState();
+        FailureLogState state = rejectionLogStates.putIfAbsent(key, created);
+        if (state == null) {
+            state = created;
+        }
+        long now = System.currentTimeMillis();
+        int suppressed;
+        synchronized (state) {
+            if (now - state.lastLoggedAt < TimeUnit.SECONDS.toMillis(10L)) {
+                state.suppressed++;
+                return;
+            }
+            suppressed = state.suppressed;
+            state.suppressed = 0;
+            state.lastLoggedAt = now;
+        }
+        plugin.getLogger().warning("Console socket request rejected from " + addressText + ": "
+                + safeMessage(cause)
+                + (suppressed <= 0 ? "" : " (suppressed " + suppressed + " similar failures)"));
+    }
+
+    private Throwable rootCause(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private void cleanupNonces() {
@@ -211,10 +271,7 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
     }
 
     private String safeMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
-        }
+        Throwable current = rootCause(throwable);
         return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
     }
 
@@ -231,6 +288,12 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
         workerExecutor.shutdownNow();
         acceptedNonces.clear();
         acceptedRequestIds.clear();
+        rejectionLogStates.clear();
         allowedProxyAddresses = Collections.emptySet();
+    }
+
+    private static final class FailureLogState {
+        private long lastLoggedAt;
+        private int suppressed;
     }
 }

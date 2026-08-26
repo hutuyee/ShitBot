@@ -33,7 +33,14 @@ public final class ConsoleSettingsFactory {
                 source.getString("backend-transport.listener.token", ""),
                 source.getString("backend-transport.listener.server-name", "backend"),
                 source.getInt("backend-transport.listener.authentication-timeout-ms", 2000),
-                source.getStringList("backend-transport.listener.allowed-proxy-addresses"));
+                source.getStringList("backend-transport.listener.allowed-proxy-addresses"),
+                source.getBoolean("backend-transport.listener.allow-insecure-remote-plaintext", false),
+                source.getBoolean("backend-transport.listener.tls.enabled", false),
+                source.getString("backend-transport.listener.tls.key-store", ""),
+                source.getString("backend-transport.listener.tls.key-store-password", ""),
+                source.getString("backend-transport.listener.tls.trust-store", ""),
+                source.getString("backend-transport.listener.tls.trust-store-password", ""),
+                source.getBoolean("backend-transport.listener.tls.require-client-certificate", false));
         List<ConsoleSettings.BackendEndpoint> endpoints = new ArrayList<ConsoleSettings.BackendEndpoint>();
         for (String name : source.getSectionKeys("backend-transport.endpoints")) {
             String path = "backend-transport.endpoints." + name;
@@ -41,7 +48,13 @@ public final class ConsoleSettingsFactory {
                     name,
                     source.getString(path + ".host", "127.0.0.1"),
                     source.getInt(path + ".port", 25580),
-                    source.getString(path + ".token", "")));
+                    source.getString(path + ".token", ""),
+                    source.getBoolean(path + ".allow-insecure-remote-plaintext", false),
+                    source.getBoolean(path + ".tls.enabled", false),
+                    source.getString(path + ".tls.trust-store", ""),
+                    source.getString(path + ".tls.trust-store-password", ""),
+                    source.getString(path + ".tls.key-store", ""),
+                    source.getString(path + ".tls.key-store-password", "")));
         }
         ConsoleSettings.BackendTransport backendTransport = new ConsoleSettings.BackendTransport(
                 source.getInt("backend-transport.connect-timeout-ms", 3000),

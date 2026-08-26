@@ -1,5 +1,7 @@
 package haaa.shitbot.core.console;
 
+import haaa.shitbot.core.util.NetworkUtil;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedInputStream;
@@ -12,17 +14,22 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 
 public final class ConsoleSocketProtocol {
     private static final int REQUEST_MAGIC = 0x53425451;
     private static final int RESPONSE_MAGIC = 0x53425452;
-    private static final int VERSION = 1;
+    private static final int CHALLENGE_MAGIC = 0x53425443;
+    private static final int VERSION = 2;
     private static final int NONCE_LENGTH = 16;
+    private static final int CHALLENGE_LENGTH = 32;
     private static final int SIGNATURE_LENGTH = 32;
     private static final int MAX_PAYLOAD = 32767;
     private static final long MAX_CLOCK_SKEW_MILLIS = 30000L;
@@ -34,16 +41,42 @@ public final class ConsoleSocketProtocol {
     public static ConsoleResult exchange(ConsoleSettings.BackendEndpoint endpoint,
                                          ConsoleSettings.BackendTransport transport,
                                          ConsoleRequest request) throws IOException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(request.getTimeoutSeconds());
+        return exchange(endpoint, transport, request, null, deadline);
+    }
+
+    public static ConsoleResult exchange(ConsoleSettings.BackendEndpoint endpoint,
+                                         ConsoleSettings.BackendTransport transport,
+                                         ConsoleRequest request,
+                                         Path dataDirectory,
+                                         long deadlineNanos) throws IOException {
         requireToken(endpoint.getToken());
-        Socket socket = new Socket();
+        if (!endpoint.isTlsEnabled()
+                && !NetworkUtil.isLoopbackHost(endpoint.getHost())
+                && !endpoint.isAllowInsecureRemotePlaintext()) {
+            throw new IOException("Remote console endpoint requires TLS; plaintext was not explicitly allowed");
+        }
+        Socket socket = endpoint.isTlsEnabled()
+                ? ConsoleTlsSupport.createClientSocket(endpoint, dataDirectory)
+                : new Socket();
         try {
             socket.connect(new InetSocketAddress(endpoint.getHost(), endpoint.getPort()),
-                    transport.getConnectTimeoutMillis());
-            socket.setSoTimeout(transport.getReadTimeoutSeconds() * 1000);
+                    remainingTimeoutMillis(deadlineNanos, transport.getConnectTimeoutMillis()));
+            socket.setSoTimeout(remainingTimeoutMillis(
+                    deadlineNanos, transport.getReadTimeoutSeconds() * 1000));
+            if (socket instanceof javax.net.ssl.SSLSocket) {
+                ((javax.net.ssl.SSLSocket) socket).startHandshake();
+                socket.setSoTimeout(remainingTimeoutMillis(
+                        deadlineNanos, transport.getReadTimeoutSeconds() * 1000));
+            }
+            byte[] challenge = readChallenge(socket.getInputStream());
             byte[] nonce = new byte[NONCE_LENGTH];
             RANDOM.nextBytes(nonce);
-            writeRequest(socket.getOutputStream(), endpoint.getToken(), nonce, request);
-            ConsoleResult result = readResult(socket.getInputStream(), endpoint.getToken(), nonce);
+            writeRequest(socket.getOutputStream(), endpoint.getToken(), challenge, nonce, request);
+            socket.setSoTimeout(remainingTimeoutMillis(
+                    deadlineNanos, transport.getReadTimeoutSeconds() * 1000));
+            ConsoleResult result = readResult(
+                    socket.getInputStream(), endpoint.getToken(), challenge, nonce);
             if (!request.getRequestId().equals(result.getRequestId())) {
                 throw new IOException("Console socket response request ID does not match");
             }
@@ -60,8 +93,32 @@ public final class ConsoleSocketProtocol {
         }
     }
 
-    public static AuthenticatedRequest readRequest(InputStream rawInput, String token) throws IOException {
+    public static byte[] writeChallenge(OutputStream rawOutput) throws IOException {
+        byte[] challenge = new byte[CHALLENGE_LENGTH];
+        RANDOM.nextBytes(challenge);
+        DataOutputStream output = new DataOutputStream(new BufferedOutputStream(rawOutput));
+        output.writeInt(CHALLENGE_MAGIC);
+        output.writeByte(VERSION);
+        output.write(challenge);
+        output.flush();
+        return challenge;
+    }
+
+    private static byte[] readChallenge(InputStream rawInput) throws IOException {
+        DataInputStream input = new DataInputStream(new BufferedInputStream(rawInput));
+        if (input.readInt() != CHALLENGE_MAGIC || input.readUnsignedByte() != VERSION) {
+            throw new IOException("Unsupported console socket challenge");
+        }
+        byte[] challenge = new byte[CHALLENGE_LENGTH];
+        input.readFully(challenge);
+        return challenge;
+    }
+
+    public static AuthenticatedRequest readRequest(InputStream rawInput,
+                                                   String token,
+                                                   byte[] challenge) throws IOException {
         requireToken(token);
+        requireChallenge(challenge);
         DataInputStream input = new DataInputStream(new BufferedInputStream(rawInput));
         if (input.readInt() != REQUEST_MAGIC || input.readUnsignedByte() != VERSION) {
             throw new IOException("Unsupported console socket request");
@@ -75,7 +132,7 @@ public final class ConsoleSocketProtocol {
         byte[] payload = readPayload(input);
         byte[] signature = new byte[SIGNATURE_LENGTH];
         input.readFully(signature);
-        byte[] expected = sign(token, requestSigningBytes(timestamp, nonce, payload));
+        byte[] expected = sign(token, requestSigningBytes(challenge, timestamp, nonce, payload));
         if (!MessageDigest.isEqual(signature, expected)) {
             throw new IOException("Console socket authentication failed");
         }
@@ -86,9 +143,11 @@ public final class ConsoleSocketProtocol {
 
     public static void writeResult(OutputStream rawOutput,
                                    String token,
+                                   byte[] challenge,
                                    byte[] nonce,
                                    ConsoleResult result) throws IOException {
         requireToken(token);
+        requireChallenge(challenge);
         if (nonce == null || nonce.length != NONCE_LENGTH) {
             throw new IOException("Invalid response nonce");
         }
@@ -99,14 +158,16 @@ public final class ConsoleSocketProtocol {
         output.writeByte(VERSION);
         output.writeInt(payload.length);
         output.write(payload);
-        output.write(sign(token, responseSigningBytes(nonce, payload)));
+        output.write(sign(token, responseSigningBytes(challenge, nonce, payload)));
         output.flush();
     }
 
     private static void writeRequest(OutputStream rawOutput,
                                      String token,
+                                     byte[] challenge,
                                      byte[] nonce,
                                      ConsoleRequest request) throws IOException {
+        requireChallenge(challenge);
         byte[] payload = ConsoleMessageCodec.encodeRequest(request);
         ensurePayload(payload);
         long timestamp = System.currentTimeMillis();
@@ -117,11 +178,14 @@ public final class ConsoleSocketProtocol {
         output.write(nonce);
         output.writeInt(payload.length);
         output.write(payload);
-        output.write(sign(token, requestSigningBytes(timestamp, nonce, payload)));
+        output.write(sign(token, requestSigningBytes(challenge, timestamp, nonce, payload)));
         output.flush();
     }
 
-    private static ConsoleResult readResult(InputStream rawInput, String token, byte[] nonce) throws IOException {
+    private static ConsoleResult readResult(InputStream rawInput,
+                                            String token,
+                                            byte[] challenge,
+                                            byte[] nonce) throws IOException {
         DataInputStream input = new DataInputStream(new BufferedInputStream(rawInput));
         if (input.readInt() != RESPONSE_MAGIC || input.readUnsignedByte() != VERSION) {
             throw new IOException("Unsupported console socket response");
@@ -129,7 +193,7 @@ public final class ConsoleSocketProtocol {
         byte[] payload = readPayload(input);
         byte[] signature = new byte[SIGNATURE_LENGTH];
         input.readFully(signature);
-        byte[] expected = sign(token, responseSigningBytes(nonce, payload));
+        byte[] expected = sign(token, responseSigningBytes(challenge, nonce, payload));
         if (!MessageDigest.isEqual(signature, expected)) {
             throw new IOException("Console socket response authentication failed");
         }
@@ -146,10 +210,14 @@ public final class ConsoleSocketProtocol {
         return payload;
     }
 
-    private static byte[] requestSigningBytes(long timestamp, byte[] nonce, byte[] payload) throws IOException {
+    private static byte[] requestSigningBytes(byte[] challenge,
+                                              long timestamp,
+                                              byte[] nonce,
+                                              byte[] payload) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
         output.writeByte('Q');
+        output.write(challenge);
         output.writeLong(timestamp);
         output.write(nonce);
         output.write(payload);
@@ -157,10 +225,13 @@ public final class ConsoleSocketProtocol {
         return bytes.toByteArray();
     }
 
-    private static byte[] responseSigningBytes(byte[] nonce, byte[] payload) throws IOException {
+    private static byte[] responseSigningBytes(byte[] challenge,
+                                               byte[] nonce,
+                                               byte[] payload) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream output = new DataOutputStream(bytes);
         output.writeByte('R');
+        output.write(challenge);
         output.write(nonce);
         output.write(payload);
         output.flush();
@@ -187,6 +258,22 @@ public final class ConsoleSocketProtocol {
         if (token == null || token.trim().length() < 16) {
             throw new IOException("Console socket token must contain at least 16 characters");
         }
+    }
+
+    private static void requireChallenge(byte[] challenge) throws IOException {
+        if (challenge == null || challenge.length != CHALLENGE_LENGTH) {
+            throw new IOException("Invalid console socket challenge");
+        }
+    }
+
+    private static int remainingTimeoutMillis(long deadlineNanos, int configuredMaximum)
+            throws SocketTimeoutException {
+        long remainingNanos = deadlineNanos - System.nanoTime();
+        if (remainingNanos <= 0L) {
+            throw new SocketTimeoutException("Console socket request deadline expired");
+        }
+        long remainingMillis = Math.max(1L, TimeUnit.NANOSECONDS.toMillis(remainingNanos));
+        return (int) Math.min(Math.max(1, configuredMaximum), remainingMillis);
     }
 
     public static final class AuthenticatedRequest {

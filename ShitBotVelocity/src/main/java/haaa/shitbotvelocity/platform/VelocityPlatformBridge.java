@@ -35,7 +35,7 @@ public final class VelocityPlatformBridge implements PlatformBridge {
         this.server = server;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
-        this.consoleGateway = new VelocityConsoleGateway(plugin, server);
+        this.consoleGateway = new VelocityConsoleGateway(plugin, server, dataDirectory);
     }
 
     @Override

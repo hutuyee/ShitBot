@@ -18,26 +18,37 @@ import net.kyori.adventure.pointer.Pointers;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
+import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public final class VelocityConsoleGateway implements AutoCloseable {
     private final Object plugin;
     private final ProxyServer server;
+    private final Path dataDirectory;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
     private volatile ConsoleRequest activeLocalRequest;
-    private final ExecutorService socketExecutor = Executors.newFixedThreadPool(2,
-            new NamedThreadFactory("shitbot-velocity-console", true));
+    private final ThreadPoolExecutor socketExecutor = new ThreadPoolExecutor(
+            2, 2, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<Runnable>(32),
+            new NamedThreadFactory("shitbot-velocity-console", true),
+            new ThreadPoolExecutor.AbortPolicy());
+    private final Map<String, EndpointCircuit> endpointCircuits =
+            new ConcurrentHashMap<String, EndpointCircuit>();
     private volatile ConsoleSettings.BackendTransport backendTransport;
 
-    public VelocityConsoleGateway(Object plugin, ProxyServer server) {
+    public VelocityConsoleGateway(Object plugin, ProxyServer server, Path dataDirectory) {
         this.plugin = plugin;
         this.server = server;
+        this.dataDirectory = dataDirectory;
     }
 
     public CompletableFuture<ConsoleResult> execute(ConsoleRequest request) {
@@ -66,14 +77,77 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             final ConsoleRequest request,
             final ConsoleSettings.BackendEndpoint endpoint) {
         final ConsoleSettings.BackendTransport transport = backendTransport;
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return ConsoleSocketProtocol.exchange(endpoint, transport, request);
-            } catch (Exception exception) {
-                return ConsoleResult.unavailable(request,
-                        "无法连接目标子服：" + exception.getMessage(), endpoint.getName());
+        final CompletableFuture<ConsoleResult> result = new CompletableFuture<>();
+        final long deadlineNanos = System.nanoTime()
+                + TimeUnit.SECONDS.toNanos(request.getTimeoutSeconds());
+        try {
+            socketExecutor.execute(() -> {
+                if (System.nanoTime() >= deadlineNanos) {
+                    result.complete(ConsoleResult.unavailable(
+                            request, "请求在等待后端连接前已过期。", endpoint.getName()));
+                    return;
+                }
+                EndpointCircuit circuit = endpointCircuit(endpoint);
+                if (circuit.isOpen(System.nanoTime())) {
+                    result.complete(ConsoleResult.unavailable(
+                            request, "目标子服连接连续失败，短暂熔断中。", endpoint.getName()));
+                    return;
+                }
+                try {
+                    ConsoleResult response = ConsoleSocketProtocol.exchange(
+                            endpoint, transport, request, dataDirectory, deadlineNanos);
+                    circuit.recordSuccess();
+                    result.complete(response);
+                } catch (Exception exception) {
+                    circuit.recordFailure(System.nanoTime());
+                    result.complete(ConsoleResult.unavailable(request,
+                            "无法连接目标子服：" + safeMessage(exception), endpoint.getName()));
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            result.complete(ConsoleResult.unavailable(
+                    request, "后端请求繁忙，等待队列已满。", endpoint.getName()));
+        }
+        return result;
+    }
+
+    private EndpointCircuit endpointCircuit(ConsoleSettings.BackendEndpoint endpoint) {
+        String key = endpoint.getName().toLowerCase(java.util.Locale.ROOT);
+        EndpointCircuit created = new EndpointCircuit();
+        EndpointCircuit existing = endpointCircuits.putIfAbsent(key, created);
+        return existing == null ? created : existing;
+    }
+
+    private String safeMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? current.getClass().getSimpleName() : message;
+    }
+
+    private static final class EndpointCircuit {
+        private int consecutiveFailures;
+        private long openUntilNanos;
+
+        private synchronized boolean isOpen(long nowNanos) {
+            return nowNanos < openUntilNanos;
+        }
+
+        private synchronized void recordSuccess() {
+            consecutiveFailures = 0;
+            openUntilNanos = 0L;
+        }
+
+        private synchronized void recordFailure(long nowNanos) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= 3) {
+                openUntilNanos = nowNanos + TimeUnit.SECONDS.toNanos(5L);
+                consecutiveFailures = 0;
             }
-        }, socketExecutor);
+        }
     }
 
     private ConsoleSettings.BackendEndpoint selectEndpoint(ConsoleRequest request) {
@@ -213,6 +287,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         activeLocalRequest = null;
         localCommandRunning.set(false);
         socketExecutor.shutdownNow();
+        endpointCircuits.clear();
     }
 
     private void clearLocalCapture(CompletableFuture<ConsoleResult> future) {
