@@ -46,8 +46,8 @@ public final class ShitBotSpigot extends JavaPlugin {
             Settings settings = configLoader.load();
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             final boolean backendMode = configLoader.isBackendMode();
-            this.backendMode = backendMode;
             platformBridge.configureConsole(consoleSettings, backendMode);
+            this.backendMode = backendMode;
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
@@ -119,10 +119,19 @@ public final class ShitBotSpigot extends JavaPlugin {
                     newRuntime.close();
                     return Boolean.FALSE;
                 }
+                try {
+                    platformBridge.configureConsole(consoleSettings, configuredBackendMode);
+                } catch (Throwable listenerFailure) {
+                    if (runtimeReference.compareAndSet(newRuntime, oldRuntime)) {
+                        newRuntime.close();
+                    }
+                    platformBridge.error("Console listener reload failed; old runtime kept",
+                            listenerFailure);
+                    return Boolean.FALSE;
+                }
                 if (oldRuntime != null) {
                     oldRuntime.close();
                 }
-                platformBridge.configureConsole(consoleSettings, configuredBackendMode);
                 ShitBotSpigot.this.backendMode = configuredBackendMode;
                 if (!configuredBackendMode) {
                     newRuntime.activate();

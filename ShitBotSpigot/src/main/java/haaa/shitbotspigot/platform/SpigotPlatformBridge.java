@@ -76,7 +76,7 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         return consoleController.execute(request);
     }
 
-    public void configureConsole(ConsoleSettings settings, boolean backendMode) {
+    public void configureConsole(ConsoleSettings settings, boolean backendMode) throws java.io.IOException {
         consoleController.configureBackendListener(backendMode && settings != null
                 ? settings.getBackendTransport().getListener() : null);
     }

@@ -1,6 +1,7 @@
 package haaa.shitbot.core.console;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -203,17 +204,31 @@ public final class ConsoleSettings {
         private final int port;
         private final String token;
         private final String serverName;
+        private final int authenticationTimeoutMillis;
+        private final List<String> allowedProxyAddresses;
 
-        public BackendListener(boolean enabled, String bindAddress, int port, String token, String serverName) {
+        public BackendListener(boolean enabled,
+                               String bindAddress,
+                               int port,
+                               String token,
+                               String serverName,
+                               int authenticationTimeoutMillis,
+                               List<String> allowedProxyAddresses) {
             this.enabled = enabled;
             this.bindAddress = text(bindAddress, "127.0.0.1");
             this.port = clamp(port, 1, 65535, 25580);
             this.token = token == null ? "" : token.trim();
             this.serverName = text(serverName, "backend");
+            this.authenticationTimeoutMillis = clamp(authenticationTimeoutMillis, 500, 5000, 2000);
+            List<String> cleanedAddresses = cleanAliases(allowedProxyAddresses);
+            this.allowedProxyAddresses = cleanedAddresses.isEmpty()
+                    ? Collections.unmodifiableList(Arrays.asList("127.0.0.1", "::1"))
+                    : cleanedAddresses;
         }
 
         private static BackendListener disabled() {
-            return new BackendListener(false, "127.0.0.1", 25580, "", "backend");
+            return new BackendListener(false, "127.0.0.1", 25580, "", "backend",
+                    2000, Arrays.asList("127.0.0.1", "::1"));
         }
 
         public boolean isEnabled() { return enabled; }
@@ -221,6 +236,8 @@ public final class ConsoleSettings {
         public int getPort() { return port; }
         public String getToken() { return token; }
         public String getServerName() { return serverName; }
+        public int getAuthenticationTimeoutMillis() { return authenticationTimeoutMillis; }
+        public List<String> getAllowedProxyAddresses() { return allowedProxyAddresses; }
     }
 
     public static final class BackendEndpoint {

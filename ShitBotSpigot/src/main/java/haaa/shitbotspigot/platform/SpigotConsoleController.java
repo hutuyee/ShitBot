@@ -9,6 +9,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -98,15 +99,50 @@ public final class SpigotConsoleController implements AutoCloseable {
         return result;
     }
 
-    public synchronized void configureBackendListener(ConsoleSettings.BackendListener settings) {
-        if (socketServer != null) {
-            socketServer.close();
-            socketServer = null;
-        }
+    public synchronized void configureBackendListener(ConsoleSettings.BackendListener settings) throws IOException {
         if (settings == null || !settings.isEnabled()) {
+            if (socketServer != null) {
+                socketServer.close();
+                socketServer = null;
+            }
             return;
         }
-        SpigotConsoleSocketServer newServer = new SpigotConsoleSocketServer(
+        if (socketServer != null && socketServer.matches(settings)) {
+            return;
+        }
+
+        SpigotConsoleSocketServer previous = socketServer;
+        SpigotConsoleSocketServer newServer = createSocketServer(settings);
+        if (previous == null || !previous.usesSamePort(settings)) {
+            startSocketServer(newServer);
+            socketServer = newServer;
+            if (previous != null) {
+                previous.close();
+            }
+            return;
+        }
+
+        ConsoleSettings.BackendListener previousSettings = previous.getSettings();
+        previous.close();
+        socketServer = null;
+        try {
+            startSocketServer(newServer);
+            socketServer = newServer;
+        } catch (IOException startFailure) {
+            SpigotConsoleSocketServer restored = createSocketServer(previousSettings);
+            try {
+                startSocketServer(restored);
+                socketServer = restored;
+            } catch (IOException restoreFailure) {
+                restored.close();
+                startFailure.addSuppressed(restoreFailure);
+            }
+            throw startFailure;
+        }
+    }
+
+    private SpigotConsoleSocketServer createSocketServer(ConsoleSettings.BackendListener settings) {
+        return new SpigotConsoleSocketServer(
                 plugin, settings,
                 new java.util.function.Function<ConsoleRequest, CompletableFuture<ConsoleResult>>() {
                     @Override
@@ -120,12 +156,17 @@ public final class SpigotConsoleController implements AutoCloseable {
                         cancelRequest(requestId);
                     }
                 });
+    }
+
+    private void startSocketServer(SpigotConsoleSocketServer server) throws IOException {
         try {
-            newServer.start();
-            socketServer = newServer;
-        } catch (Exception exception) {
-            newServer.close();
-            plugin.getLogger().severe("Unable to start ShitBot console listener: " + exception.getMessage());
+            server.start();
+        } catch (IOException exception) {
+            server.close();
+            throw exception;
+        } catch (RuntimeException exception) {
+            server.close();
+            throw new IOException("Unable to start console listener", exception);
         }
     }
 

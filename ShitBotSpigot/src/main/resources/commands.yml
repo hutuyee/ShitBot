@@ -28,6 +28,12 @@ backend-transport:
     token: ""
     # 必须与代理 endpoints 下的键一致。
     server-name: "survival"
+    # 未完成鉴权的连接最多占用 worker 的时间。
+    authentication-timeout-ms: 2000
+    # 在进入认证 worker 前按来源 IP 拒绝连接；跨机器部署时改为代理服务器的实际 IP。
+    allowed-proxy-addresses:
+      - "127.0.0.1"
+      - "::1"
 
 
 messages:

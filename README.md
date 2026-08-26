@@ -67,7 +67,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - TPS 优先读取 EssentialsX，之后读取服务端原生 TPS，均不可用时使用 ShitBot 自己的 1/5/15 分钟采样。
 - 代理 + 子服部署必须把 Spigot 端设为 `deployment.role: backend`，此模式不会连接 OneBot，因此不会与代理重复处理 QQ 消息。
 
-独立通道需要在代理 `commands.yml` 的 `backend-transport.endpoints.<子服名>` 填写子服地址、端口和至少 16 位的随机密钥，并在对应子服的 `backend-transport.listener` 中填写相同端口、密钥和子服名后启用。跨机器时只监听内网地址并通过防火墙限制为代理 IP；不要把该端口暴露到公网。
+独立通道需要在代理 `commands.yml` 的 `backend-transport.endpoints.<子服名>` 填写子服地址、端口和至少 16 位的随机密钥，并在对应子服的 `backend-transport.listener` 中填写相同端口、密钥和子服名后启用。listener 默认只接受 `127.0.0.1` / `::1`；跨机器时必须把 `allowed-proxy-addresses` 改为代理实际 IP，同时只监听内网地址并通过防火墙限制为代理 IP。不要把该端口暴露到公网。
 
 ### [关于背包查询请点这里](https://github.com/hutuyee/ShitBot/blob/main/docs/inventory.md)
 ### OneBot v11

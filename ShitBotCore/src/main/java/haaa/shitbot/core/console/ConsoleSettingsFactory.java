@@ -31,7 +31,9 @@ public final class ConsoleSettingsFactory {
                 source.getString("backend-transport.listener.bind-address", "127.0.0.1"),
                 source.getInt("backend-transport.listener.port", 25580),
                 source.getString("backend-transport.listener.token", ""),
-                source.getString("backend-transport.listener.server-name", "backend"));
+                source.getString("backend-transport.listener.server-name", "backend"),
+                source.getInt("backend-transport.listener.authentication-timeout-ms", 2000),
+                source.getStringList("backend-transport.listener.allowed-proxy-addresses"));
         List<ConsoleSettings.BackendEndpoint> endpoints = new ArrayList<ConsoleSettings.BackendEndpoint>();
         for (String name : source.getSectionKeys("backend-transport.endpoints")) {
             String path = "backend-transport.endpoints." + name;

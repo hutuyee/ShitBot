@@ -8,11 +8,15 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,6 +26,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -38,6 +43,8 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
             new NamedThreadFactory("shitbot-console-worker", true));
     private final Map<String, Long> acceptedNonces = new ConcurrentHashMap<String, Long>();
     private final Map<String, Long> acceptedRequestIds = new ConcurrentHashMap<String, Long>();
+    private final AtomicLong lastAddressRejectionLog = new AtomicLong();
+    private volatile Set<InetAddress> allowedProxyAddresses = Collections.emptySet();
     private volatile ServerSocket serverSocket;
 
     SpigotConsoleSocketServer(JavaPlugin plugin,
@@ -54,6 +61,7 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
         if (settings.getToken().length() < 16) {
             throw new IOException("backend-transport.listener.token must contain at least 16 characters");
         }
+        allowedProxyAddresses = resolveAllowedProxyAddresses();
         ServerSocket socket = new ServerSocket();
         socket.setReuseAddress(true);
         socket.bind(new InetSocketAddress(settings.getBindAddress(), settings.getPort()), 32);
@@ -74,7 +82,12 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
             try {
                 final Socket client = serverSocket.accept();
                 final long acceptedAt = System.nanoTime();
-                client.setSoTimeout(5000);
+                if (!allowedProxyAddresses.contains(client.getInetAddress())) {
+                    logRejectedAddress(client.getInetAddress());
+                    client.close();
+                    continue;
+                }
+                client.setSoTimeout(settings.getAuthenticationTimeoutMillis());
                 try {
                     workerExecutor.execute(new Runnable() {
                         @Override
@@ -94,6 +107,47 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
                 plugin.getLogger().warning("Console listener accept failed: " + exception.getMessage());
             }
         }
+    }
+
+    private Set<InetAddress> resolveAllowedProxyAddresses() throws IOException {
+        Set<InetAddress> resolved = new HashSet<InetAddress>();
+        for (String configured : settings.getAllowedProxyAddresses()) {
+            for (InetAddress address : InetAddress.getAllByName(configured)) {
+                resolved.add(address);
+            }
+        }
+        if (resolved.isEmpty()) {
+            throw new IOException("backend-transport.listener.allowed-proxy-addresses must not be empty");
+        }
+        return Collections.unmodifiableSet(resolved);
+    }
+
+    private void logRejectedAddress(InetAddress address) {
+        long now = System.currentTimeMillis();
+        long previous = lastAddressRejectionLog.get();
+        if (now - previous >= TimeUnit.SECONDS.toMillis(10L)
+                && lastAddressRejectionLog.compareAndSet(previous, now)) {
+            plugin.getLogger().warning("Console listener rejected non-whitelisted address: "
+                    + address.getHostAddress());
+        }
+    }
+
+    ConsoleSettings.BackendListener getSettings() {
+        return settings;
+    }
+
+    boolean matches(ConsoleSettings.BackendListener candidate) {
+        return candidate != null
+                && settings.getBindAddress().equalsIgnoreCase(candidate.getBindAddress())
+                && settings.getPort() == candidate.getPort()
+                && settings.getToken().equals(candidate.getToken())
+                && settings.getServerName().equals(candidate.getServerName())
+                && settings.getAuthenticationTimeoutMillis() == candidate.getAuthenticationTimeoutMillis()
+                && settings.getAllowedProxyAddresses().equals(candidate.getAllowedProxyAddresses());
+    }
+
+    boolean usesSamePort(ConsoleSettings.BackendListener candidate) {
+        return candidate != null && settings.getPort() == candidate.getPort();
     }
 
     private void handle(Socket client, long acceptedAt) {
@@ -177,5 +231,6 @@ final class SpigotConsoleSocketServer implements AutoCloseable {
         workerExecutor.shutdownNow();
         acceptedNonces.clear();
         acceptedRequestIds.clear();
+        allowedProxyAddresses = Collections.emptySet();
     }
 }
