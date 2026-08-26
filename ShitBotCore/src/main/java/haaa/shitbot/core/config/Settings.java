@@ -459,6 +459,8 @@ public final class Settings {
         private final String mysqlUsername;
         private final String mysqlPassword;
         private final String mysqlParameters;
+        private final int mysqlConnectTimeoutMs;
+        private final int mysqlSocketTimeoutMs;
         private final int maximumPoolSize;
         private final int minimumIdle;
         private final long connectionTimeoutMs;
@@ -467,6 +469,7 @@ public final class Settings {
         private final long maximumLifetimeMs;
         private final long keepaliveTimeMs;
         private final int asyncThreads;
+        private final int maximumQueuedTasks;
 
         public Database(Type type,
                         String sqliteFile,
@@ -476,6 +479,8 @@ public final class Settings {
                         String mysqlUsername,
                         String mysqlPassword,
                         String mysqlParameters,
+                        int mysqlConnectTimeoutMs,
+                        int mysqlSocketTimeoutMs,
                         int maximumPoolSize,
                         int minimumIdle,
                         long connectionTimeoutMs,
@@ -483,7 +488,8 @@ public final class Settings {
                         long idleTimeoutMs,
                         long maximumLifetimeMs,
                         long keepaliveTimeMs,
-                        int asyncThreads) {
+                        int asyncThreads,
+                        int maximumQueuedTasks) {
             this.type = type == null ? Type.SQLITE : type;
             this.sqliteFile = sanitizeFileName(sqliteFile, "shitbot.db");
             this.mysqlHost = text(mysqlHost, "127.0.0.1");
@@ -493,6 +499,8 @@ public final class Settings {
             this.mysqlPassword = mysqlPassword == null ? "" : mysqlPassword;
             this.mysqlParameters = text(mysqlParameters,
                     "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true");
+            this.mysqlConnectTimeoutMs = clamp(mysqlConnectTimeoutMs, 1000, 120000, 5000);
+            this.mysqlSocketTimeoutMs = clamp(mysqlSocketTimeoutMs, 1000, 300000, 15000);
             this.maximumPoolSize = clamp(maximumPoolSize, 1, 50, 10);
             this.minimumIdle = clamp(minimumIdle, 0, this.maximumPoolSize, 2);
             this.connectionTimeoutMs = clampLong(connectionTimeoutMs, 1000L, 120000L, 5000L);
@@ -503,6 +511,7 @@ public final class Settings {
             this.keepaliveTimeMs = clampLong(
                     keepaliveTimeMs, 0L, this.maximumLifetimeMs - 1000L, keepaliveFallback);
             this.asyncThreads = clamp(asyncThreads, 1, 16, 2);
+            this.maximumQueuedTasks = clamp(maximumQueuedTasks, 1, 65536, 256);
         }
 
         public Type getType() {
@@ -537,6 +546,14 @@ public final class Settings {
             return mysqlParameters;
         }
 
+        public int getMysqlConnectTimeoutMs() {
+            return mysqlConnectTimeoutMs;
+        }
+
+        public int getMysqlSocketTimeoutMs() {
+            return mysqlSocketTimeoutMs;
+        }
+
         public int getMaximumPoolSize() {
             return type == Type.SQLITE ? 1 : maximumPoolSize;
         }
@@ -567,6 +584,10 @@ public final class Settings {
 
         public int getAsyncThreads() {
             return type == Type.SQLITE ? 1 : asyncThreads;
+        }
+
+        public int getMaximumQueuedTasks() {
+            return maximumQueuedTasks;
         }
 
         public String buildJdbcUrl(java.nio.file.Path dataDirectory) {
@@ -725,6 +746,7 @@ public final class Settings {
         private final int memoryMaximumEntries;
         private final int renderCacheSeconds;
         private final int maximumConcurrentRenders;
+        private final int maximumQueuedRenders;
         private final String outputFile;
         private final String exportedIconsDirectory;
         private final boolean scanModJars;
@@ -745,6 +767,7 @@ public final class Settings {
                          int memoryMaximumEntries,
                          int renderCacheSeconds,
                          int maximumConcurrentRenders,
+                         int maximumQueuedRenders,
                          String outputFile,
                          String exportedIconsDirectory,
                          boolean scanModJars,
@@ -764,6 +787,7 @@ public final class Settings {
             this.memoryMaximumEntries = clamp(memoryMaximumEntries, 64, 100000, 2048);
             this.renderCacheSeconds = Math.max(0, Math.min(300, renderCacheSeconds));
             this.maximumConcurrentRenders = clamp(maximumConcurrentRenders, 1, 8, 2);
+            this.maximumQueuedRenders = clamp(maximumQueuedRenders, 1, 1024, 16);
             this.outputFile = Database.sanitizeFileName(outputFile, "inventory.png");
             this.exportedIconsDirectory = text(exportedIconsDirectory, "item-icons");
             this.scanModJars = scanModJars;
@@ -785,6 +809,7 @@ public final class Settings {
         public int getMemoryMaximumEntries() { return memoryMaximumEntries; }
         public int getRenderCacheSeconds() { return renderCacheSeconds; }
         public int getMaximumConcurrentRenders() { return maximumConcurrentRenders; }
+        public int getMaximumQueuedRenders() { return maximumQueuedRenders; }
         public String getOutputFile() { return outputFile; }
         public String getExportedIconsDirectory() { return exportedIconsDirectory; }
         public boolean isScanModJars() { return scanModJars; }

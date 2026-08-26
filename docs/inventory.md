@@ -107,8 +107,8 @@ plugins/ShitBot/item-icons/
 ## 性能建议
 
 - 单服默认每 60 秒写一次快照，通常无需缩短；
-- 大型群组服可把 MySQL `database.async-threads` 调到 4-8；
-- `render.maximum-concurrent` 建议保持 2-4；
+- 大型群组服可把 MySQL `database.async-threads` 调到 4-8，并按可接受的积压量设置 `database.maximum-queued-tasks`；
+- `render.maximum-concurrent` 建议保持 2-4，`render.maximum-queued` 用于限制等待渲染的查询数量；
 - 材质索引使用单独线程，不会和 PNG 渲染线程互相死锁；
 - 图标缓存带资源索引代数，资源更新后旧结果自动失效；
 - 空图标只短暂负缓存 30 秒；

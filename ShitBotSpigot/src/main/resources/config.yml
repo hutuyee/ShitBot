@@ -125,6 +125,9 @@ database:
     password: "SHITBOTPASSWORD"
     # 下列参数只适合本机 MySQL；跨主机请配置 sslMode=VERIFY_IDENTITY 等强制 TLS 参数。
     parameters: "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true"
+    # JDBC 驱动建立 TCP 连接及等待数据库响应的硬超时。
+    connect-timeout-ms: 5000
+    socket-timeout-ms: 15000
   pool:
     maximum-pool-size: 10
     minimum-idle: 2
@@ -137,6 +140,8 @@ database:
     keepalive-time-ms: 300000
   # SQLite 会自动强制为 1，MySQL 可按负载调整。
   async-threads: 2
+  # 工作线程占满时允许等待的数据库任务数；队列满后新任务快速失败。
+  maximum-queued-tasks: 256
 
 image:
   title: "服务器在线状态"
@@ -184,6 +189,8 @@ inventory:
   render:
     # 限制并发渲染，避免大量 QQ 查询瞬间占满 CPU。
     maximum-concurrent: 2
+    # 等待渲染的任务上限；队列满后回复查询失败，请稍后重试。
+    maximum-queued: 16
   icons:
     # 精确覆盖目录：item-icons/<namespace>/<path>.png
     # CustomModelData 可使用 <path>__cmd_<值>.png。

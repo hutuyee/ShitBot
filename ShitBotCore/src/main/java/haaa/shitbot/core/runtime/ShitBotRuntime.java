@@ -203,6 +203,8 @@ public final class ShitBotRuntime implements AutoCloseable {
     public String describeStatus() {
         return "ready=" + isReady()
                 + ", database=" + settings.getDatabase().getType().name().toLowerCase(java.util.Locale.ROOT)
+                + ", db-workers=" + database.getActiveTaskCount() + '/' + database.getWorkerCount()
+                + ", db-queue=" + database.getQueuedTaskCount() + '/' + database.getMaximumQueuedTaskCount()
                 + ", onebot=" + (settings.getOneBot().isEnabled()
                 ? (oneBotClient.isConnected() ? "connected" : "disconnected")
                 : "disabled");

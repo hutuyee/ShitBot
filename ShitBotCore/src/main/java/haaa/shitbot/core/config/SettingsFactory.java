@@ -82,6 +82,8 @@ public final class SettingsFactory {
                 source.getString("database.mysql.password", "change_me"),
                 source.getString("database.mysql.parameters",
                         "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true"),
+                source.getInt("database.mysql.connect-timeout-ms", 5000),
+                source.getInt("database.mysql.socket-timeout-ms", 15000),
                 source.getInt("database.pool.maximum-pool-size", 10),
                 source.getInt("database.pool.minimum-idle", 2),
                 source.getLong("database.pool.connection-timeout-ms", 5000L),
@@ -89,7 +91,8 @@ public final class SettingsFactory {
                 source.getLong("database.pool.idle-timeout-ms", 600000L),
                 source.getLong("database.pool.maximum-lifetime-ms", 1800000L),
                 source.getLong("database.pool.keepalive-time-ms", 300000L),
-                source.getInt("database.async-threads", 2));
+                source.getInt("database.async-threads", 2),
+                source.getInt("database.maximum-queued-tasks", 256));
 
         Settings.Image image = new Settings.Image(
                 source.getString("image.title", "服务器在线状态"),
@@ -121,6 +124,7 @@ public final class SettingsFactory {
                 source.getInt("inventory.cache.memory-maximum-entries", 2048),
                 source.getInt("inventory.cache.render-seconds", 5),
                 source.getInt("inventory.render.maximum-concurrent", 2),
+                source.getInt("inventory.render.maximum-queued", 16),
                 source.getString("inventory.output-file", "inventory.png"),
                 source.getString("inventory.icons.exported-directory", "item-icons"),
                 source.getBoolean("inventory.icons.scan-mod-jars", true),

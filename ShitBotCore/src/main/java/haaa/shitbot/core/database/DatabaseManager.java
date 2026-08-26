@@ -16,10 +16,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -39,7 +40,7 @@ public final class DatabaseManager implements AutoCloseable {
 
     private final Settings.Database settings;
     private final PlatformBridge platform;
-    private final ExecutorService executor;
+    private final ThreadPoolExecutor executor;
     private final String workerThreadPrefix;
     private final AtomicBoolean closed = new AtomicBoolean();
     private volatile HikariDataSource mysqlDataSource;
@@ -49,9 +50,15 @@ public final class DatabaseManager implements AutoCloseable {
         this.settings = settings;
         this.platform = platform;
         this.workerThreadPrefix = "shitbot-db-" + Integer.toHexString(System.identityHashCode(this));
-        this.executor = Executors.newFixedThreadPool(
-                settings.getAsyncThreads(),
-                new NamedThreadFactory(workerThreadPrefix, true));
+        int threads = settings.getAsyncThreads();
+        this.executor = new ThreadPoolExecutor(
+                threads,
+                threads,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<Runnable>(settings.getMaximumQueuedTasks()),
+                new NamedThreadFactory(workerThreadPrefix, true),
+                new ThreadPoolExecutor.AbortPolicy());
     }
 
     public CompletableFuture<Void> initializeAsync() {
@@ -172,6 +179,8 @@ public final class DatabaseManager implements AutoCloseable {
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
         config.addDataSourceProperty("useServerPrepStmts", "true");
         config.addDataSourceProperty("rewriteBatchedStatements", "true");
+        config.addDataSourceProperty("connectTimeout", String.valueOf(settings.getMysqlConnectTimeoutMs()));
+        config.addDataSourceProperty("socketTimeout", String.valueOf(settings.getMysqlSocketTimeoutMs()));
         config.setConnectionTimeout(settings.getConnectionTimeoutMs());
         config.setValidationTimeout(settings.getValidationTimeoutMs());
         config.setAutoCommit(true);
@@ -690,29 +699,37 @@ public final class DatabaseManager implements AutoCloseable {
             failed.completeExceptionally(new IllegalStateException("Database manager is closed"));
             return failed;
         }
-        return CompletableFuture.supplyAsync(new java.util.function.Supplier<T>() {
-            @Override
-            public T get() {
-                try {
-                    if (settings.getType() == Settings.Database.Type.SQLITE) {
-                        Connection connection = requireSqliteConnection();
-                        configureConnection(connection);
-                        return function.apply(connection);
-                    }
+        final CompletableFuture<T> result = new CompletableFuture<T>();
+        try {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (settings.getType() == Settings.Database.Type.SQLITE) {
+                            Connection connection = requireSqliteConnection();
+                            configureConnection(connection);
+                            result.complete(function.apply(connection));
+                            return;
+                        }
 
-                    HikariDataSource current = mysqlDataSource;
-                    if (current == null) {
-                        throw new IllegalStateException("Database is not initialized");
+                        HikariDataSource current = mysqlDataSource;
+                        if (current == null) {
+                            throw new IllegalStateException("Database is not initialized");
+                        }
+                        try (Connection connection = current.getConnection()) {
+                            configureConnection(connection);
+                            result.complete(function.apply(connection));
+                        }
+                    } catch (Throwable throwable) {
+                        result.completeExceptionally(throwable);
                     }
-                    try (Connection connection = current.getConnection()) {
-                        configureConnection(connection);
-                        return function.apply(connection);
-                    }
-                } catch (Throwable throwable) {
-                    throw new CompletionException(throwable);
                 }
-            }
-        }, executor);
+            });
+        } catch (RejectedExecutionException exception) {
+            result.completeExceptionally(new RejectedExecutionException(
+                    "Database task queue is full or shutting down", exception));
+        }
+        return result;
     }
 
     public <T> CompletableFuture<T> transactionAsync(final SqlFunction<T> function) {
@@ -782,6 +799,22 @@ public final class DatabaseManager implements AutoCloseable {
 
     public Settings.Database.Type getType() {
         return settings.getType();
+    }
+
+    public int getActiveTaskCount() {
+        return executor.getActiveCount();
+    }
+
+    public int getWorkerCount() {
+        return executor.getCorePoolSize();
+    }
+
+    public int getQueuedTaskCount() {
+        return executor.getQueue().size();
+    }
+
+    public int getMaximumQueuedTaskCount() {
+        return settings.getMaximumQueuedTasks();
     }
 
     @Override

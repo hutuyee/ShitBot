@@ -17,12 +17,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,9 +57,15 @@ public final class InventoryService implements AutoCloseable {
         this.snapshotRepository = snapshotRepository;
         this.iconResolver = new ItemIconResolver(settings, platform);
         this.renderer = new InventoryImageRenderer(settings, iconResolver);
-        this.renderExecutor = Executors.newFixedThreadPool(
-                settings.getMaximumConcurrentRenders(),
-                new NamedThreadFactory("shitbot-inventory-render", true));
+        int renderThreads = settings.getMaximumConcurrentRenders();
+        this.renderExecutor = new ThreadPoolExecutor(
+                renderThreads,
+                renderThreads,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<Runnable>(settings.getMaximumQueuedRenders()),
+                new NamedThreadFactory("shitbot-inventory-render", true),
+                new ThreadPoolExecutor.AbortPolicy());
         this.resourceExecutor = Executors.newSingleThreadExecutor(
                 new NamedThreadFactory("shitbot-inventory-resources", true));
     }
