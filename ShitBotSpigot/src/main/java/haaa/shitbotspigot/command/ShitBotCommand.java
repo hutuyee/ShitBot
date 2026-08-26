@@ -3,6 +3,8 @@ package haaa.shitbotspigot.command;
 import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.EasyBotMigrationService;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotspigot.ShitBotSpigot;
@@ -58,6 +60,34 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
             });
             return true;
         }
+        if ("update".equalsIgnoreCase(args[0])) {
+            final UpdateChecker updateChecker = plugin.getUpdateChecker();
+            if (updateChecker == null) {
+                sender.sendMessage("§c更新检查器尚未初始化。");
+                return true;
+            }
+            sender.sendMessage("§e正在后台检查 GitHub Release...");
+            updateChecker.checkAsync().whenComplete(
+                    new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
+                        @Override
+                        public void accept(final UpdateInfo info, final Throwable throwable) {
+                            plugin.getPlatformBridge().executeOnSenderThread(sender, new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (throwable != null) {
+                                        sender.sendMessage("§c检查更新失败: §f" + errorMessage(throwable));
+                                    } else if (updateChecker.isUpdateAvailable(info)) {
+                                        plugin.sendUpdateNotice(sender, info);
+                                    } else {
+                                        sender.sendMessage("§a当前已是最新版本: §f"
+                                                + updateChecker.getCurrentVersion());
+                                    }
+                                }
+                            });
+                        }
+                    });
+            return true;
+        }
         if ("migrate".equalsIgnoreCase(args[0])) {
             if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
                 sender.sendMessage("§e用法: /shitbot migrate easybot [EasyBot.db]");
@@ -103,7 +133,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     });
             return true;
         }
-        sender.sendMessage("§e/shitbot status|reload|image|migrate easybot [EasyBot.db]");
+        sender.sendMessage("§e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]");
         return true;
     }
 
@@ -118,7 +148,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("status", "reload", "image", "migrate");
+            return Arrays.asList("status", "reload", "update", "image", "migrate");
         }
         if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
             return Collections.singletonList("easybot");

@@ -2,11 +2,15 @@ package haaa.shitbotspigot.listener;
 
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.LoginDecision;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbotspigot.ShitBotSpigot;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.util.concurrent.TimeUnit;
 
@@ -44,5 +48,34 @@ public final class PlayerLoginListener implements Listener {
                     haaa.shitbot.core.util.TextUtil.color(
                             runtime.getSettings().getMessages().getKickDatabaseUnavailable()));
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onJoin(final PlayerJoinEvent event) {
+        final Player player = event.getPlayer();
+        if (!player.hasPermission("shitbot.admin")) {
+            return;
+        }
+        final UpdateChecker updateChecker = plugin.getUpdateChecker();
+        if (updateChecker == null) {
+            return;
+        }
+        updateChecker.latestForNotificationAsync().thenAccept(
+                new java.util.function.Consumer<UpdateInfo>() {
+                    @Override
+                    public void accept(final UpdateInfo info) {
+                        if (!updateChecker.isUpdateAvailable(info)) {
+                            return;
+                        }
+                        plugin.getPlatformBridge().executeOnSenderThread(player, new Runnable() {
+                            @Override
+                            public void run() {
+                                if (player.isOnline()) {
+                                    plugin.sendUpdateNotice(player, info);
+                                }
+                            }
+                        });
+                    }
+                });
     }
 }

@@ -3,6 +3,8 @@ package haaa.shitbotspigot;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotspigot.command.ShitBotCommand;
 import haaa.shitbotspigot.config.SpigotConfigLoader;
@@ -10,6 +12,11 @@ import haaa.shitbotspigot.listener.PlayerChatListener;
 import haaa.shitbotspigot.listener.PlayerInventorySnapshotListener;
 import haaa.shitbotspigot.listener.PlayerLoginListener;
 import haaa.shitbotspigot.platform.SpigotPlatformBridge;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -24,12 +31,15 @@ public final class ShitBotSpigot extends JavaPlugin {
     private CompletableFuture<Boolean> reloadFuture;
     private SpigotConfigLoader configLoader;
     private SpigotPlatformBridge platformBridge;
+    private UpdateChecker updateChecker;
 
     @Override
     public void onEnable() {
         stopping = false;
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
+        this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
+        startUpdateCheck();
         getServer().getPluginManager().registerEvents(new PlayerLoginListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerInventorySnapshotListener(this), this);
@@ -164,9 +174,58 @@ public final class ShitBotSpigot extends JavaPlugin {
         return platformBridge;
     }
 
+    public UpdateChecker getUpdateChecker() {
+        return updateChecker;
+    }
+
+    public void sendUpdateNotice(CommandSender sender, UpdateInfo info) {
+        if (sender == null || info == null || updateChecker == null) {
+            return;
+        }
+        sender.sendMessage("§e[ShitBot] 发现新版本: §f" + updateChecker.getCurrentVersion()
+                + " §7-> §a" + info.getLatestVersion());
+        BaseComponent[] link = TextComponent.fromLegacyText("§b§n" + info.getReleaseUrl());
+        for (BaseComponent component : link) {
+            component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, info.getReleaseUrl()));
+            component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                    TextComponent.fromLegacyText("§7点击打开 Release 页面")));
+        }
+        sender.spigot().sendMessage(link);
+    }
+
+    private void startUpdateCheck() {
+        updateChecker.checkAsync().whenComplete(new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
+            @Override
+            public void accept(UpdateInfo info, Throwable throwable) {
+                if (throwable != null) {
+                    if (!stopping) {
+                        platformBridge.warn("Unable to check for ShitBot updates: "
+                                + errorMessage(throwable));
+                    }
+                    return;
+                }
+                if (updateChecker.isUpdateAvailable(info)) {
+                    platformBridge.info("ShitBot update available: " + updateChecker.getCurrentVersion()
+                            + " -> " + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
+                }
+            }
+        });
+    }
+
+    private String errorMessage(Throwable throwable) {
+        Throwable cause = FutureUtil.unwrap(throwable);
+        String message = cause.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? cause.getClass().getSimpleName()
+                : message;
+    }
+
     @Override
     public void onDisable() {
         stopping = true;
+        if (updateChecker != null) {
+            updateChecker.close();
+        }
         ShitBotRuntime runtime = runtimeReference.getAndSet(null);
         if (runtime != null) {
             runtime.close();
