@@ -201,20 +201,6 @@ jobs:
 
           printf 'Ready to upload: %s\n' "${jars[@]}"
 
-      - name: Clear release description
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          : > EMPTY_RELEASE_NOTES.md
-
-          gh release edit \
-            "${{ github.event.release.tag_name }}" \
-            --repo "${{ github.repository }}" \
-            --notes-file EMPTY_RELEASE_NOTES.md
-
       - name: Upload JAR files and checksums to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
