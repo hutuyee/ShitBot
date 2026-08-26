@@ -101,7 +101,10 @@ binding:
 
   code-length: 6
   expire-minutes: 10
-  maximum-attempts: 5
+  # 同一个 QQ 对同一个验证码的错误尝试上限。
+  maximum-attempts-per-qq: 5
+  # 所有 QQ 对同一个验证码的错误尝试总上限；达到后立即作废该验证码。
+  maximum-total-attempts: 12
   login-database-timeout-seconds: 8
   # 去掉了容易混淆的 0/O、1/I。
   code-alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

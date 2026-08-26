@@ -373,7 +373,8 @@ public final class Settings {
         private final boolean enabled;
         private final int codeLength;
         private final int expireMinutes;
-        private final int maximumAttempts;
+        private final int maximumAttemptsPerQq;
+        private final int maximumTotalAttempts;
         private final int loginDatabaseTimeoutSeconds;
         private final boolean allowMultipleIdsPerQq;
         private final int maximumIdsPerQq;
@@ -382,7 +383,8 @@ public final class Settings {
         public Binding(boolean enabled,
                        int codeLength,
                        int expireMinutes,
-                       int maximumAttempts,
+                       int maximumAttemptsPerQq,
+                       int maximumTotalAttempts,
                        int loginDatabaseTimeoutSeconds,
                        boolean allowMultipleIdsPerQq,
                        int maximumIdsPerQq,
@@ -390,7 +392,10 @@ public final class Settings {
             this.enabled = enabled;
             this.codeLength = clamp(codeLength, 4, 12, 6);
             this.expireMinutes = clamp(expireMinutes, 1, 1440, 10);
-            this.maximumAttempts = clamp(maximumAttempts, 1, 20, 5);
+            this.maximumAttemptsPerQq = clamp(maximumAttemptsPerQq, 1, 20, 5);
+            this.maximumTotalAttempts = Math.max(
+                    this.maximumAttemptsPerQq,
+                    clamp(maximumTotalAttempts, 1, 100, 12));
             this.loginDatabaseTimeoutSeconds = clamp(loginDatabaseTimeoutSeconds, 1, 60, 8);
             this.allowMultipleIdsPerQq = allowMultipleIdsPerQq;
             this.maximumIdsPerQq = clamp(maximumIdsPerQq, 1, 1000, 5);
@@ -412,8 +417,12 @@ public final class Settings {
             return expireMinutes;
         }
 
-        public int getMaximumAttempts() {
-            return maximumAttempts;
+        public int getMaximumAttemptsPerQq() {
+            return maximumAttemptsPerQq;
+        }
+
+        public int getMaximumTotalAttempts() {
+            return maximumTotalAttempts;
         }
 
         public int getLoginDatabaseTimeoutSeconds() {

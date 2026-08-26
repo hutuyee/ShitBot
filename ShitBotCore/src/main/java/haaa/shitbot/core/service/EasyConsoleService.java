@@ -33,6 +33,7 @@ public final class EasyConsoleService {
         this.platform = platform;
         this.repository = repository;
         this.client = client;
+        warnAboutUnboundShortcuts();
     }
 
     public boolean handle(final GroupMessage message) {
@@ -72,7 +73,7 @@ public final class EasyConsoleService {
     private void executeShortcut(final GroupMessage message,
                                  final ConsoleSettings.Shortcut shortcut,
                                  final String targetServer) {
-        resolvePlayers(message, shortcut.getPermission()).thenCompose(
+        resolvePlayers(message, shortcut.getPermission(), shortcut.isAllowUnbound()).thenCompose(
                 new java.util.function.Function<List<String>, CompletableFuture<ConsoleResult>>() {
                     @Override
                     public CompletableFuture<ConsoleResult> apply(List<String> players) {
@@ -115,7 +116,7 @@ public final class EasyConsoleService {
 
     private void executeTps(final GroupMessage message, final String targetServer) {
         final ConsoleSettings.Tps tps = settings.getTps();
-        resolvePlayers(message, tps.getPermission()).thenCompose(
+        resolvePlayers(message, tps.getPermission(), true).thenCompose(
                 new java.util.function.Function<List<String>, CompletableFuture<ConsoleResult>>() {
                     @Override
                     public CompletableFuture<ConsoleResult> apply(List<String> players) {
@@ -155,8 +156,10 @@ public final class EasyConsoleService {
                 });
     }
 
-    private CompletableFuture<List<String>> resolvePlayers(final GroupMessage message, String permission) {
-        if (permission == null || permission.trim().isEmpty()) {
+    private CompletableFuture<List<String>> resolvePlayers(final GroupMessage message,
+                                                            String permission,
+                                                            boolean allowUnbound) {
+        if (allowUnbound && (permission == null || permission.trim().isEmpty())) {
             return CompletableFuture.completedFuture(new ArrayList<String>());
         }
         return repository.findAllByQqId(String.valueOf(message.getUserId())).thenApply(
@@ -176,6 +179,17 @@ public final class EasyConsoleService {
                         return players;
                     }
                 });
+    }
+
+    private void warnAboutUnboundShortcuts() {
+        for (ConsoleSettings.Shortcut shortcut : settings.getShortcuts()) {
+            if (shortcut.isEnabled()
+                    && shortcut.isAllowUnbound()
+                    && shortcut.getPermission().isEmpty()) {
+                platform.warn("Console shortcut '" + shortcut.getName()
+                        + "' allows unbound QQ group members to execute a console command");
+            }
+        }
     }
 
     private void reply(final GroupMessage message,

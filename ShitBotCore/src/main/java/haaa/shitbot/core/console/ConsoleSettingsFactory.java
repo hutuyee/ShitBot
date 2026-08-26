@@ -62,6 +62,7 @@ public final class ConsoleSettingsFactory {
                     aliases,
                     command,
                     source.getString(path + ".permission", "shitbot.admin"),
+                    source.getBoolean(path + ".allow-unbound", false),
                     ConsoleSettings.Target.from(source.getString(path + ".target", "backend")),
                     source.getString(path + ".server", ""),
                     durationSeconds(source.getString(path + ".capture-seconds", "5"), 5),

@@ -73,6 +73,7 @@ public final class ConsoleSettings {
         private final List<String> aliases;
         private final String command;
         private final String permission;
+        private final boolean allowUnbound;
         private final Target target;
         private final String server;
         private final int captureSeconds;
@@ -84,6 +85,7 @@ public final class ConsoleSettings {
                         List<String> aliases,
                         String command,
                         String permission,
+                        boolean allowUnbound,
                         Target target,
                         String server,
                         int captureSeconds,
@@ -94,6 +96,7 @@ public final class ConsoleSettings {
             this.aliases = cleanAliases(aliases);
             this.command = command == null ? "" : command.trim();
             this.permission = permission == null ? "" : permission.trim();
+            this.allowUnbound = allowUnbound;
             this.target = target == null ? Target.BACKEND : target;
             this.server = server == null ? "" : server.trim();
             this.captureSeconds = clamp(captureSeconds, 1, 30, 5);
@@ -106,6 +109,7 @@ public final class ConsoleSettings {
         public List<String> getAliases() { return aliases; }
         public String getCommand() { return command; }
         public String getPermission() { return permission; }
+        public boolean isAllowUnbound() { return allowUnbound; }
         public Target getTarget() { return target; }
         public String getServer() { return server; }
         public int getCaptureSeconds() { return captureSeconds; }

@@ -58,6 +58,8 @@ shortcuts:
       - "lp编辑"
     command: "lp editor"
     permission: "shitbot.admin"
+    # 即使 permission 留空也默认要求 QQ 已绑定；仅在明确接受群内未绑定成员调用时改为 true。
+    allow-unbound: false
     # backend：在 Bukkit 子服执行；proxy：在 BungeeCord/Velocity 代理执行。
     # 单 Bukkit 部署会始终在本服执行。
     target: "backend"

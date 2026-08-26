@@ -272,15 +272,24 @@ public final class BindingRepository {
             deleteCode(connection, playerName);
             return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
         }
+        if (codeRow.attempts >= settings.getMaximumTotalAttempts()) {
+            deleteCode(connection, playerName);
+            return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
+        }
         int attempts = readAttempts(connection, playerName, qqId, now);
-        if (attempts >= settings.getMaximumAttempts()) {
+        if (attempts >= settings.getMaximumAttemptsPerQq()) {
             return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
         }
 
         String submittedHash = HashUtil.sha256Hex(codeRow.salt, submittedCode);
         if (!HashUtil.constantTimeEquals(codeRow.hash, submittedHash)) {
             attempts = incrementAttempts(connection, playerName, qqId, codeRow.expiresAt, now);
-            if (attempts >= settings.getMaximumAttempts()) {
+            int totalAttempts = incrementTotalAttempts(connection, playerName, now, codeRow.attempts);
+            if (totalAttempts >= settings.getMaximumTotalAttempts()) {
+                deleteCode(connection, playerName);
+                return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
+            }
+            if (attempts >= settings.getMaximumAttemptsPerQq()) {
                 return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
             }
             return BindResult.of(BindResult.Status.INVALID_CODE);
@@ -993,7 +1002,7 @@ public final class BindingRepository {
     }
 
     private CodeRow readCode(Connection connection, String playerName, boolean lock) throws SQLException {
-        String sql = "SELECT code_hash, code_salt, expires_at "
+        String sql = "SELECT code_hash, code_salt, expires_at, attempts "
                 + "FROM shitbot_bind_codes WHERE player_name=?"
                 + (lock ? " FOR UPDATE" : "");
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -1005,9 +1014,25 @@ public final class BindingRepository {
                 return new CodeRow(
                         resultSet.getString("code_hash"),
                         resultSet.getString("code_salt"),
-                        resultSet.getLong("expires_at"));
+                        resultSet.getLong("expires_at"),
+                        resultSet.getInt("attempts"));
             }
         }
+    }
+
+    private int incrementTotalAttempts(Connection connection,
+                                       String playerName,
+                                       long now,
+                                       int previousAttempts) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE shitbot_bind_codes SET attempts=attempts+1, updated_at=? WHERE player_name=?")) {
+            statement.setLong(1, now);
+            statement.setString(2, playerName);
+            if (statement.executeUpdate() != 1) {
+                throw new SQLException("Bind code disappeared while recording an attempt");
+            }
+        }
+        return previousAttempts + 1;
     }
 
     private int readAttempts(Connection connection,
@@ -1184,11 +1209,13 @@ public final class BindingRepository {
         private final String hash;
         private final String salt;
         private final long expiresAt;
+        private final int attempts;
 
-        private CodeRow(String hash, String salt, long expiresAt) {
+        private CodeRow(String hash, String salt, long expiresAt, int attempts) {
             this.hash = hash;
             this.salt = salt;
             this.expiresAt = expiresAt;
+            this.attempts = attempts;
         }
     }
 }
