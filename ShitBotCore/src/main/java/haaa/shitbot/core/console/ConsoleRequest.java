@@ -107,12 +107,14 @@ public final class ConsoleRequest {
     public static ConsoleRequest update(String targetServer,
                                         UpdateInfo release,
                                         ReleaseAsset jarAsset,
-                                        ReleaseAsset checksumAsset) {
+                                        ReleaseAsset checksumAsset,
+                                        ReleaseAsset signatureAsset) {
         BackendUpdatePayload payload = new BackendUpdatePayload(
                 release == null ? "" : release.getLatestVersion(),
                 release == null ? "" : release.getReleaseUrl(),
                 jarAsset,
-                checksumAsset);
+                checksumAsset,
+                signatureAsset);
         return new ConsoleRequest(null, Operation.UPDATE, ConsoleSettings.Target.BACKEND,
                 "", "", Collections.<String>emptyList(), targetServer, 1, 60, "", payload);
     }

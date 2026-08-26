@@ -20,9 +20,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -51,6 +57,8 @@ public final class UpdateChecker implements AutoCloseable {
     private static final int MAX_RESPONSE_BYTES = 256 * 1024;
     private static final int MAX_CACHE_BYTES = 64 * 1024;
     private static final int MAX_CHECKSUM_BYTES = 4096;
+    private static final int MAX_SIGNATURE_BYTES = 16 * 1024;
+    private static final int MAX_PUBLIC_KEY_BYTES = 16 * 1024;
     private static final int MAX_DESCRIPTOR_BYTES = 64 * 1024;
     private static final long MAX_PLUGIN_BYTES = 128L * 1024L * 1024L;
     private static final int MAX_RELEASE_ASSETS = 64;
@@ -62,6 +70,7 @@ public final class UpdateChecker implements AutoCloseable {
 
     private final String currentVersion;
     private final Path cachePath;
+    private final Path updatePublicKeyPath;
     private final PlatformBridge platform;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(
@@ -76,6 +85,7 @@ public final class UpdateChecker implements AutoCloseable {
         this.currentVersion = currentVersion == null ? "" : currentVersion.trim();
         this.platform = platform;
         this.cachePath = platform.getDataDirectory().resolve("update-cache.json");
+        this.updatePublicKeyPath = platform.getDataDirectory().resolve("update-public-key.pem");
         this.installedVersion.set(this.currentVersion);
         latestRelease.set(readCache());
     }
@@ -137,6 +147,11 @@ public final class UpdateChecker implements AutoCloseable {
             return FutureUtil.failedFuture(new IOException("Release is missing checksum asset "
                     + jarAsset.getName() + ".sha256"));
         }
+        final ReleaseAsset signatureAsset = info.findAsset(jarAsset.getName() + ".sig");
+        if (signatureAsset == null) {
+            return FutureUtil.failedFuture(new IOException("Release is missing detached signature asset "
+                    + jarAsset.getName() + ".sig"));
+        }
 
         final CompletableFuture<UpdateInstallResult> created;
         try {
@@ -146,7 +161,7 @@ public final class UpdateChecker implements AutoCloseable {
                         public UpdateInstallResult get() {
                             try {
                                 return installRelease(info, updatePlatform, pluginJar,
-                                        jarAsset, checksumAsset);
+                                        jarAsset, checksumAsset, signatureAsset);
                             } catch (IOException exception) {
                                 throw new java.util.concurrent.CompletionException(exception);
                             }
@@ -387,7 +402,8 @@ public final class UpdateChecker implements AutoCloseable {
                                                UpdatePlatform updatePlatform,
                                                Path configuredPluginJar,
                                                ReleaseAsset jarAsset,
-                                               ReleaseAsset checksumAsset) throws IOException {
+                                               ReleaseAsset checksumAsset,
+                                               ReleaseAsset signatureAsset) throws IOException {
         Path pluginJar = configuredPluginJar.toAbsolutePath().normalize();
         if (!Files.isRegularFile(pluginJar)) {
             throw new IOException("Current plugin JAR does not exist: " + pluginJar);
@@ -413,6 +429,7 @@ public final class UpdateChecker implements AutoCloseable {
             if (!expectedSha256.equalsIgnoreCase(downloadedSha256)) {
                 throw new IOException("Downloaded JAR SHA-256 does not match Release checksum");
             }
+            verifyDetachedSignature(temporary, signatureAsset);
             validateJar(temporary, updatePlatform, info.getLatestVersion());
 
             Path backup = pluginJar.resolveSibling(pluginJar.getFileName().toString() + ".bak");
@@ -441,6 +458,60 @@ public final class UpdateChecker implements AutoCloseable {
                     jarAsset.getName(), downloadedSha256, pluginJar, backup);
         } finally {
             deleteQuietly(temporary);
+        }
+    }
+
+    private void verifyDetachedSignature(Path jarPath, ReleaseAsset signatureAsset) throws IOException {
+        if (!Files.isRegularFile(updatePublicKeyPath)) {
+            throw new IOException("Update signing public key is missing: " + updatePublicKeyPath
+                    + ". Install the independently distributed RSA public key before using /shitbot update");
+        }
+        long publicKeySize = Files.size(updatePublicKeyPath);
+        if (publicKeySize <= 0L || publicKeySize > MAX_PUBLIC_KEY_BYTES) {
+            throw new IOException("Update signing public key size is invalid");
+        }
+        if (signatureAsset.getSize() <= 0L || signatureAsset.getSize() > MAX_SIGNATURE_BYTES) {
+            throw new IOException("Release detached signature size is invalid: " + signatureAsset.getSize());
+        }
+
+        byte[] signatureBytes = downloadBytes(signatureAsset, MAX_SIGNATURE_BYTES);
+        PublicKey publicKey = readUpdatePublicKey();
+        try {
+            Signature verifier = Signature.getInstance("SHA256withRSA");
+            verifier.initVerify(publicKey);
+            try (InputStream input = Files.newInputStream(jarPath)) {
+                byte[] buffer = new byte[16384];
+                int read;
+                while ((read = input.read(buffer)) >= 0) {
+                    if (read > 0) {
+                        verifier.update(buffer, 0, read);
+                    }
+                }
+            }
+            if (!verifier.verify(signatureBytes)) {
+                throw new IOException("Downloaded JAR detached signature is invalid");
+            }
+        } catch (GeneralSecurityException exception) {
+            throw new IOException("Unable to verify update detached signature", exception);
+        }
+    }
+
+    private PublicKey readUpdatePublicKey() throws IOException {
+        String pem = new String(Files.readAllBytes(updatePublicKeyPath), StandardCharsets.US_ASCII);
+        String encoded = pem
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", "");
+        if (encoded.isEmpty()) {
+            throw new IOException("Update signing public key PEM is empty");
+        }
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(encoded);
+            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+        } catch (IllegalArgumentException exception) {
+            throw new IOException("Update signing public key PEM is malformed", exception);
+        } catch (GeneralSecurityException exception) {
+            throw new IOException("Update signing public key is not a valid RSA public key", exception);
         }
     }
 

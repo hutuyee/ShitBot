@@ -60,7 +60,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 ### QQ 快捷命令与 TPS
 
 - 快捷命令白名单、别名、权限、执行位置、日志抓取时间和回复模板统一配置在 `commands.yml`。
-- `capture-console-logs-if-plugin` 仅在命令标签确实由指定插件注册时生效；生效后返回 `capture-seconds` 时间窗内的全部控制台日志。`lp` / `luckperms` 会为旧配置自动推断为 `LuckPerms`，默认 `lp编辑` 因此能取得异步生成的编辑器链接。该模式可能同时包含时间窗内其他插件的日志，只应给受信任的管理命令使用。
+- `capture-console-logs-if-plugin` 仅在命令标签确实由指定插件注册时生效；生效后只监听该目标插件自己的 logger，并按 logger 名二次过滤。回传前会脱敏 Bearer、token、password、authorization、secret 和数据库 URL，且仍受 100 行 / 4000 字符上限约束。`lp` / `luckperms` 会为旧配置自动推断为 `LuckPerms`，默认 `lp编辑` 因此能取得异步生成的编辑器链接。
 - `target: backend` 在 Bukkit 子服执行；`target: proxy` 在 BungeeCord/Velocity 代理执行。
 - 快捷命令或 TPS 后可直接加目标子服，例如 `lp编辑 survival`、`TPS lobby`；该参数会覆盖配置中的 `server`。
 - 代理使用 `backend-transport.endpoints` 的独立鉴权通道，因此目标子服零玩家也能执行；没有配置对应端点时会拒绝执行，不会回退到未认证的插件消息。
@@ -69,7 +69,9 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - TPS 优先读取 EssentialsX，之后读取服务端原生 TPS，均不可用时使用 ShitBot 自己的 1/5/15 分钟采样。
 - 代理 + 子服部署必须把 Spigot 端设为 `deployment.role: backend`，此模式不会连接 OneBot，因此不会与代理重复处理 QQ 消息。
 
-独立通道需要在代理 `commands.yml` 的 `backend-transport.endpoints.<子服名>` 填写子服地址、端口和至少 16 位的随机密钥，并在对应子服的 `backend-transport.listener` 中填写相同端口、密钥和子服名后启用。listener 默认只接受 `127.0.0.1` / `::1`；跨机器时必须把 `allowed-proxy-addresses` 改为代理实际 IP，同时只监听内网地址并通过防火墙限制为代理 IP。不要把该端口暴露到公网。
+独立通道需要在代理 `commands.yml` 的 `backend-transport.endpoints.<子服名>` 填写子服地址、端口和至少 16 位的随机密钥，并在对应子服的 `backend-transport.listener` 中填写相同端口、密钥和子服名后启用。listener 默认只接受 `127.0.0.1` / `::1`。HMAC 负责认证和完整性，每个连接还会使用服务端随机 challenge 阻止抓包跨重启重放，但 HMAC 本身不加密内容。
+
+同机回环地址可以继续使用明文 Socket。跨机器时默认拒绝明文，必须在两端 `tls.enabled: true` 并配置 PKCS12 key/trust store；需要双向认证时，listener 再开启 `require-client-certificate` 并配置客户端 trust store。只有链路已经运行在 WireGuard、Tailscale 等加密隧道中且明确接受风险时，才应设置 `allow-insecure-remote-plaintext: true`。同时必须把 `allowed-proxy-addresses` 改为代理实际 IP，并通过防火墙限制来源；不要把端口直接暴露到公网。代理侧连接池固定为 2 个 worker、32 个等待项，队满立即拒绝，排队超时请求不会继续执行，连续连接失败会短暂熔断。
 
 ### [关于背包查询请点这里](https://github.com/hutuyee/ShitBot/blob/main/docs/inventory.md)
 ### OneBot v11
@@ -109,8 +111,11 @@ forwarding:
 - 支持 SQLite
 - 支持 MySQL
 - 自动执行数据库版本迁移
+- MySQL 迁移使用数据库级 `GET_LOCK`，代理与多个后端同时启动时只允许一个实例执行 DDL
+- 启动时只在列定义确实不符合目标 schema 时执行修复性 `ALTER TABLE`
 - Spigot、BungeeCord、Velocity 使用相同的数据表结构
 - 可在不同平台版本之间迁移数据
+- 远程 MySQL 默认必须启用 TLS（推荐 `sslMode=VERIFY_IDENTITY`）；明文连接需要显式风险开关
 
 
 ## 在平台之间迁移数据
@@ -184,9 +189,16 @@ Spigot 默认仅 OP 拥有该权限。BungeeCord 和 Velocity 同样检查 `shit
 
 插件启用时会在独立后台线程访问 GitHub，网络连接和读取均设置超时，不占用服务端主线程。最新 Release 信息仅在发生变化时写入插件目录下的 `update-cache.json`；有权限的管理员上线时会收到版本差异和可点击链接。
 
-执行 `/shitbot update` 后，插件会从同一个 Release 中选择当前平台的 `ShitBotSpigot-*.jar`、`ShitBotBungee-*.jar` 或 `ShitBotVelocity-*.jar`。Release 必须同时包含对应的 `<JAR 文件名>.sha256`；下载地址、文件大小、SHA-256、平台描述文件、主类和内嵌版本全部通过后，才会把当前 JAR 备份为同目录的 `.bak` 并替换。任何一步失败都会保留现有 JAR。替换后不会热重载插件，必须手动重启服务器或代理。
+执行 `/shitbot update` 后，插件会从同一个 Release 中选择当前平台的 `ShitBotSpigot-*.jar`、`ShitBotBungee-*.jar` 或 `ShitBotVelocity-*.jar`。Release 必须同时包含对应的 `<JAR 文件名>.sha256` 和 `<JAR 文件名>.sig`；下载地址、文件大小、SHA-256、独立 RSA 签名、平台描述文件、主类和内嵌版本全部通过后，才会把当前 JAR 备份为同目录的 `.bak` 并替换。任何一步失败都会保留现有 JAR。替换后不会热重载插件，必须手动重启服务器或代理。
 
-在 BungeeCord 执行该命令时，代理会使用现有的 HMAC 鉴权 Console Socket，把同一个 Release 的 Spigot 资产信息下发给 `backend-transport.endpoints` 中的每个后端；各后端在自己的插件目录独立校验、备份和替换，并逐个向命令发送者返回结果。没有配置 endpoint 的子服不会被扫描或更新。后端模式的 Spigot 不会在启动时单独访问 GitHub，由 BungeeCord 统一检查并联动更新。
+在 BungeeCord 执行该命令时，代理会使用现有的 HMAC 鉴权 Console Socket，把同一个 Release 的 Spigot JAR、checksum 和 detached signature 元数据下发给 `backend-transport.endpoints` 中的每个后端；各后端在自己的插件目录独立校验、备份和替换，并逐个向命令发送者返回结果。没有配置 endpoint 的子服不会被扫描或更新。后端模式的 Spigot 不会在启动时单独访问 GitHub，由 BungeeCord 统一检查并联动更新。
+
+每个会执行更新的平台都必须在插件数据目录放置独立分发的 `update-public-key.pem`（X.509 PEM 格式的 RSA 公钥）。公钥应通过 GitHub Release 之外的可信渠道核对；缺少公钥、签名资产或签名不匹配时，更新器会 fail closed。发布者可用以下方式生成密钥，私钥只保存到 GitHub Actions 的 `SHITBOT_UPDATE_PRIVATE_KEY` 仓库 Secret，不能提交到仓库：
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out update-private-key.pem
+openssl pkey -in update-private-key.pem -pubout -out update-public-key.pem
+```
 
 ---
 
@@ -200,6 +212,7 @@ Spigot 默认仅 OP 拥有该权限。BungeeCord 和 Velocity 同样检查 `shit
 - `websocket-url` 地址和端口是否正确
 - Minecraft 服务器是否能访问 OneBot 所在主机
 - `access-token` 是否与 OneBot 配置一致
+- 跨主机地址是否使用 `wss://`；远程 `ws://` 默认拒绝，除非显式开启风险开关
 - 防火墙是否允许对应端口
 - OneBot 是否支持 OneBot v11 正向 WebSocket
 
@@ -227,8 +240,10 @@ Spigot 默认仅 OP 拥有该权限。BungeeCord 和 Velocity 同样检查 `shit
 ## 安全建议
 
 - 不要把真实 OneBot Token 和数据库密码提交到公开仓库
+- 不要提交更新签名私钥；`update-public-key.pem` 应通过独立可信渠道分发并核对
 - 生产环境建议限制 `allowed-group-ids`
 - MySQL 账号只授予 ShitBot 数据库所需权限
+- 远程 MySQL 使用 `sslMode=VERIFY_IDENTITY`，远程 OneBot 使用 `wss://`
 - 切换平台或升级前先备份数据库
 - 不要在多个独立插件实例中同时使用同一个 SQLite 文件
 - 公开日志前检查是否包含 Token、数据库地址或账号信息

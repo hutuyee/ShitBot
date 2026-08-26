@@ -8,15 +8,18 @@ public final class BackendUpdatePayload {
     private final String releaseUrl;
     private final ReleaseAsset jarAsset;
     private final ReleaseAsset checksumAsset;
+    private final ReleaseAsset signatureAsset;
 
     public BackendUpdatePayload(String latestVersion,
                                 String releaseUrl,
                                 ReleaseAsset jarAsset,
-                                ReleaseAsset checksumAsset) {
+                                ReleaseAsset checksumAsset,
+                                ReleaseAsset signatureAsset) {
         this.latestVersion = text(latestVersion);
         this.releaseUrl = text(releaseUrl);
         this.jarAsset = jarAsset;
         this.checksumAsset = checksumAsset;
+        this.signatureAsset = signatureAsset;
     }
 
     public String getLatestVersion() {
@@ -35,9 +38,13 @@ public final class BackendUpdatePayload {
         return checksumAsset;
     }
 
+    public ReleaseAsset getSignatureAsset() {
+        return signatureAsset;
+    }
+
     public UpdateInfo toUpdateInfo() {
         return new UpdateInfo(latestVersion, releaseUrl, "",
-                Arrays.asList(jarAsset, checksumAsset));
+                Arrays.asList(jarAsset, checksumAsset, signatureAsset));
     }
 
     private static String text(String value) {

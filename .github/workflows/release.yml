@@ -158,6 +158,31 @@ jobs:
           name: ShitBot-${{ github.sha }}
           path: release
 
+      - name: Sign release JAR files
+        env:
+          SHITBOT_UPDATE_PRIVATE_KEY: ${{ secrets.SHITBOT_UPDATE_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SHITBOT_UPDATE_PRIVATE_KEY}" ]]; then
+            echo "::error title=Missing signing key::Repository secret SHITBOT_UPDATE_PRIVATE_KEY is required for releases."
+            exit 1
+          fi
+
+          umask 077
+          signing_key="$(mktemp)"
+          trap 'rm -f "${signing_key}"' EXIT
+          printf '%s' "${SHITBOT_UPDATE_PRIVATE_KEY}" > "${signing_key}"
+
+          for jar_file in release/*.jar; do
+            openssl dgst \
+              -sha256 \
+              -sign "${signing_key}" \
+              -out "${jar_file}.sig" \
+              "${jar_file}"
+          done
+
       - name: Verify release JAR files
         shell: bash
         run: |
@@ -191,6 +216,20 @@ jobs:
 
           if [[ "${#checksums[@]}" -ne 3 ]]; then
             echo "::error title=Unexpected checksum count::Expected exactly 3 SHA-256 files, found ${#checksums[@]}."
+            exit 1
+          fi
+
+          mapfile -t signatures < <(
+            find release \
+              -maxdepth 1 \
+              -type f \
+              -name "*.jar.sig" \
+              -print \
+            | sort
+          )
+
+          if [[ "${#signatures[@]}" -ne 3 ]]; then
+            echo "::error title=Unexpected signature count::Expected exactly 3 detached signatures, found ${#signatures[@]}."
             exit 1
           fi
 

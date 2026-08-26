@@ -20,3 +20,7 @@ run
 lib/
 target/
 .DS_Store
+
+# release signing private keys
+*.private.pem
+update-private-key.pem

@@ -93,12 +93,17 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             return FutureUtil.failedFuture(new java.io.IOException(
                     "Release is missing checksum asset " + jarAsset.getName() + ".sha256"));
         }
+        ReleaseAsset signatureAsset = release.findAsset(jarAsset.getName() + ".sig");
+        if (signatureAsset == null) {
+            return FutureUtil.failedFuture(new java.io.IOException(
+                    "Release is missing detached signature asset " + jarAsset.getName() + ".sig"));
+        }
 
         final java.util.List<CompletableFuture<ConsoleResult>> requests =
                 new java.util.ArrayList<CompletableFuture<ConsoleResult>>();
         for (ConsoleSettings.BackendEndpoint endpoint : transport.getEndpoints().values()) {
             ConsoleRequest request = ConsoleRequest.update(
-                    endpoint.getName(), release, jarAsset, checksumAsset);
+                    endpoint.getName(), release, jarAsset, checksumAsset, signatureAsset);
             requests.add(sendToSocket(request, endpoint));
         }
         CompletableFuture<?>[] array = requests.toArray(new CompletableFuture<?>[requests.size()]);

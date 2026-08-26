@@ -13,7 +13,7 @@ import java.util.List;
 
 public final class ConsoleMessageCodec {
     private static final int MAGIC = 0x53424331;
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
     private static final int TYPE_REQUEST = 1;
     private static final int TYPE_RESPONSE = 2;
     private static final int MAX_PLAYERS = 32;
@@ -49,6 +49,7 @@ public final class ConsoleMessageCodec {
             writeText(output, updatePayload.getReleaseUrl());
             writeAsset(output, updatePayload.getJarAsset());
             writeAsset(output, updatePayload.getChecksumAsset());
+            writeAsset(output, updatePayload.getSignatureAsset());
         }
         output.flush();
         return bytes.toByteArray();
@@ -78,7 +79,7 @@ public final class ConsoleMessageCodec {
         BackendUpdatePayload updatePayload = null;
         if (input.readBoolean()) {
             updatePayload = new BackendUpdatePayload(readText(input), readText(input),
-                    readAsset(input), readAsset(input));
+                    readAsset(input), readAsset(input), readAsset(input));
         }
         ConsoleRequest request = new ConsoleRequest(requestId, operation, target, command, permission,
                 playerNames, server, captureSeconds, timeoutSeconds, consoleLogPlugin, updatePayload);
