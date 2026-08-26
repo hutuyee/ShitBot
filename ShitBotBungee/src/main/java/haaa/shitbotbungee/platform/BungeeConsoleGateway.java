@@ -13,6 +13,7 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.plugin.Command;
 import net.md_5.bungee.api.plugin.Plugin;
 
 import java.lang.reflect.Array;
@@ -20,17 +21,24 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 public final class BungeeConsoleGateway implements AutoCloseable {
     private final Plugin plugin;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
     private volatile ConsoleRequest activeLocalRequest;
+    private volatile Logger activeLogger;
+    private volatile Handler activeHandler;
     private final ExecutorService socketExecutor = Executors.newFixedThreadPool(2,
             new NamedThreadFactory("shitbot-bungee-console", true));
     private volatile ConsoleSettings.BackendTransport backendTransport;
@@ -206,7 +214,21 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<ConsoleResult>();
         final CommandOutputCapture capture = new CommandOutputCapture();
-        CommandSender sender = capturingSender(plugin.getProxy().getConsole(), capture);
+        final Logger logger;
+        final Handler handler;
+        final CommandSender sender;
+        if (shouldCaptureConsoleLogs(request)) {
+            logger = plugin.getProxy().getLogger();
+            handler = new ConsoleLogHandler(capture);
+            logger.addHandler(handler);
+            activeLogger = logger;
+            activeHandler = handler;
+            sender = plugin.getProxy().getConsole();
+        } else {
+            logger = null;
+            handler = null;
+            sender = capturingSender(plugin.getProxy().getConsole(), capture);
+        }
         activeLocalFuture = future;
         activeLocalRequest = request;
         final boolean accepted;
@@ -215,6 +237,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             accepted = plugin.getProxy().getPluginManager().dispatchCommand(
                     sender, request.getCommand());
         } catch (Throwable throwable) {
+            stopConsoleLogCapture(logger, handler);
             clearLocalCapture(future);
             localCommandRunning.set(false);
             future.complete(new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
@@ -224,6 +247,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         plugin.getProxy().getScheduler().schedule(plugin, new Runnable() {
             @Override
             public void run() {
+                stopConsoleLogCapture(logger, handler);
                 clearLocalCapture(future);
                 String output = capture.output();
                 if (output.isEmpty()) {
@@ -236,6 +260,48 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             }
         }, Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS);
         return future;
+    }
+
+    private boolean shouldCaptureConsoleLogs(ConsoleRequest request) {
+        String expectedName = request.getConsoleLogPlugin();
+        if (expectedName.isEmpty()) {
+            return false;
+        }
+        String commandLine = request.getCommand();
+        int separator = commandLine.indexOf(' ');
+        String label = separator < 0 ? commandLine : commandLine.substring(0, separator);
+        while (label.startsWith("/")) {
+            label = label.substring(1);
+        }
+        Command registered = null;
+        for (Map.Entry<String, Command> entry : plugin.getProxy().getPluginManager().getCommands()) {
+            if (entry.getKey().equalsIgnoreCase(label)) {
+                registered = entry.getValue();
+                break;
+            }
+        }
+        Plugin expectedPlugin = null;
+        for (Plugin candidate : plugin.getProxy().getPluginManager().getPlugins()) {
+            if (candidate.getDescription() != null
+                    && expectedName.equalsIgnoreCase(candidate.getDescription().getName())) {
+                expectedPlugin = candidate;
+                break;
+            }
+        }
+        return registered != null
+                && expectedPlugin != null
+                && registered.getClass().getClassLoader() == expectedPlugin.getClass().getClassLoader();
+    }
+
+    private void stopConsoleLogCapture(Logger logger, Handler handler) {
+        if (logger == null || handler == null) {
+            return;
+        }
+        logger.removeHandler(handler);
+        if (activeHandler == handler) {
+            activeLogger = null;
+            activeHandler = null;
+        }
     }
 
     private CommandSender capturingSender(final CommandSender delegate, final CommandOutputCapture capture) {
@@ -275,6 +341,13 @@ public final class BungeeConsoleGateway implements AutoCloseable {
 
     @Override
     public void close() {
+        Logger logger = activeLogger;
+        Handler handler = activeHandler;
+        if (logger != null && handler != null) {
+            logger.removeHandler(handler);
+        }
+        activeLogger = null;
+        activeHandler = null;
         CompletableFuture<ConsoleResult> future = activeLocalFuture;
         ConsoleRequest request = activeLocalRequest;
         if (future != null && request != null) {
@@ -291,6 +364,30 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             activeLocalFuture = null;
             activeLocalRequest = null;
         }
+    }
+
+    private static final class ConsoleLogHandler extends Handler {
+        private final CommandOutputCapture capture;
+
+        private ConsoleLogHandler(CommandOutputCapture capture) {
+            this.capture = capture;
+        }
+
+        @Override
+        public void publish(LogRecord record) {
+            if (record == null || !isLoggable(record)) {
+                return;
+            }
+            Level level = record.getLevel();
+            capture.append("[" + (level == null ? "INFO" : level.getName()) + "] "
+                    + (record.getMessage() == null ? "" : record.getMessage()));
+            if (record.getThrown() != null) {
+                capture.append("[SEVERE] " + record.getThrown().toString());
+            }
+        }
+
+        @Override public void flush() { }
+        @Override public void close() { }
     }
 
     private static final class CommandOutputCapture {

@@ -13,7 +13,7 @@ import java.util.List;
 
 public final class ConsoleMessageCodec {
     private static final int MAGIC = 0x53424331;
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final int TYPE_REQUEST = 1;
     private static final int TYPE_RESPONSE = 2;
     private static final int MAX_PLAYERS = 32;
@@ -36,6 +36,7 @@ public final class ConsoleMessageCodec {
         writeText(output, request.getServer());
         output.writeInt(request.getCaptureSeconds());
         output.writeInt(request.getTimeoutSeconds());
+        writeText(output, request.getConsoleLogPlugin());
         int count = Math.min(request.getPlayerNames().size(), MAX_PLAYERS);
         output.writeInt(count);
         for (int index = 0; index < count; index++) {
@@ -65,6 +66,7 @@ public final class ConsoleMessageCodec {
         String server = readText(input);
         int captureSeconds = input.readInt();
         int timeoutSeconds = input.readInt();
+        String consoleLogPlugin = readText(input);
         int playerCount = input.readInt();
         if (playerCount < 0 || playerCount > MAX_PLAYERS) {
             throw new IOException("Invalid player count");
@@ -79,7 +81,7 @@ public final class ConsoleMessageCodec {
                     readAsset(input), readAsset(input));
         }
         ConsoleRequest request = new ConsoleRequest(requestId, operation, target, command, permission,
-                playerNames, server, captureSeconds, timeoutSeconds, updatePayload);
+                playerNames, server, captureSeconds, timeoutSeconds, consoleLogPlugin, updatePayload);
         requireFullyConsumed(input);
         return request;
     }

@@ -10,6 +10,7 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -30,6 +31,10 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 public final class SpigotConsoleController implements AutoCloseable {
     private static final int MAX_LOG_LINES = 100;
@@ -46,6 +51,8 @@ public final class SpigotConsoleController implements AutoCloseable {
             new ConcurrentHashMap<String, Boolean>();
     private volatile Function<BackendUpdatePayload, CompletableFuture<UpdateInstallResult>> updateInstaller;
     private boolean commandRunning;
+    private Logger activeLogger;
+    private Handler activeHandler;
     private SpigotConsoleSocketServer socketServer;
 
     public SpigotConsoleController(JavaPlugin plugin, SchedulerAdapter scheduler) {
@@ -326,7 +333,23 @@ public final class SpigotConsoleController implements AutoCloseable {
                     return;
                 }
                 final CommandOutputCapture capture = new CommandOutputCapture();
-                CommandSender sender = capturingSender(Bukkit.getConsoleSender(), capture);
+                final Logger logger;
+                final Handler handler;
+                final CommandSender sender;
+                if (shouldCaptureConsoleLogs(pending.request)) {
+                    logger = Logger.getLogger("");
+                    handler = new ConsoleLogHandler(capture);
+                    logger.addHandler(handler);
+                    synchronized (commandQueue) {
+                        activeLogger = logger;
+                        activeHandler = handler;
+                    }
+                    sender = Bukkit.getConsoleSender();
+                } else {
+                    logger = null;
+                    handler = null;
+                    sender = capturingSender(Bukkit.getConsoleSender(), capture);
+                }
                 boolean dispatched;
                 try {
                     dispatched = Bukkit.dispatchCommand(sender, pending.request.getCommand());
@@ -338,6 +361,7 @@ public final class SpigotConsoleController implements AutoCloseable {
                 timer.schedule(new Runnable() {
                     @Override
                     public void run() {
+                        stopConsoleLogCapture(logger, handler);
                         String output = capture.output();
                         if (output.isEmpty()) {
                             output = commandAccepted ? "命令已执行，未返回输出。" : "命令不存在或执行器拒绝执行。";
@@ -355,6 +379,39 @@ public final class SpigotConsoleController implements AutoCloseable {
                 }, Math.max(1, pending.request.getCaptureSeconds()), TimeUnit.SECONDS);
             }
         });
+    }
+
+    private boolean shouldCaptureConsoleLogs(ConsoleRequest request) {
+        String expectedPlugin = request.getConsoleLogPlugin();
+        if (expectedPlugin.isEmpty()) {
+            return false;
+        }
+        String command = request.getCommand();
+        int separator = command.indexOf(' ');
+        String label = separator < 0 ? command : command.substring(0, separator);
+        while (label.startsWith("/")) {
+            label = label.substring(1);
+        }
+        if (label.isEmpty()) {
+            return false;
+        }
+        PluginCommand registered = Bukkit.getPluginCommand(label);
+        return registered != null
+                && registered.getPlugin() != null
+                && expectedPlugin.equalsIgnoreCase(registered.getPlugin().getName());
+    }
+
+    private void stopConsoleLogCapture(Logger logger, Handler handler) {
+        if (logger == null || handler == null) {
+            return;
+        }
+        logger.removeHandler(handler);
+        synchronized (commandQueue) {
+            if (activeHandler == handler) {
+                activeLogger = null;
+                activeHandler = null;
+            }
+        }
     }
 
     private CommandSender capturingSender(final ConsoleCommandSender delegate, final CommandOutputCapture capture) {
@@ -391,6 +448,11 @@ public final class SpigotConsoleController implements AutoCloseable {
             }
         }
         synchronized (commandQueue) {
+            if (activeLogger != null && activeHandler != null) {
+                activeLogger.removeHandler(activeHandler);
+                activeLogger = null;
+                activeHandler = null;
+            }
             for (PendingCommand pending : commandQueue) {
                 pending.future.complete(ConsoleResult.unavailable(
                         pending.request, "插件已关闭", serverName()));
@@ -408,6 +470,30 @@ public final class SpigotConsoleController implements AutoCloseable {
         private PendingCommand(ConsoleRequest request) {
             this.request = request;
         }
+    }
+
+    private static final class ConsoleLogHandler extends Handler {
+        private final CommandOutputCapture capture;
+
+        private ConsoleLogHandler(CommandOutputCapture capture) {
+            this.capture = capture;
+        }
+
+        @Override
+        public void publish(LogRecord record) {
+            if (record == null || !isLoggable(record)) {
+                return;
+            }
+            Level level = record.getLevel();
+            capture.append("[" + (level == null ? "INFO" : level.getName()) + "] "
+                    + (record.getMessage() == null ? "" : record.getMessage()));
+            if (record.getThrown() != null) {
+                capture.append("[SEVERE] " + record.getThrown().toString());
+            }
+        }
+
+        @Override public void flush() { }
+        @Override public void close() { }
     }
 
     private static final class CommandOutputCapture {
