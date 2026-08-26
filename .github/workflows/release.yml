@@ -103,6 +103,10 @@ jobs:
 
             echo "Copying ${jar_file} -> release/${jar_name}"
             cp "${jar_file}" "release/${jar_name}"
+            (
+              cd release
+              sha256sum "${jar_name}" > "${jar_name}.sha256"
+            )
           done
 
           echo
@@ -131,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ShitBot-${{ github.sha }}
-          path: release/*.jar
+          path: release/*
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -176,6 +180,25 @@ jobs:
             exit 1
           fi
 
+          mapfile -t checksums < <(
+            find release \
+              -maxdepth 1 \
+              -type f \
+              -name "*.jar.sha256" \
+              -print \
+            | sort
+          )
+
+          if [[ "${#checksums[@]}" -ne 3 ]]; then
+            echo "::error title=Unexpected checksum count::Expected exactly 3 SHA-256 files, found ${#checksums[@]}."
+            exit 1
+          fi
+
+          (
+            cd release
+            sha256sum --check *.jar.sha256
+          )
+
           printf 'Ready to upload: %s\n' "${jars[@]}"
 
       - name: Clear release description
@@ -204,6 +227,6 @@ jobs:
 
           gh release upload \
             "${{ github.event.release.tag_name }}" \
-            release/*.jar \
+            release/* \
             --repo "${{ github.repository }}" \
             --clobber
