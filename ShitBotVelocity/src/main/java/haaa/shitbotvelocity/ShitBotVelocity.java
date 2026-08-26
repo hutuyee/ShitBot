@@ -40,6 +40,7 @@ public final class ShitBotVelocity {
     private VelocityConfigLoader configLoader;
     private VelocityPlatformBridge platformBridge;
     private UpdateChecker updateChecker;
+    private Path pluginJarPath;
 
     @Inject
     public ShitBotVelocity(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -53,6 +54,7 @@ public final class ShitBotVelocity {
         stopping = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
+        this.pluginJarPath = resolvePluginPath();
         this.updateChecker = new UpdateChecker(resolvePluginVersion(), platformBridge);
         startUpdateCheck();
         server.getEventManager().register(this, new PlayerLoginListener(this));
@@ -154,6 +156,10 @@ public final class ShitBotVelocity {
         return updateChecker;
     }
 
+    public Path getPluginJarPath() {
+        return pluginJarPath;
+    }
+
     public void sendUpdateNotice(CommandSource sender, UpdateInfo info) {
         if (sender == null || info == null || updateChecker == null) {
             return;
@@ -187,6 +193,12 @@ public final class ShitBotVelocity {
         return server.getPluginManager().getPlugin("shitbotvelocity")
                 .flatMap(container -> container.getDescription().getVersion())
                 .orElse("unknown");
+    }
+
+    private Path resolvePluginPath() {
+        return server.getPluginManager().getPlugin("shitbotvelocity")
+                .flatMap(container -> container.getDescription().getSource())
+                .orElse(null);
     }
 
     private String errorMessage(Throwable throwable) {

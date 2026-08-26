@@ -6,7 +6,8 @@ import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.update.UpdateChecker;
-import haaa.shitbot.core.update.UpdateInfo;
+import haaa.shitbot.core.update.UpdateInstallResult;
+import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import net.kyori.adventure.text.Component;
@@ -59,17 +60,16 @@ public final class ShitBotCommand implements SimpleCommand {
                 send(invocation, "§c更新检查器尚未初始化。");
                 return;
             }
-            send(invocation, "§e正在后台检查 GitHub Release...");
-            updateChecker.checkAsync().whenComplete((UpdateInfo info, Throwable throwable) ->
+            send(invocation, "§e正在后台检查并安装 GitHub Release...");
+            updateChecker.updateAsync(UpdatePlatform.VELOCITY, plugin.getPluginJarPath())
+                    .whenComplete((UpdateInstallResult result, Throwable throwable) ->
                     plugin.getPlatformBridge().executeOnPlatformThread(() -> {
                         if (throwable != null) {
-                            send(invocation, "§c检查更新失败: §f" + errorMessage(throwable));
-                        } else if (updateChecker.isUpdateAvailable(info)) {
-                            plugin.sendUpdateNotice(invocation.source(), info);
-                        } else {
-                            send(invocation, "§a当前已是最新版本: §f"
-                                    + updateChecker.getCurrentVersion());
+                            send(invocation, "§c更新失败，现有 JAR 未替换: §f"
+                                    + errorMessage(throwable));
+                            return;
                         }
+                        sendInstallResult(invocation, result);
                     }));
             return;
         }
@@ -133,6 +133,22 @@ public final class ShitBotCommand implements SimpleCommand {
         return message == null || message.trim().isEmpty()
                 ? cause.getClass().getSimpleName()
                 : message;
+    }
+
+    private void sendInstallResult(Invocation invocation, UpdateInstallResult result) {
+        if (result.getStatus() == UpdateInstallResult.Status.UP_TO_DATE) {
+            send(invocation, "§a当前已是最新版本: §f" + result.getLatestVersion());
+            return;
+        }
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
+            send(invocation, "§e新版本 §f" + result.getLatestVersion()
+                    + " §e已经替换到磁盘，请手动重启代理生效。");
+            return;
+        }
+        send(invocation, "§a代理更新包已校验并替换: §f" + result.getLatestVersion());
+        send(invocation, "§7当前 JAR: §f" + result.getInstalledPath());
+        send(invocation, "§7备份 JAR: §f" + result.getBackupPath());
+        send(invocation, "§e请手动重启代理生效；不要执行插件热重载。");
     }
 
     private void send(Invocation invocation, String legacyText) {

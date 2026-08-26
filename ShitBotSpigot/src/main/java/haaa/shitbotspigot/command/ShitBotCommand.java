@@ -4,7 +4,8 @@ import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.update.UpdateChecker;
-import haaa.shitbot.core.update.UpdateInfo;
+import haaa.shitbot.core.update.UpdateInstallResult;
+import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotspigot.ShitBotSpigot;
@@ -66,22 +67,20 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("§c更新检查器尚未初始化。");
                 return true;
             }
-            sender.sendMessage("§e正在后台检查 GitHub Release...");
-            updateChecker.checkAsync().whenComplete(
-                    new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
+            sender.sendMessage("§e正在后台检查并安装 GitHub Release...");
+            updateChecker.updateAsync(UpdatePlatform.SPIGOT, plugin.getPluginJarPath()).whenComplete(
+                    new java.util.function.BiConsumer<UpdateInstallResult, Throwable>() {
                         @Override
-                        public void accept(final UpdateInfo info, final Throwable throwable) {
+                        public void accept(final UpdateInstallResult result, final Throwable throwable) {
                             plugin.getPlatformBridge().executeOnSenderThread(sender, new Runnable() {
                                 @Override
                                 public void run() {
                                     if (throwable != null) {
-                                        sender.sendMessage("§c检查更新失败: §f" + errorMessage(throwable));
-                                    } else if (updateChecker.isUpdateAvailable(info)) {
-                                        plugin.sendUpdateNotice(sender, info);
-                                    } else {
-                                        sender.sendMessage("§a当前已是最新版本: §f"
-                                                + updateChecker.getCurrentVersion());
+                                        sender.sendMessage("§c更新失败，现有 JAR 未替换: §f"
+                                                + errorMessage(throwable));
+                                        return;
                                     }
+                                    sendInstallResult(sender, result);
                                 }
                             });
                         }
@@ -143,6 +142,22 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
         return message == null || message.trim().isEmpty()
                 ? cause.getClass().getSimpleName()
                 : message;
+    }
+
+    private void sendInstallResult(CommandSender sender, UpdateInstallResult result) {
+        if (result.getStatus() == UpdateInstallResult.Status.UP_TO_DATE) {
+            sender.sendMessage("§a当前已是最新版本: §f" + result.getLatestVersion());
+            return;
+        }
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
+            sender.sendMessage("§e新版本 §f" + result.getLatestVersion()
+                    + " §e已经替换到磁盘，请手动重启服务器生效。");
+            return;
+        }
+        sender.sendMessage("§a更新包已校验并替换: §f" + result.getLatestVersion());
+        sender.sendMessage("§7当前 JAR: §f" + result.getInstalledPath());
+        sender.sendMessage("§7备份 JAR: §f" + result.getBackupPath());
+        sender.sendMessage("§e请手动重启服务器生效；不要执行插件热重载。");
     }
 
     @Override
