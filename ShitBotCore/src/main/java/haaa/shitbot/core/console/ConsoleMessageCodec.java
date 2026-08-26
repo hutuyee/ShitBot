@@ -1,5 +1,8 @@
 package haaa.shitbot.core.console;
 
+import haaa.shitbot.core.update.BackendUpdatePayload;
+import haaa.shitbot.core.update.ReleaseAsset;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -10,7 +13,7 @@ import java.util.List;
 
 public final class ConsoleMessageCodec {
     private static final int MAGIC = 0x53424331;
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int TYPE_REQUEST = 1;
     private static final int TYPE_RESPONSE = 2;
     private static final int MAX_PLAYERS = 32;
@@ -38,6 +41,14 @@ public final class ConsoleMessageCodec {
         for (int index = 0; index < count; index++) {
             writeText(output, request.getPlayerNames().get(index));
         }
+        BackendUpdatePayload updatePayload = request.getUpdatePayload();
+        output.writeBoolean(updatePayload != null);
+        if (updatePayload != null) {
+            writeText(output, updatePayload.getLatestVersion());
+            writeText(output, updatePayload.getReleaseUrl());
+            writeAsset(output, updatePayload.getJarAsset());
+            writeAsset(output, updatePayload.getChecksumAsset());
+        }
         output.flush();
         return bytes.toByteArray();
     }
@@ -62,8 +73,13 @@ public final class ConsoleMessageCodec {
         for (int index = 0; index < playerCount; index++) {
             playerNames.add(readText(input));
         }
+        BackendUpdatePayload updatePayload = null;
+        if (input.readBoolean()) {
+            updatePayload = new BackendUpdatePayload(readText(input), readText(input),
+                    readAsset(input), readAsset(input));
+        }
         ConsoleRequest request = new ConsoleRequest(requestId, operation, target, command, permission,
-                playerNames, server, captureSeconds, timeoutSeconds);
+                playerNames, server, captureSeconds, timeoutSeconds, updatePayload);
         requireFullyConsumed(input);
         return request;
     }
@@ -110,6 +126,24 @@ public final class ConsoleMessageCodec {
             text = text.substring(0, MAX_TEXT);
         }
         output.writeUTF(text);
+    }
+
+    private static void writeAsset(DataOutputStream output, ReleaseAsset asset) throws IOException {
+        output.writeBoolean(asset != null);
+        if (asset == null) {
+            return;
+        }
+        writeText(output, asset.getName());
+        writeText(output, asset.getDownloadUrl());
+        output.writeLong(asset.getSize());
+        writeText(output, asset.getDigest());
+    }
+
+    private static ReleaseAsset readAsset(DataInputStream input) throws IOException {
+        if (!input.readBoolean()) {
+            return null;
+        }
+        return new ReleaseAsset(readText(input), readText(input), input.readLong(), readText(input));
     }
 
     private static String readText(DataInputStream input) throws IOException {

@@ -3,8 +3,11 @@ package haaa.shitbotspigot;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.update.BackendUpdatePayload;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
+import haaa.shitbot.core.update.UpdateInstallResult;
+import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbotspigot.command.ShitBotCommand;
 import haaa.shitbotspigot.config.SpigotConfigLoader;
@@ -21,10 +24,12 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotSpigot extends JavaPlugin {
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
+    private final AtomicBoolean updateCheckStarted = new AtomicBoolean();
     private volatile boolean startupUnavailable = true;
     private volatile boolean backendMode;
     private volatile boolean stopping;
@@ -39,7 +44,15 @@ public final class ShitBotSpigot extends JavaPlugin {
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
         this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
-        startUpdateCheck();
+        platformBridge.configureUpdateInstaller(
+                new java.util.function.Function<BackendUpdatePayload,
+                        CompletableFuture<UpdateInstallResult>>() {
+                    @Override
+                    public CompletableFuture<UpdateInstallResult> apply(BackendUpdatePayload payload) {
+                        return updateChecker.installReleaseAsync(payload.toUpdateInfo(),
+                                UpdatePlatform.SPIGOT, getPluginJarPath());
+                    }
+                });
         getServer().getPluginManager().registerEvents(new PlayerLoginListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerInventorySnapshotListener(this), this);
@@ -58,6 +71,9 @@ public final class ShitBotSpigot extends JavaPlugin {
             final boolean backendMode = configLoader.isBackendMode();
             platformBridge.configureConsole(consoleSettings, backendMode);
             this.backendMode = backendMode;
+            if (!backendMode) {
+                startUpdateCheck();
+            }
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
@@ -144,6 +160,7 @@ public final class ShitBotSpigot extends JavaPlugin {
                 }
                 ShitBotSpigot.this.backendMode = configuredBackendMode;
                 if (!configuredBackendMode) {
+                    startUpdateCheck();
                     newRuntime.activate();
                 }
                 startupUnavailable = false;
@@ -198,6 +215,9 @@ public final class ShitBotSpigot extends JavaPlugin {
     }
 
     private void startUpdateCheck() {
+        if (!updateCheckStarted.compareAndSet(false, true)) {
+            return;
+        }
         updateChecker.checkAsync().whenComplete(new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
             @Override
             public void accept(UpdateInfo info, Throwable throwable) {

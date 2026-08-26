@@ -3,6 +3,9 @@ package haaa.shitbotspigot.platform;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.update.BackendUpdatePayload;
+import haaa.shitbot.core.update.UpdateInstallResult;
+import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -26,6 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public final class SpigotConsoleController implements AutoCloseable {
     private static final int MAX_LOG_LINES = 100;
@@ -40,6 +44,7 @@ public final class SpigotConsoleController implements AutoCloseable {
     private final SpigotPermissionResolver permissionResolver;
     private final ConcurrentMap<String, Boolean> cancelledRequestIds =
             new ConcurrentHashMap<String, Boolean>();
+    private volatile Function<BackendUpdatePayload, CompletableFuture<UpdateInstallResult>> updateInstaller;
     private boolean commandRunning;
     private SpigotConsoleSocketServer socketServer;
 
@@ -65,6 +70,9 @@ public final class SpigotConsoleController implements AutoCloseable {
                             return CompletableFuture.completedFuture(new ConsoleResult(
                                     request.getRequestId(), ConsoleResult.Status.NO_PERMISSION,
                                     "绑定角色没有权限 " + request.getPermission(), serverName()));
+                        }
+                        if (request.getOperation() == ConsoleRequest.Operation.UPDATE) {
+                            return installBackendUpdate(request);
                         }
                         if (request.getOperation() == ConsoleRequest.Operation.TPS) {
                             return queryTps(request);
@@ -141,6 +149,11 @@ public final class SpigotConsoleController implements AutoCloseable {
         }
     }
 
+    public void configureUpdateInstaller(
+            Function<BackendUpdatePayload, CompletableFuture<UpdateInstallResult>> installer) {
+        this.updateInstaller = installer;
+    }
+
     private SpigotConsoleSocketServer createSocketServer(ConsoleSettings.BackendListener settings) {
         return new SpigotConsoleSocketServer(
                 plugin, settings,
@@ -172,6 +185,53 @@ public final class SpigotConsoleController implements AutoCloseable {
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {
         return permissionResolver.hasPermission(request.getPlayerNames(), request.getPermission());
+    }
+
+    private CompletableFuture<ConsoleResult> installBackendUpdate(final ConsoleRequest request) {
+        final BackendUpdatePayload payload = request.getUpdatePayload();
+        final Function<BackendUpdatePayload, CompletableFuture<UpdateInstallResult>> installer = updateInstaller;
+        if (payload == null || installer == null) {
+            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                    request, "后端更新器尚未初始化。", serverName()));
+        }
+        final CompletableFuture<UpdateInstallResult> installation;
+        try {
+            installation = installer.apply(payload);
+        } catch (Throwable throwable) {
+            return CompletableFuture.completedFuture(new ConsoleResult(request.getRequestId(),
+                    ConsoleResult.Status.FAILED, "更新启动失败：" + errorMessage(throwable), serverName()));
+        }
+        return installation.handle(
+                new java.util.function.BiFunction<UpdateInstallResult, Throwable, ConsoleResult>() {
+                    @Override
+                    public ConsoleResult apply(UpdateInstallResult result, Throwable throwable) {
+                        if (throwable != null) {
+                            return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
+                                    "更新失败，现有 JAR 未替换：" + errorMessage(throwable), serverName());
+                        }
+                        return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.SUCCESS,
+                                describeUpdateResult(result), serverName());
+                    }
+                });
+    }
+
+    private String describeUpdateResult(UpdateInstallResult result) {
+        if (result.getStatus() == UpdateInstallResult.Status.UP_TO_DATE) {
+            return "已是最新版本 " + result.getLatestVersion() + "。";
+        }
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
+            return "版本 " + result.getLatestVersion() + " 已替换到磁盘，等待手动重启。";
+        }
+        return "已校验并替换为 " + result.getLatestVersion()
+                + "，备份：" + result.getBackupPath() + "；请手动重启。";
+    }
+
+    private String errorMessage(Throwable throwable) {
+        Throwable cause = FutureUtil.unwrap(throwable);
+        String message = cause.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? cause.getClass().getSimpleName()
+                : message;
     }
 
     private CompletableFuture<ConsoleResult> queryTps(final ConsoleRequest request) {

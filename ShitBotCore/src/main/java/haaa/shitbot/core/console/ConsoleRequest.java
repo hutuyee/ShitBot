@@ -1,5 +1,9 @@
 package haaa.shitbot.core.console;
 
+import haaa.shitbot.core.update.BackendUpdatePayload;
+import haaa.shitbot.core.update.ReleaseAsset;
+import haaa.shitbot.core.update.UpdateInfo;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -8,7 +12,8 @@ import java.util.UUID;
 public final class ConsoleRequest {
     public enum Operation {
         COMMAND,
-        TPS
+        TPS,
+        UPDATE
     }
 
     private final String requestId;
@@ -20,6 +25,7 @@ public final class ConsoleRequest {
     private final String server;
     private final int captureSeconds;
     private final int timeoutSeconds;
+    private final BackendUpdatePayload updatePayload;
 
     public ConsoleRequest(String requestId,
                           Operation operation,
@@ -30,6 +36,20 @@ public final class ConsoleRequest {
                           String server,
                           int captureSeconds,
                           int timeoutSeconds) {
+        this(requestId, operation, target, command, permission, playerNames, server,
+                captureSeconds, timeoutSeconds, null);
+    }
+
+    public ConsoleRequest(String requestId,
+                          Operation operation,
+                          ConsoleSettings.Target target,
+                          String command,
+                          String permission,
+                          List<String> playerNames,
+                          String server,
+                          int captureSeconds,
+                          int timeoutSeconds,
+                          BackendUpdatePayload updatePayload) {
         this.requestId = requestId == null || requestId.trim().isEmpty()
                 ? UUID.randomUUID().toString() : requestId.trim();
         this.operation = operation == null ? Operation.COMMAND : operation;
@@ -42,6 +62,7 @@ public final class ConsoleRequest {
         this.server = server == null ? "" : server.trim();
         this.captureSeconds = clamp(captureSeconds, 1, 30, 5);
         this.timeoutSeconds = clamp(timeoutSeconds, 2, 60, 15);
+        this.updatePayload = updatePayload;
     }
 
     public static ConsoleRequest command(ConsoleSettings.Shortcut shortcut,
@@ -78,6 +99,19 @@ public final class ConsoleRequest {
                 timeoutSeconds);
     }
 
+    public static ConsoleRequest update(String targetServer,
+                                        UpdateInfo release,
+                                        ReleaseAsset jarAsset,
+                                        ReleaseAsset checksumAsset) {
+        BackendUpdatePayload payload = new BackendUpdatePayload(
+                release == null ? "" : release.getLatestVersion(),
+                release == null ? "" : release.getReleaseUrl(),
+                jarAsset,
+                checksumAsset);
+        return new ConsoleRequest(null, Operation.UPDATE, ConsoleSettings.Target.BACKEND,
+                "", "", Collections.<String>emptyList(), targetServer, 1, 60, payload);
+    }
+
     public String getRequestId() { return requestId; }
     public Operation getOperation() { return operation; }
     public ConsoleSettings.Target getTarget() { return target; }
@@ -87,6 +121,7 @@ public final class ConsoleRequest {
     public String getServer() { return server; }
     public int getCaptureSeconds() { return captureSeconds; }
     public int getTimeoutSeconds() { return timeoutSeconds; }
+    public BackendUpdatePayload getUpdatePayload() { return updatePayload; }
 
     private static int clamp(int value, int minimum, int maximum, int fallback) {
         return value < minimum || value > maximum ? fallback : value;

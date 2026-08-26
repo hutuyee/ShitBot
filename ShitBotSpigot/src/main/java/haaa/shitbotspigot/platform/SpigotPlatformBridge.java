@@ -6,6 +6,8 @@ import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.inventory.InventorySnapshot;
 import haaa.shitbot.core.platform.PlatformBridge;
+import haaa.shitbot.core.update.BackendUpdatePayload;
+import haaa.shitbot.core.update.UpdateInstallResult;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -39,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -79,6 +82,11 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     public void configureConsole(ConsoleSettings settings, boolean backendMode) throws java.io.IOException {
         consoleController.configureBackendListener(backendMode && settings != null
                 ? settings.getBackendTransport().getListener() : null);
+    }
+
+    public void configureUpdateInstaller(
+            Function<BackendUpdatePayload, CompletableFuture<UpdateInstallResult>> installer) {
+        consoleController.configureUpdateInstaller(installer);
     }
 
     public void close() {

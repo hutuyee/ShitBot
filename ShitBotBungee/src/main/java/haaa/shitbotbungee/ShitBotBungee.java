@@ -145,6 +145,10 @@ public final class ShitBotBungee extends Plugin {
         return updateChecker;
     }
 
+    public java.nio.file.Path getPluginJarPath() {
+        return getFile().toPath();
+    }
+
     public void sendUpdateNotice(CommandSender sender, UpdateInfo info) {
         if (sender == null || info == null || updateChecker == null) {
             return;

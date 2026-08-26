@@ -5,6 +5,7 @@ import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.platform.PlatformBridge;
+import haaa.shitbot.core.update.UpdateInfo;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -49,6 +50,10 @@ public final class BungeePlatformBridge implements PlatformBridge {
 
     public void configureConsole(ConsoleSettings settings) {
         consoleGateway.configure(settings);
+    }
+
+    public CompletableFuture<List<ConsoleResult>> updateAllBackends(UpdateInfo release) {
+        return consoleGateway.updateAllBackends(release);
     }
 
     public void close() {

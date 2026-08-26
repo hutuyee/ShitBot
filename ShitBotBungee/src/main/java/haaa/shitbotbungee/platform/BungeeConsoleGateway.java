@@ -5,6 +5,10 @@ import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
+import haaa.shitbot.core.update.ReleaseAsset;
+import haaa.shitbot.core.update.UpdateInfo;
+import haaa.shitbot.core.update.UpdatePlatform;
+import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -45,6 +49,48 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             return executeLocally(request);
         }
         return sendToBackend(request);
+    }
+
+    public CompletableFuture<java.util.List<ConsoleResult>> updateAllBackends(UpdateInfo release) {
+        final ConsoleSettings.BackendTransport transport = backendTransport;
+        if (transport == null || transport.getEndpoints().isEmpty()) {
+            return CompletableFuture.completedFuture(
+                    java.util.Collections.<ConsoleResult>emptyList());
+        }
+        if (release == null) {
+            return FutureUtil.failedFuture(new IllegalArgumentException("Release metadata is missing"));
+        }
+        ReleaseAsset jarAsset = release.findJarAsset(UpdatePlatform.SPIGOT);
+        if (jarAsset == null) {
+            return FutureUtil.failedFuture(new java.io.IOException(
+                    "Release does not contain exactly one ShitBotSpigot-*.jar asset"));
+        }
+        ReleaseAsset checksumAsset = release.findAsset(jarAsset.getName() + ".sha256");
+        if (checksumAsset == null) {
+            return FutureUtil.failedFuture(new java.io.IOException(
+                    "Release is missing checksum asset " + jarAsset.getName() + ".sha256"));
+        }
+
+        final java.util.List<CompletableFuture<ConsoleResult>> requests =
+                new java.util.ArrayList<CompletableFuture<ConsoleResult>>();
+        for (ConsoleSettings.BackendEndpoint endpoint : transport.getEndpoints().values()) {
+            ConsoleRequest request = ConsoleRequest.update(
+                    endpoint.getName(), release, jarAsset, checksumAsset);
+            requests.add(sendToSocket(request, endpoint));
+        }
+        CompletableFuture<?>[] array = requests.toArray(new CompletableFuture<?>[requests.size()]);
+        return CompletableFuture.allOf(array).thenApply(
+                new java.util.function.Function<Void, java.util.List<ConsoleResult>>() {
+                    @Override
+                    public java.util.List<ConsoleResult> apply(Void ignored) {
+                        java.util.List<ConsoleResult> results =
+                                new java.util.ArrayList<ConsoleResult>(requests.size());
+                        for (CompletableFuture<ConsoleResult> request : requests) {
+                            results.add(request.join());
+                        }
+                        return results;
+                    }
+                });
     }
 
     private CompletableFuture<ConsoleResult> sendToBackend(final ConsoleRequest request) {
