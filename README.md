@@ -61,7 +61,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - 快捷命令白名单、别名、权限、执行位置、日志抓取时间和回复模板统一配置在 `commands.yml`。
 - `target: backend` 在 Bukkit 子服执行；`target: proxy` 在 BungeeCord/Velocity 代理执行。
 - 快捷命令或 TPS 后可直接加目标子服，例如 `lp编辑 survival`、`TPS lobby`；该参数会覆盖配置中的 `server`。
-- 代理优先使用 `backend-transport.endpoints` 的独立鉴权通道，因此目标子服零玩家也能执行；没有端点时才回退到需要在线玩家承载的插件消息。
+- 代理使用 `backend-transport.endpoints` 的独立鉴权通道，因此目标子服零玩家也能执行；没有配置对应端点时会拒绝执行，不会回退到未认证的插件消息。
 - 带 `permission` 的快捷命令会检查绑定角色：在线时直接查询，离线时依次查询 LuckPerms、Vault 和离线 OP 状态。`permission` 留空只表示跳过游戏权限检查，默认仍要求 QQ 已绑定；只有同时显式设置 `allow-unbound: true` 才允许未绑定群成员调用，并会在启动时输出警告。
 - 每个请求只选择一个子服，使用唯一请求 ID，并校验回包来源，因此不会在多个子服重复执行或重复回复。
 - TPS 优先读取 EssentialsX，之后读取服务端原生 TPS，均不可用时使用 ShitBot 自己的 1/5/15 分钟采样。
