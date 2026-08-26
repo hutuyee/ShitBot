@@ -318,15 +318,26 @@ public final class DatabaseManager implements AutoCloseable {
     }
 
     private void acquireMysqlMigrationLock(Connection connection, String lockName) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("SELECT GET_LOCK(?, ?)")) {
+        long deadline = System.nanoTime()
+                + TimeUnit.SECONDS.toNanos(MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS);
+        try (PreparedStatement statement = connection.prepareStatement("SELECT GET_LOCK(?, 1)")) {
             statement.setString(1, lockName);
-            statement.setInt(2, MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (!resultSet.next() || resultSet.getInt(1) != 1 || resultSet.wasNull()) {
-                    throw new SQLException("Timed out waiting for MySQL schema migration lock " + lockName);
+            while (System.nanoTime() < deadline) {
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (!resultSet.next()) {
+                        throw new SQLException("MySQL GET_LOCK returned no result for " + lockName);
+                    }
+                    int result = resultSet.getInt(1);
+                    if (resultSet.wasNull()) {
+                        throw new SQLException("MySQL GET_LOCK failed for " + lockName);
+                    }
+                    if (result == 1) {
+                        return;
+                    }
                 }
             }
         }
+        throw new SQLException("Timed out waiting for MySQL schema migration lock " + lockName);
     }
 
     private void releaseMysqlMigrationLock(Connection connection, String lockName) throws SQLException {

@@ -43,7 +43,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 | 命令 | 说明 |
 |---|---|
 | `/shitbot status` | 查看 ShitBot 当前运行状态，包括数据库连接、OneBot WebSocket 连接和插件运行状态。 |
-| `/shitbot update` | 后台下载最新平台 JAR，完成 SHA-256 和 JAR 内容校验后备份并替换；手动重启后生效。 |
+| `/shitbot update` | 后台下载最新平台 JAR，完成 SHA-256、独立 RSA 签名和 JAR 内容校验后备份并替换；手动重启后生效。 |
 | `/shitbot migrate easybot [EasyBot.db]` | 迁移 EasyBot 的 QQ 绑定数据。数据库文件需要放在 ShitBot 插件目录中，文件名不填写时默认使用 `EasyBot.db`。 |
 | `/shitbot image` | 手动生成一张当前服务器在线人数图片，用于测试图片生成功能。 |
 | `/shitbot reload` | 热重载 `config.yml`、`commands.yml`、数据库、OneBot 和图片配置。 |
