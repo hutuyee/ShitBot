@@ -103,8 +103,10 @@ binding:
   expire-minutes: 10
   # 同一个 QQ 对同一个验证码的错误尝试上限。
   maximum-attempts-per-qq: 5
-  # 所有 QQ 对同一个验证码的错误尝试总上限；达到后立即作废该验证码。
-  maximum-total-attempts: 12
+  # 所有 QQ 对同一个验证码的错误尝试总上限；达到后短暂冻结，但不会销毁验证码。
+  # 实际值至少是单 QQ 上限的 4 倍，避免少量 QQ 恶意耗尽验证码。
+  maximum-total-attempts: 30
+  total-attempt-cooldown-seconds: 30
   login-database-timeout-seconds: 8
   # 去掉了容易混淆的 0/O、1/I。
   code-alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -121,8 +123,10 @@ database:
     database: "shitbot"
     username: "shitbot"
     password: "SHITBOTPASSWORD"
-    # 下列参数只适合本机 MySQL；跨主机请配置 sslMode=VERIFY_IDENTITY 等强制 TLS 参数。
-    parameters: "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true"
+    # 下列参数只适合本机 MySQL；跨主机应改为 sslMode=VERIFY_IDENTITY。
+    parameters: "useUnicode=true&characterEncoding=utf8&sslMode=DISABLED&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=false"
+    # 远程 MySQL 未强制 TLS 时默认拒绝启动；仅在接受明文风险时显式开启。
+    allow-insecure-remote-mysql: false
     # JDBC 驱动建立 TCP 连接及等待数据库响应的硬超时。
     connect-timeout-ms: 5000
     socket-timeout-ms: 15000

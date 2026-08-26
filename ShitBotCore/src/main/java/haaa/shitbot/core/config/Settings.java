@@ -375,6 +375,7 @@ public final class Settings {
         private final int expireMinutes;
         private final int maximumAttemptsPerQq;
         private final int maximumTotalAttempts;
+        private final int totalAttemptCooldownSeconds;
         private final int loginDatabaseTimeoutSeconds;
         private final boolean allowMultipleIdsPerQq;
         private final int maximumIdsPerQq;
@@ -385,6 +386,7 @@ public final class Settings {
                        int expireMinutes,
                        int maximumAttemptsPerQq,
                        int maximumTotalAttempts,
+                       int totalAttemptCooldownSeconds,
                        int loginDatabaseTimeoutSeconds,
                        boolean allowMultipleIdsPerQq,
                        int maximumIdsPerQq,
@@ -394,8 +396,9 @@ public final class Settings {
             this.expireMinutes = clamp(expireMinutes, 1, 1440, 10);
             this.maximumAttemptsPerQq = clamp(maximumAttemptsPerQq, 1, 20, 5);
             this.maximumTotalAttempts = Math.max(
-                    this.maximumAttemptsPerQq,
-                    clamp(maximumTotalAttempts, 1, 100, 12));
+                    this.maximumAttemptsPerQq * 4,
+                    clamp(maximumTotalAttempts, 1, 100, 30));
+            this.totalAttemptCooldownSeconds = clamp(totalAttemptCooldownSeconds, 10, 600, 30);
             this.loginDatabaseTimeoutSeconds = clamp(loginDatabaseTimeoutSeconds, 1, 60, 8);
             this.allowMultipleIdsPerQq = allowMultipleIdsPerQq;
             this.maximumIdsPerQq = clamp(maximumIdsPerQq, 1, 1000, 5);
@@ -423,6 +426,10 @@ public final class Settings {
 
         public int getMaximumTotalAttempts() {
             return maximumTotalAttempts;
+        }
+
+        public int getTotalAttemptCooldownSeconds() {
+            return totalAttemptCooldownSeconds;
         }
 
         public int getLoginDatabaseTimeoutSeconds() {
@@ -468,6 +475,7 @@ public final class Settings {
         private final String mysqlUsername;
         private final String mysqlPassword;
         private final String mysqlParameters;
+        private final boolean allowInsecureRemoteMysql;
         private final int mysqlConnectTimeoutMs;
         private final int mysqlSocketTimeoutMs;
         private final int maximumPoolSize;
@@ -488,6 +496,7 @@ public final class Settings {
                         String mysqlUsername,
                         String mysqlPassword,
                         String mysqlParameters,
+                        boolean allowInsecureRemoteMysql,
                         int mysqlConnectTimeoutMs,
                         int mysqlSocketTimeoutMs,
                         int maximumPoolSize,
@@ -507,7 +516,8 @@ public final class Settings {
             this.mysqlUsername = text(mysqlUsername, "shitbot");
             this.mysqlPassword = mysqlPassword == null ? "" : mysqlPassword;
             this.mysqlParameters = text(mysqlParameters,
-                    "useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true");
+                    "useUnicode=true&characterEncoding=utf8&sslMode=DISABLED&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=false");
+            this.allowInsecureRemoteMysql = allowInsecureRemoteMysql;
             this.mysqlConnectTimeoutMs = clamp(mysqlConnectTimeoutMs, 1000, 120000, 5000);
             this.mysqlSocketTimeoutMs = clamp(mysqlSocketTimeoutMs, 1000, 300000, 15000);
             this.maximumPoolSize = clamp(maximumPoolSize, 1, 50, 10);
@@ -553,6 +563,10 @@ public final class Settings {
 
         public String getMysqlParameters() {
             return mysqlParameters;
+        }
+
+        public boolean isAllowInsecureRemoteMysql() {
+            return allowInsecureRemoteMysql;
         }
 
         public int getMysqlConnectTimeoutMs() {

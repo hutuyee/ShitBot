@@ -166,7 +166,7 @@ public final class BindingRepository {
                     int updated;
                     try (PreparedStatement statement = connection.prepareStatement(
                             "UPDATE shitbot_bind_codes SET code_hash=?, code_salt=?, expires_at=?, "
-                                    + "attempts=0, updated_at=? WHERE player_name=?")) {
+                                    + "attempts=0, blocked_until=0, updated_at=? WHERE player_name=?")) {
                         statement.setString(1, hash);
                         statement.setString(2, salt);
                         statement.setLong(3, expiresAt);
@@ -176,19 +176,21 @@ public final class BindingRepository {
                     }
                     if (updated == 0) {
                         try (PreparedStatement statement = connection.prepareStatement(
-                                "INSERT INTO shitbot_bind_codes(player_name, code_hash, code_salt, expires_at, attempts, created_at, updated_at) "
-                                        + "VALUES(?, ?, ?, ?, 0, ?, ?)")) {
+                                "INSERT INTO shitbot_bind_codes(player_name, code_hash, code_salt, expires_at, "
+                                        + "attempts, blocked_until, created_at, updated_at) "
+                                        + "VALUES(?, ?, ?, ?, 0, 0, ?, ?)")) {
                             setCodeParameters(statement, cleanName, hash, salt, expiresAt, now);
                             statement.executeUpdate();
                         }
                     }
                 } else {
                     try (PreparedStatement statement = connection.prepareStatement(
-                            "INSERT INTO shitbot_bind_codes(player_name, code_hash, code_salt, expires_at, attempts, created_at, updated_at) "
-                                    + "VALUES(?, ?, ?, ?, 0, ?, ?) "
+                            "INSERT INTO shitbot_bind_codes(player_name, code_hash, code_salt, expires_at, "
+                                    + "attempts, blocked_until, created_at, updated_at) "
+                                    + "VALUES(?, ?, ?, ?, 0, 0, ?, ?) "
                                     + "ON DUPLICATE KEY UPDATE code_hash=VALUES(code_hash), "
                                     + "code_salt=VALUES(code_salt), expires_at=VALUES(expires_at), "
-                                    + "attempts=0, updated_at=VALUES(updated_at)")) {
+                                    + "attempts=0, blocked_until=0, updated_at=VALUES(updated_at)")) {
                         setCodeParameters(statement, cleanName, hash, salt, expiresAt, now);
                         statement.executeUpdate();
                     }
@@ -272,8 +274,11 @@ public final class BindingRepository {
             deleteCode(connection, playerName);
             return BindResult.of(BindResult.Status.EXPIRED_OR_MISSING);
         }
+        if (codeRow.blockedUntil > now) {
+            return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
+        }
         if (codeRow.attempts >= settings.getMaximumTotalAttempts()) {
-            deleteCode(connection, playerName);
+            blockCodeTemporarily(connection, playerName, now);
             return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
         }
         int attempts = readAttempts(connection, playerName, qqId, now);
@@ -286,7 +291,7 @@ public final class BindingRepository {
             attempts = incrementAttempts(connection, playerName, qqId, codeRow.expiresAt, now);
             int totalAttempts = incrementTotalAttempts(connection, playerName, now, codeRow.attempts);
             if (totalAttempts >= settings.getMaximumTotalAttempts()) {
-                deleteCode(connection, playerName);
+                blockCodeTemporarily(connection, playerName, now);
                 return BindResult.of(BindResult.Status.TOO_MANY_ATTEMPTS);
             }
             if (attempts >= settings.getMaximumAttemptsPerQq()) {
@@ -1002,7 +1007,7 @@ public final class BindingRepository {
     }
 
     private CodeRow readCode(Connection connection, String playerName, boolean lock) throws SQLException {
-        String sql = "SELECT code_hash, code_salt, expires_at, attempts "
+        String sql = "SELECT code_hash, code_salt, expires_at, attempts, blocked_until "
                 + "FROM shitbot_bind_codes WHERE player_name=?"
                 + (lock ? " FOR UPDATE" : "");
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -1015,7 +1020,8 @@ public final class BindingRepository {
                         resultSet.getString("code_hash"),
                         resultSet.getString("code_salt"),
                         resultSet.getLong("expires_at"),
-                        resultSet.getInt("attempts"));
+                        resultSet.getInt("attempts"),
+                        resultSet.getLong("blocked_until"));
             }
         }
     }
@@ -1033,6 +1039,21 @@ public final class BindingRepository {
             }
         }
         return previousAttempts + 1;
+    }
+
+    private void blockCodeTemporarily(Connection connection,
+                                      String playerName,
+                                      long now) throws SQLException {
+        long blockedUntil = now + settings.getTotalAttemptCooldownSeconds() * 1000L;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE shitbot_bind_codes SET attempts=0, blocked_until=?, updated_at=? WHERE player_name=?")) {
+            statement.setLong(1, blockedUntil);
+            statement.setLong(2, now);
+            statement.setString(3, playerName);
+            if (statement.executeUpdate() != 1) {
+                throw new SQLException("Bind code disappeared while applying attempt cooldown");
+            }
+        }
     }
 
     private int readAttempts(Connection connection,
@@ -1210,12 +1231,14 @@ public final class BindingRepository {
         private final String salt;
         private final long expiresAt;
         private final int attempts;
+        private final long blockedUntil;
 
-        private CodeRow(String hash, String salt, long expiresAt, int attempts) {
+        private CodeRow(String hash, String salt, long expiresAt, int attempts, long blockedUntil) {
             this.hash = hash;
             this.salt = salt;
             this.expiresAt = expiresAt;
             this.attempts = attempts;
+            this.blockedUntil = blockedUntil;
         }
     }
 }

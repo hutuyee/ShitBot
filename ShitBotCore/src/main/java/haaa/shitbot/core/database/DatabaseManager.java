@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * moved from Spigot to BungeeCord or Velocity without conversion.
  */
 public final class DatabaseManager implements AutoCloseable {
-    public static final int SCHEMA_VERSION = 5;
+    public static final int SCHEMA_VERSION = 6;
+
+    private static final int MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS = 30;
 
     private static final String BINDINGS_TABLE = "shitbot_bindings";
     private static final String CODES_TABLE = "shitbot_bind_codes";
@@ -76,7 +78,7 @@ public final class DatabaseManager implements AutoCloseable {
         }
         try {
             Files.createDirectories(platform.getDataDirectory());
-            warnIfInsecureRemoteMysql();
+            validateRemoteMysqlSecurity();
             loadDriver();
             if (settings.getType() == Settings.Database.Type.SQLITE) {
                 initializeSqlite();
@@ -90,7 +92,7 @@ public final class DatabaseManager implements AutoCloseable {
         }
     }
 
-    private void warnIfInsecureRemoteMysql() {
+    private void validateRemoteMysqlSecurity() {
         if (settings.getType() != Settings.Database.Type.MYSQL
                 || NetworkUtil.isLoopbackHost(settings.getMysqlHost())) {
             return;
@@ -99,11 +101,20 @@ public final class DatabaseManager implements AutoCloseable {
         boolean tlsRequired = parameters.contains("requiressl=true")
                 || parameters.contains("sslmode=required")
                 || parameters.contains("sslmode=verify_ca")
-                || parameters.contains("sslmode=verify_identity");
-        if (!tlsRequired) {
-            platform.warn("Remote MySQL connection does not require TLS; credentials and data may be exposed: "
-                    + settings.getMysqlHost() + ":" + settings.getMysqlPort());
+                || parameters.contains("sslmode=verify_identity")
+                || (parameters.contains("usessl=true")
+                && parameters.contains("verifyservercertificate=true"));
+        if (tlsRequired) {
+            return;
         }
+        String endpoint = settings.getMysqlHost() + ":" + settings.getMysqlPort();
+        if (!settings.isAllowInsecureRemoteMysql()) {
+            throw new IllegalStateException("Remote MySQL must require TLS: " + endpoint
+                    + ". Configure sslMode=VERIFY_IDENTITY (recommended), or explicitly set "
+                    + "database.mysql.allow-insecure-remote-mysql=true to accept plaintext risk");
+        }
+        platform.warn("Remote MySQL TLS protection is explicitly disabled; credentials and data may be exposed: "
+                + endpoint);
     }
 
     private void loadDriver() throws ClassNotFoundException {
@@ -208,6 +219,38 @@ public final class DatabaseManager implements AutoCloseable {
     }
 
     private void applyMigrations(Connection connection) throws SQLException {
+        if (settings.getType() != Settings.Database.Type.MYSQL) {
+            applyMigrationsLocked(connection);
+            return;
+        }
+
+        String lockName = migrationLockName(connection);
+        boolean acquired = false;
+        SQLException migrationFailure = null;
+        try {
+            acquireMysqlMigrationLock(connection, lockName);
+            acquired = true;
+            // The version is intentionally read only after acquiring the cross-JVM lock.
+            applyMigrationsLocked(connection);
+        } catch (SQLException exception) {
+            migrationFailure = exception;
+            throw exception;
+        } finally {
+            if (acquired) {
+                try {
+                    releaseMysqlMigrationLock(connection, lockName);
+                } catch (SQLException releaseFailure) {
+                    if (migrationFailure != null) {
+                        migrationFailure.addSuppressed(releaseFailure);
+                    } else {
+                        throw releaseFailure;
+                    }
+                }
+            }
+        }
+    }
+
+    private void applyMigrationsLocked(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE IF NOT EXISTS shitbot_schema ("
                     + "schema_key VARCHAR(64) NOT NULL PRIMARY KEY, "
@@ -222,8 +265,8 @@ public final class DatabaseManager implements AutoCloseable {
             boolean bindingsExist = tableExists(connection, BINDINGS_TABLE);
             boolean codesExist = tableExists(connection, CODES_TABLE);
             if (!bindingsExist && !codesExist) {
-                createVersion5Schema(connection);
-                writeSchemaVersion(connection, 5);
+                createVersion6Schema(connection);
+                writeSchemaVersion(connection, 6);
                 return;
             }
             boolean legacySchema = columnExists(connection, BINDINGS_TABLE, LEGACY_PLAYER_KEY_COLUMN)
@@ -256,8 +299,45 @@ public final class DatabaseManager implements AutoCloseable {
             currentVersion = 5;
             writeSchemaVersion(connection, currentVersion);
         }
+        if (currentVersion < 6) {
+            migrateToVersion6(connection);
+            currentVersion = 6;
+            writeSchemaVersion(connection, currentVersion);
+        }
         enforceCaseSensitivePlayerColumns(connection);
         ensureCurrentIndexes(connection);
+    }
+
+    private String migrationLockName(Connection connection) throws SQLException {
+        String databaseName = connection.getCatalog();
+        if (databaseName == null || databaseName.trim().isEmpty()) {
+            databaseName = settings.getMysqlDatabase();
+        }
+        String name = "shitbot_schema_migration:" + databaseName.trim().toLowerCase(Locale.ROOT);
+        return name.length() <= 64 ? name : name.substring(0, 64);
+    }
+
+    private void acquireMysqlMigrationLock(Connection connection, String lockName) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT GET_LOCK(?, ?)")) {
+            statement.setString(1, lockName);
+            statement.setInt(2, MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next() || resultSet.getInt(1) != 1 || resultSet.wasNull()) {
+                    throw new SQLException("Timed out waiting for MySQL schema migration lock " + lockName);
+                }
+            }
+        }
+    }
+
+    private void releaseMysqlMigrationLock(Connection connection, String lockName) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
+            statement.setString(1, lockName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next() || resultSet.getInt(1) != 1 || resultSet.wasNull()) {
+                    throw new SQLException("MySQL schema migration lock was not released: " + lockName);
+                }
+            }
+        }
     }
 
     private int readSchemaVersion(Connection connection) throws SQLException {
@@ -303,6 +383,11 @@ public final class DatabaseManager implements AutoCloseable {
     }
 
     /** Creates the current schema. QQ numbers are indexed but intentionally not unique. */
+    private void createVersion6Schema(Connection connection) throws SQLException {
+        createVersion5Schema(connection);
+        ensureBindCodeCooldownColumn(connection);
+    }
+
     private void createVersion5Schema(Connection connection) throws SQLException {
         createVersion4Schema(connection);
         createBindAttemptTable(connection);
@@ -560,6 +645,20 @@ public final class DatabaseManager implements AutoCloseable {
         ensureCurrentIndexes(connection);
     }
 
+    private void migrateToVersion6(Connection connection) throws SQLException {
+        ensureBindCodeCooldownColumn(connection);
+    }
+
+    private void ensureBindCodeCooldownColumn(Connection connection) throws SQLException {
+        if (columnExists(connection, CODES_TABLE, "blocked_until")) {
+            return;
+        }
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("ALTER TABLE " + CODES_TABLE
+                    + " ADD blocked_until BIGINT NOT NULL DEFAULT 0");
+        }
+    }
+
     private void migrateSqliteBindingsToVersion3(Connection connection) throws SQLException {
         final String temporaryTable = "shitbot_bindings_v3_tmp";
         boolean previousAutoCommit = connection.getAutoCommit();
@@ -602,20 +701,37 @@ public final class DatabaseManager implements AutoCloseable {
         if (settings.getType() != Settings.Database.Type.MYSQL) {
             return;
         }
-        boolean inventorySnapshotsExist = tableExists(connection, INVENTORY_SNAPSHOTS_TABLE);
-        boolean bindAttemptsExist = tableExists(connection, BIND_ATTEMPTS_TABLE);
+        ensureCaseSensitivePlayerColumn(connection, BINDINGS_TABLE);
+        ensureCaseSensitivePlayerColumn(connection, CODES_TABLE);
+        ensureCaseSensitivePlayerColumn(connection, INVENTORY_SNAPSHOTS_TABLE);
+        ensureCaseSensitivePlayerColumn(connection, BIND_ATTEMPTS_TABLE);
+    }
+
+    private void ensureCaseSensitivePlayerColumn(Connection connection, String table) throws SQLException {
+        if (!tableExists(connection, table) || mysqlPlayerColumnMatches(connection, table)) {
+            return;
+        }
         try (Statement statement = connection.createStatement()) {
-            statement.execute("ALTER TABLE " + BINDINGS_TABLE
+            statement.execute("ALTER TABLE " + table
                     + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
-            statement.execute("ALTER TABLE " + CODES_TABLE
-                    + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
-            if (inventorySnapshotsExist) {
-                statement.execute("ALTER TABLE " + INVENTORY_SNAPSHOTS_TABLE
-                        + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
-            }
-            if (bindAttemptsExist) {
-                statement.execute("ALTER TABLE " + BIND_ATTEMPTS_TABLE
-                        + " MODIFY player_name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
+        }
+    }
+
+    private boolean mysqlPlayerColumnMatches(Connection connection, String table) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE, "
+                        + "CHARACTER_SET_NAME, COLLATION_NAME FROM information_schema.COLUMNS "
+                        + "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME='player_name'")) {
+            statement.setString(1, table);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return false;
+                }
+                return "varchar".equalsIgnoreCase(resultSet.getString("DATA_TYPE"))
+                        && resultSet.getLong("CHARACTER_MAXIMUM_LENGTH") == 16L
+                        && "NO".equalsIgnoreCase(resultSet.getString("IS_NULLABLE"))
+                        && "utf8mb4".equalsIgnoreCase(resultSet.getString("CHARACTER_SET_NAME"))
+                        && "utf8mb4_bin".equalsIgnoreCase(resultSet.getString("COLLATION_NAME"));
             }
         }
     }
@@ -667,6 +783,10 @@ public final class DatabaseManager implements AutoCloseable {
         }
         try (Statement statement = connection.createStatement()) {
             statement.execute("CREATE INDEX " + index + " ON " + table + '(' + column + ')');
+        } catch (SQLException exception) {
+            if (!indexExists(connection, table, index)) {
+                throw exception;
+            }
         }
     }
 
