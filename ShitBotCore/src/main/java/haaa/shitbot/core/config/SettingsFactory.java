@@ -32,6 +32,7 @@ public final class SettingsFactory {
                 source.getBoolean("onebot.enabled", true),
                 source.getString("onebot.websocket-url", "ws://127.0.0.1:3001"),
                 source.getString("onebot.access-token", ""),
+                source.getBoolean("onebot.allow-insecure-remote-websocket", false),
                 source.getLongList("onebot.allowed-group-ids"),
                 source.getBoolean("onebot.allow-all-groups", false),
                 source.getInt("onebot.connect-timeout-seconds", 10),

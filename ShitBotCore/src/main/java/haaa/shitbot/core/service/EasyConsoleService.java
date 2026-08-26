@@ -264,16 +264,28 @@ public final class EasyConsoleService {
             return false;
         }
         long now = System.currentTimeMillis();
+        long ttl = seconds * 1000L;
         String key = message.getGroupId() + ":" + message.getUserId() + ':' + commandKey;
-        Long previous = cooldowns.put(key, Long.valueOf(now));
         if (cooldowns.size() > 4096) {
             for (java.util.Map.Entry<String, Long> entry : cooldowns.entrySet()) {
-                if (now - entry.getValue().longValue() > seconds * 2000L) {
+                if (now - entry.getValue().longValue() > ttl * 2L) {
                     cooldowns.remove(entry.getKey(), entry.getValue());
                 }
             }
         }
-        return previous != null && now - previous.longValue() < seconds * 1000L;
+        Long current = Long.valueOf(now);
+        while (true) {
+            Long previous = cooldowns.putIfAbsent(key, current);
+            if (previous == null) {
+                return false;
+            }
+            if (now - previous.longValue() < ttl) {
+                return true;
+            }
+            if (cooldowns.replace(key, previous, current)) {
+                return false;
+            }
+        }
     }
 
     private static final class TargetMatch {

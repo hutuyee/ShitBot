@@ -11,6 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -39,6 +41,12 @@ import java.util.logging.Logger;
 public final class SpigotConsoleController implements AutoCloseable {
     private static final int MAX_LOG_LINES = 100;
     private static final int MAX_LOG_CHARACTERS = 4000;
+    private static final Pattern BEARER_SECRET = Pattern.compile("(?i)\\bBearer\\s+[^\\s,;]+");
+    private static final Pattern NAMED_SECRET = Pattern.compile(
+            "(?i)(\\\"?(?:authorization|access[-_ ]?token|token|password|passwd|pwd|secret)"
+                    + "\\\"?\\s*[:=]\\s*)(?:\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;]+)");
+    private static final Pattern DATABASE_URL = Pattern.compile(
+            "(?i)\\b(?:jdbc:(?:mysql|mariadb):|mysql:)//[^\\s]+");
 
     private final JavaPlugin plugin;
     private final SchedulerAdapter scheduler;
@@ -336,9 +344,10 @@ public final class SpigotConsoleController implements AutoCloseable {
                 final Logger logger;
                 final Handler handler;
                 final CommandSender sender;
-                if (shouldCaptureConsoleLogs(pending.request)) {
-                    logger = Logger.getLogger("");
-                    handler = new ConsoleLogHandler(capture);
+                Plugin consoleLogPlugin = consoleLogPlugin(pending.request);
+                if (consoleLogPlugin != null) {
+                    logger = consoleLogPlugin.getLogger();
+                    handler = new ConsoleLogHandler(capture, logger.getName());
                     logger.addHandler(handler);
                     synchronized (commandQueue) {
                         activeLogger = logger;
@@ -381,10 +390,10 @@ public final class SpigotConsoleController implements AutoCloseable {
         });
     }
 
-    private boolean shouldCaptureConsoleLogs(ConsoleRequest request) {
+    private Plugin consoleLogPlugin(ConsoleRequest request) {
         String expectedPlugin = request.getConsoleLogPlugin();
         if (expectedPlugin.isEmpty()) {
-            return false;
+            return null;
         }
         String command = request.getCommand();
         int separator = command.indexOf(' ');
@@ -393,12 +402,13 @@ public final class SpigotConsoleController implements AutoCloseable {
             label = label.substring(1);
         }
         if (label.isEmpty()) {
-            return false;
+            return null;
         }
         PluginCommand registered = Bukkit.getPluginCommand(label);
         return registered != null
                 && registered.getPlugin() != null
-                && expectedPlugin.equalsIgnoreCase(registered.getPlugin().getName());
+                && expectedPlugin.equalsIgnoreCase(registered.getPlugin().getName())
+                ? registered.getPlugin() : null;
     }
 
     private void stopConsoleLogCapture(Logger logger, Handler handler) {
@@ -474,14 +484,19 @@ public final class SpigotConsoleController implements AutoCloseable {
 
     private static final class ConsoleLogHandler extends Handler {
         private final CommandOutputCapture capture;
+        private final String loggerName;
 
-        private ConsoleLogHandler(CommandOutputCapture capture) {
+        private ConsoleLogHandler(CommandOutputCapture capture, String loggerName) {
             this.capture = capture;
+            this.loggerName = loggerName;
         }
 
         @Override
         public void publish(LogRecord record) {
             if (record == null || !isLoggable(record)) {
+                return;
+            }
+            if (loggerName == null || !loggerName.equals(record.getLoggerName())) {
                 return;
             }
             Level level = record.getLevel();
@@ -519,7 +534,8 @@ public final class SpigotConsoleController implements AutoCloseable {
             if (message == null || lines >= MAX_LOG_LINES || output.length() >= MAX_LOG_CHARACTERS) {
                 return;
             }
-            String[] messageLines = message.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
+            String redacted = redactSensitive(message);
+            String[] messageLines = redacted.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
             for (String line : messageLines) {
                 if (lines >= MAX_LOG_LINES || output.length() >= MAX_LOG_CHARACTERS) {
                     break;
@@ -539,6 +555,12 @@ public final class SpigotConsoleController implements AutoCloseable {
             }
             return output.toString().trim();
         }
+    }
+
+    private static String redactSensitive(String message) {
+        String redacted = BEARER_SECRET.matcher(message).replaceAll("Bearer <redacted>");
+        redacted = NAMED_SECRET.matcher(redacted).replaceAll("$1<redacted>");
+        return DATABASE_URL.matcher(redacted).replaceAll("<redacted database URL>");
     }
 
     private static final class TpsMonitor {

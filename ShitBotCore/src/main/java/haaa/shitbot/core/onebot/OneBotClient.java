@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
@@ -87,7 +88,9 @@ public final class OneBotClient implements AutoCloseable {
         if (!settings.isEnabled() || closed.get()) {
             return;
         }
-        warnIfInsecureRemoteWebSocket();
+        if (!allowConfiguredTransport()) {
+            return;
+        }
         scheduler.execute(new Runnable() {
             @Override
             public void run() {
@@ -102,20 +105,24 @@ public final class OneBotClient implements AutoCloseable {
         }, 10L, 10L, TimeUnit.SECONDS);
     }
 
-    private void warnIfInsecureRemoteWebSocket() {
+    private boolean allowConfiguredTransport() {
         try {
             URI uri = URI.create(settings.getWebsocketUrl());
             if (!"ws".equalsIgnoreCase(uri.getScheme()) || NetworkUtil.isLoopbackHost(uri.getHost())) {
-                return;
+                return true;
             }
-            if (settings.getAccessToken().isEmpty()) {
-                platform.warn("Remote OneBot uses unencrypted ws:// without an access token: " + uri);
-            } else {
-                platform.warn("Remote OneBot uses unencrypted ws://; the Bearer token and messages are exposed in transit: "
-                        + uri);
+            if (!settings.isAllowInsecureRemoteWebsocket()) {
+                platform.warn("Refused remote unencrypted OneBot ws:// connection; use wss:// or explicitly set "
+                        + "onebot.allow-insecure-remote-websocket=true: " + uri);
+                return false;
             }
+            platform.warn("Remote OneBot plaintext was explicitly allowed; messages"
+                    + (settings.getAccessToken().isEmpty() ? "" : " and the Bearer token")
+                    + " are exposed in transit: " + uri);
+            return true;
         } catch (IllegalArgumentException ignored) {
             // connectNow reports malformed URLs through the normal connection error path.
+            return true;
         }
     }
 
@@ -746,14 +753,32 @@ public final class OneBotClient implements AutoCloseable {
         client = null;
         if (current != null) {
             try {
-                current.closeBlocking();
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
+                current.close();
             } catch (Throwable ignored) {
             }
         }
         failAllPending(new IllegalStateException("OneBot client closed"));
-        scheduler.shutdownNow();
+        if (current == null) {
+            scheduler.shutdownNow();
+            return;
+        }
+        final Client closing = current;
+        try {
+            scheduler.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    if (!closing.isClosed()) {
+                        closing.closeConnection(1001, "ShitBot shutdown timeout");
+                    }
+                }
+            }, 5L, TimeUnit.SECONDS);
+            scheduler.shutdown();
+        } catch (RejectedExecutionException exception) {
+            if (!closing.isClosed()) {
+                closing.closeConnection(1001, "ShitBot shutdown");
+            }
+            scheduler.shutdownNow();
+        }
     }
 
     private final class Client extends WebSocketClient {

@@ -211,12 +211,24 @@ public final class OneBotCommandHandler {
             return false;
         }
         long now = System.currentTimeMillis();
+        long ttl = seconds * 1000L;
         String key = message.getGroupId() + ":" + message.getUserId() + ':' + commandKey;
-        Long previous = cooldowns.put(key, Long.valueOf(now));
         if (cooldowns.size() > 4096) {
-            cleanupCooldowns(now, seconds * 1000L);
+            cleanupCooldowns(now, ttl);
         }
-        return previous != null && now - previous.longValue() < seconds * 1000L;
+        Long current = Long.valueOf(now);
+        while (true) {
+            Long previous = cooldowns.putIfAbsent(key, current);
+            if (previous == null) {
+                return false;
+            }
+            if (now - previous.longValue() < ttl) {
+                return true;
+            }
+            if (cooldowns.replace(key, previous, current)) {
+                return false;
+            }
+        }
     }
 
     private void cleanupCooldowns(long now, long ttl) {

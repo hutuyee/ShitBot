@@ -8,10 +8,12 @@ deployment:
 onebot:
   enabled: true
   # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。
-  # 跨主机连接请使用 wss://；远程 ws:// 会在启动时输出安全警告。
+  # 跨主机连接请使用 wss://；远程 ws:// 默认拒绝连接。
   websocket-url: "ws://127.0.0.1:3001"
   # 非空时会在 WebSocket 握手 Header 中发送：Authorization: Bearer <token>
   access-token: ""
+  # 仅在已有加密隧道且明确接受消息与 token 明文风险时开启。
+  allow-insecure-remote-websocket: false
   # 默认 false；只有显式开启时才接收任意群消息。
   allow-all-groups: false
   # 允许接收的群。列表为空且 allow-all-groups=false 时拒绝所有群消息。

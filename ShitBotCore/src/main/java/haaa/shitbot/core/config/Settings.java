@@ -102,6 +102,7 @@ public final class Settings {
         private final boolean enabled;
         private final String websocketUrl;
         private final String accessToken;
+        private final boolean allowInsecureRemoteWebsocket;
         private final List<Long> allowedGroupIds;
         private final boolean allowAllGroups;
         private final int connectTimeoutSeconds;
@@ -121,6 +122,7 @@ public final class Settings {
         public OneBot(boolean enabled,
                       String websocketUrl,
                       String accessToken,
+                      boolean allowInsecureRemoteWebsocket,
                       List<Long> allowedGroupIds,
                       boolean allowAllGroups,
                       int connectTimeoutSeconds,
@@ -139,6 +141,7 @@ public final class Settings {
             this.enabled = enabled;
             this.websocketUrl = text(websocketUrl, "ws://127.0.0.1:3001");
             this.accessToken = accessToken == null ? "" : accessToken.trim();
+            this.allowInsecureRemoteWebsocket = allowInsecureRemoteWebsocket;
             this.allowedGroupIds = allowedGroupIds == null
                     ? Collections.<Long>emptyList()
                     : Collections.unmodifiableList(new ArrayList<Long>(allowedGroupIds));
@@ -168,6 +171,10 @@ public final class Settings {
 
         public String getAccessToken() {
             return accessToken;
+        }
+
+        public boolean isAllowInsecureRemoteWebsocket() {
+            return allowInsecureRemoteWebsocket;
         }
 
         public List<Long> getAllowedGroupIds() {

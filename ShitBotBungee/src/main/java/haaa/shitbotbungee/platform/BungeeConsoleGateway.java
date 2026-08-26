@@ -29,12 +29,20 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 public final class BungeeConsoleGateway implements AutoCloseable {
+    private static final Pattern BEARER_SECRET = Pattern.compile("(?i)\\bBearer\\s+[^\\s,;]+");
+    private static final Pattern NAMED_SECRET = Pattern.compile(
+            "(?i)(\\\"?(?:authorization|access[-_ ]?token|token|password|passwd|pwd|secret)"
+                    + "\\\"?\\s*[:=]\\s*)(?:\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;]+)");
+    private static final Pattern DATABASE_URL = Pattern.compile(
+            "(?i)\\b(?:jdbc:(?:mysql|mariadb):|mysql:)//[^\\s]+");
+
     private final Plugin plugin;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
@@ -287,9 +295,10 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         final Logger logger;
         final Handler handler;
         final CommandSender sender;
-        if (shouldCaptureConsoleLogs(request)) {
-            logger = plugin.getProxy().getLogger();
-            handler = new ConsoleLogHandler(capture);
+        Plugin consoleLogPlugin = consoleLogPlugin(request);
+        if (consoleLogPlugin != null) {
+            logger = consoleLogPlugin.getLogger();
+            handler = new ConsoleLogHandler(capture, logger.getName());
             logger.addHandler(handler);
             activeLogger = logger;
             activeHandler = handler;
@@ -332,10 +341,10 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         return future;
     }
 
-    private boolean shouldCaptureConsoleLogs(ConsoleRequest request) {
+    private Plugin consoleLogPlugin(ConsoleRequest request) {
         String expectedName = request.getConsoleLogPlugin();
         if (expectedName.isEmpty()) {
-            return false;
+            return null;
         }
         String commandLine = request.getCommand();
         int separator = commandLine.indexOf(' ');
@@ -360,7 +369,8 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         }
         return registered != null
                 && expectedPlugin != null
-                && registered.getClass().getClassLoader() == expectedPlugin.getClass().getClassLoader();
+                && registered.getClass().getClassLoader() == expectedPlugin.getClass().getClassLoader()
+                ? expectedPlugin : null;
     }
 
     private void stopConsoleLogCapture(Logger logger, Handler handler) {
@@ -439,14 +449,19 @@ public final class BungeeConsoleGateway implements AutoCloseable {
 
     private static final class ConsoleLogHandler extends Handler {
         private final CommandOutputCapture capture;
+        private final String loggerName;
 
-        private ConsoleLogHandler(CommandOutputCapture capture) {
+        private ConsoleLogHandler(CommandOutputCapture capture, String loggerName) {
             this.capture = capture;
+            this.loggerName = loggerName;
         }
 
         @Override
         public void publish(LogRecord record) {
             if (record == null || !isLoggable(record)) {
+                return;
+            }
+            if (loggerName == null || !loggerName.equals(record.getLoggerName())) {
                 return;
             }
             Level level = record.getLevel();
@@ -503,7 +518,8 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             if (message == null || lines >= 100 || output.length() >= 4000) {
                 return;
             }
-            String[] messageLines = message.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
+            String redacted = redactSensitive(message);
+            String[] messageLines = redacted.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
             for (String line : messageLines) {
                 if (lines >= 100 || output.length() >= 4000) {
                     break;
@@ -520,5 +536,11 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         private synchronized String output() {
             return output.toString().trim();
         }
+    }
+
+    private static String redactSensitive(String message) {
+        String redacted = BEARER_SECRET.matcher(message).replaceAll("Bearer <redacted>");
+        redacted = NAMED_SECRET.matcher(redacted).replaceAll("$1<redacted>");
+        return DATABASE_URL.matcher(redacted).replaceAll("<redacted database URL>");
     }
 }
