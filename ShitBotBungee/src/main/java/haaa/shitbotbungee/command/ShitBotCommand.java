@@ -3,6 +3,8 @@ package haaa.shitbotbungee.command;
 import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.EasyBotMigrationService;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotbungee.ShitBotBungee;
@@ -50,6 +52,34 @@ public final class ShitBotCommand extends Command {
             });
             return;
         }
+        if ("update".equalsIgnoreCase(args[0])) {
+            final UpdateChecker updateChecker = plugin.getUpdateChecker();
+            if (updateChecker == null) {
+                send(sender, "§c更新检查器尚未初始化。");
+                return;
+            }
+            send(sender, "§e正在后台检查 GitHub Release...");
+            updateChecker.checkAsync().whenComplete(
+                    new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
+                        @Override
+                        public void accept(final UpdateInfo info, final Throwable throwable) {
+                            plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (throwable != null) {
+                                        send(sender, "§c检查更新失败: §f" + errorMessage(throwable));
+                                    } else if (updateChecker.isUpdateAvailable(info)) {
+                                        plugin.sendUpdateNotice(sender, info);
+                                    } else {
+                                        send(sender, "§a当前已是最新版本: §f"
+                                                + updateChecker.getCurrentVersion());
+                                    }
+                                }
+                            });
+                        }
+                    });
+            return;
+        }
         if ("migrate".equalsIgnoreCase(args[0])) {
             if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
                 send(sender, "§e用法: /shitbot migrate easybot [EasyBot.db]");
@@ -90,7 +120,7 @@ public final class ShitBotCommand extends Command {
                     });
             return;
         }
-        send(sender, "§e/shitbot status|reload|image|migrate easybot [EasyBot.db]");
+        send(sender, "§e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]");
     }
 
     private String errorMessage(Throwable throwable) {

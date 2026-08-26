@@ -2,8 +2,11 @@ package haaa.shitbotbungee.listener;
 
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.LoginDecision;
+import haaa.shitbot.core.update.UpdateChecker;
+import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbotbungee.ShitBotBungee;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.PreLoginEvent;
 import net.md_5.bungee.api.plugin.Listener;
@@ -63,5 +66,30 @@ public final class PlayerLoginListener implements Listener {
         if (runtime != null && runtime.isReady()) {
             runtime.checkLogin(event.getPlayer().getName(), event.getPlayer().getUniqueId().toString());
         }
+        final ProxiedPlayer player = event.getPlayer();
+        if (!player.hasPermission("shitbot.admin")) {
+            return;
+        }
+        final UpdateChecker updateChecker = plugin.getUpdateChecker();
+        if (updateChecker == null) {
+            return;
+        }
+        updateChecker.latestForNotificationAsync().thenAccept(
+                new java.util.function.Consumer<UpdateInfo>() {
+                    @Override
+                    public void accept(final UpdateInfo info) {
+                        if (!updateChecker.isUpdateAvailable(info)) {
+                            return;
+                        }
+                        plugin.getPlatformBridge().executeOnPlatformThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (player.isConnected()) {
+                                    plugin.sendUpdateNotice(player, info);
+                                }
+                            }
+                        });
+                    }
+                });
     }
 }
