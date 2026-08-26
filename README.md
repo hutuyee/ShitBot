@@ -60,6 +60,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 ### QQ 快捷命令与 TPS
 
 - 快捷命令白名单、别名、权限、执行位置、日志抓取时间和回复模板统一配置在 `commands.yml`。
+- `capture-console-logs-if-plugin` 仅在命令标签确实由指定插件注册时生效；生效后返回 `capture-seconds` 时间窗内的全部控制台日志。`lp` / `luckperms` 会为旧配置自动推断为 `LuckPerms`，默认 `lp编辑` 因此能取得异步生成的编辑器链接。该模式可能同时包含时间窗内其他插件的日志，只应给受信任的管理命令使用。
 - `target: backend` 在 Bukkit 子服执行；`target: proxy` 在 BungeeCord/Velocity 代理执行。
 - 快捷命令或 TPS 后可直接加目标子服，例如 `lp编辑 survival`、`TPS lobby`；该参数会覆盖配置中的 `server`。
 - 代理使用 `backend-transport.endpoints` 的独立鉴权通道，因此目标子服零玩家也能执行；没有配置对应端点时会拒绝执行，不会回退到未认证的插件消息。
