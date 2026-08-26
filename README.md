@@ -43,7 +43,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 | 命令 | 说明 |
 |---|---|
 | `/shitbot status` | 查看 ShitBot 当前运行状态，包括数据库连接、OneBot WebSocket 连接和插件运行状态。 |
-| `/shitbot update` | 在后台重新检查 GitHub 最新 Release；仅提示版本和链接，不会下载或替换插件。 |
+| `/shitbot update` | 后台下载最新平台 JAR，完成 SHA-256 和 JAR 内容校验后备份并替换；手动重启后生效。 |
 | `/shitbot migrate easybot [EasyBot.db]` | 迁移 EasyBot 的 QQ 绑定数据。数据库文件需要放在 ShitBot 插件目录中，文件名不填写时默认使用 `EasyBot.db`。 |
 | `/shitbot image` | 手动生成一张当前服务器在线人数图片，用于测试图片生成功能。 |
 | `/shitbot reload` | 热重载 `config.yml`、`commands.yml`、数据库、OneBot 和图片配置。 |
@@ -170,7 +170,7 @@ Minecraft 消息支持 `&` 颜色代码。
 |---|---|
 | `/shitbot status` | 查看数据库和 OneBot 状态 |
 | `/shitbot reload` | 热重载配置和运行实例 |
-| `/shitbot update` | 后台检查最新 Release 并显示链接，不自动更新 |
+| `/shitbot update` | 校验、备份并替换最新 Release JAR，等待手动重启 |
 | `/shitbot image` | 手动生成在线人数图片 |
 
 Spigot 权限：
@@ -182,6 +182,10 @@ shitbot.admin
 Spigot 默认仅 OP 拥有该权限。BungeeCord 和 Velocity 同样检查 `shitbot.admin`。`status` 可以直接查看，`reload`、`update`、`image` 和 `migrate` 需要管理权限。
 
 插件启用时会在独立后台线程访问 GitHub，网络连接和读取均设置超时，不占用服务端主线程。最新 Release 信息仅在发生变化时写入插件目录下的 `update-cache.json`；有权限的管理员上线时会收到版本差异和可点击链接。
+
+执行 `/shitbot update` 后，插件会从同一个 Release 中选择当前平台的 `ShitBotSpigot-*.jar`、`ShitBotBungee-*.jar` 或 `ShitBotVelocity-*.jar`。Release 必须同时包含对应的 `<JAR 文件名>.sha256`；下载地址、文件大小、SHA-256、平台描述文件、主类和内嵌版本全部通过后，才会把当前 JAR 备份为同目录的 `.bak` 并替换。任何一步失败都会保留现有 JAR。替换后不会热重载插件，必须手动重启服务器或代理。
+
+在 BungeeCord 执行该命令时，代理会使用现有的 HMAC 鉴权 Console Socket，把同一个 Release 的 Spigot 资产信息下发给 `backend-transport.endpoints` 中的每个后端；各后端在自己的插件目录独立校验、备份和替换，并逐个向命令发送者返回结果。没有配置 endpoint 的子服不会被扫描或更新。后端模式的 Spigot 不会在启动时单独访问 GitHub，由 BungeeCord 统一检查并联动更新。
 
 ---
 

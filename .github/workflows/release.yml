@@ -215,14 +215,14 @@ jobs:
             --repo "${{ github.repository }}" \
             --notes-file EMPTY_RELEASE_NOTES.md
 
-      - name: Upload JAR files to release
+      - name: Upload JAR files and checksums to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Uploading JAR files:"
+          echo "Uploading JAR files and checksums:"
           ls -lah release
 
           gh release upload \
