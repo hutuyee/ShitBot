@@ -1,23 +1,17 @@
 package haaa.shitbotvelocity.platform;
 
-import com.velocitypowered.api.command.CommandSource;
-import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.plugin.PluginContainer;
-import com.velocitypowered.api.proxy.ConsoleCommandSource;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
+import haaa.shitbot.core.console.LatestLogCapture;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
 import haaa.shitbot.core.util.NamedThreadFactory;
-import net.kyori.adventure.audience.MessageType;
-import net.kyori.adventure.identity.Identity;
-import net.kyori.adventure.pointer.Pointers;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
@@ -226,12 +220,12 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                     request, "已有代理控制台命令正在执行。", "Velocity"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<>();
-        final CapturingCommandSource source = new CapturingCommandSource(server.getConsoleCommandSource());
+        final LatestLogCapture capture = LatestLogCapture.begin();
         activeLocalFuture = future;
         activeLocalRequest = request;
         try {
             commandDispatched.set(true);
-            server.getCommandManager().executeAsync(source, request.getCommand())
+            server.getCommandManager().executeAsync(server.getConsoleCommandSource(), request.getCommand())
                     .whenComplete((result, throwable) -> server.getScheduler().buildTask(plugin, () -> {
                         clearLocalCapture(future);
                         localCommandRunning.set(false);
@@ -241,9 +235,16 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                             return;
                         }
                         boolean success = Boolean.TRUE.equals(result);
-                        String output = source.output();
+                        String output;
+                        try {
+                            output = capture.readNewContent();
+                        } catch (IOException exception) {
+                            output = "无法读取 logs/latest.log：" + safeMessage(exception);
+                        }
                         if (output.isEmpty()) {
-                            output = success ? "命令已执行，未捕获到输出。" : "命令不存在或执行器拒绝执行。";
+                            output = success
+                                    ? "命令已执行，latest.log 中没有新增日志。"
+                                    : "命令不存在或执行器拒绝执行。";
                         }
                         future.complete(new ConsoleResult(request.getRequestId(),
                                 success ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
@@ -294,55 +295,6 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         if (activeLocalFuture == future) {
             activeLocalFuture = null;
             activeLocalRequest = null;
-        }
-    }
-
-    private static final class CapturingCommandSource implements CommandSource {
-        private final ConsoleCommandSource delegate;
-        private final StringBuilder output = new StringBuilder();
-
-        private CapturingCommandSource(ConsoleCommandSource delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void sendMessage(Component message) {
-            append(message);
-            delegate.sendMessage(message);
-        }
-
-        @Override
-        public void sendMessage(Identity source, Component message, MessageType type) {
-            append(message);
-            delegate.sendMessage(source, message, type);
-        }
-
-        @Override
-        public Tristate getPermissionValue(String permission) {
-            return delegate.getPermissionValue(permission);
-        }
-
-        @Override
-        public Pointers pointers() {
-            return delegate.pointers();
-        }
-
-        private synchronized void append(Component message) {
-            if (message == null || output.length() >= 4000) {
-                return;
-            }
-            String line = PlainTextComponentSerializer.plainText().serialize(message);
-            if (line.isEmpty()) {
-                return;
-            }
-            if (output.length() > 0) {
-                output.append('\n');
-            }
-            output.append(line);
-        }
-
-        private synchronized String output() {
-            return output.length() > 4000 ? output.substring(0, 4000).trim() : output.toString().trim();
         }
     }
 }

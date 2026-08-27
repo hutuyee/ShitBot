@@ -4,23 +4,17 @@ import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
+import haaa.shitbot.core.console.LatestLogCapture;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
 import haaa.shitbot.core.update.ReleaseAsset;
 import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
-import net.md_5.bungee.api.CommandSender;
-import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.plugin.Command;
 import net.md_5.bungee.api.plugin.Plugin;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -29,26 +23,12 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Pattern;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
 
 public final class BungeeConsoleGateway implements AutoCloseable {
-    private static final Pattern BEARER_SECRET = Pattern.compile("(?i)\\bBearer\\s+[^\\s,;]+");
-    private static final Pattern NAMED_SECRET = Pattern.compile(
-            "(?i)(\\\"?(?:authorization|access[-_ ]?token|token|password|passwd|pwd|secret)"
-                    + "\\\"?\\s*[:=]\\s*)(?:\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;]+)");
-    private static final Pattern DATABASE_URL = Pattern.compile(
-            "(?i)\\b(?:jdbc:(?:mysql|mariadb):|mysql:)//[^\\s]+");
-
     private final Plugin plugin;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
     private volatile ConsoleRequest activeLocalRequest;
-    private volatile Logger activeLogger;
-    private volatile Handler activeHandler;
     private final ThreadPoolExecutor socketExecutor = new ThreadPoolExecutor(
             2, 2, 0L, TimeUnit.MILLISECONDS,
             new ArrayBlockingQueue<Runnable>(32),
@@ -296,32 +276,15 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                     request, "已有代理控制台命令正在执行。", "BungeeCord"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<ConsoleResult>();
-        final CommandOutputCapture capture = new CommandOutputCapture();
-        final Logger logger;
-        final Handler handler;
-        final CommandSender sender;
-        Plugin consoleLogPlugin = consoleLogPlugin(request);
-        if (consoleLogPlugin != null) {
-            logger = consoleLogPlugin.getLogger();
-            handler = new ConsoleLogHandler(capture, logger.getName());
-            logger.addHandler(handler);
-            activeLogger = logger;
-            activeHandler = handler;
-            sender = plugin.getProxy().getConsole();
-        } else {
-            logger = null;
-            handler = null;
-            sender = capturingSender(plugin.getProxy().getConsole(), capture);
-        }
+        final LatestLogCapture capture = LatestLogCapture.begin();
         activeLocalFuture = future;
         activeLocalRequest = request;
         final boolean accepted;
         try {
             commandDispatched.set(true);
             accepted = plugin.getProxy().getPluginManager().dispatchCommand(
-                    sender, request.getCommand());
+                    plugin.getProxy().getConsole(), request.getCommand());
         } catch (Throwable throwable) {
-            stopConsoleLogCapture(logger, handler);
             clearLocalCapture(future);
             localCommandRunning.set(false);
             future.complete(new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
@@ -331,11 +294,17 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         plugin.getProxy().getScheduler().schedule(plugin, new Runnable() {
             @Override
             public void run() {
-                stopConsoleLogCapture(logger, handler);
                 clearLocalCapture(future);
-                String output = capture.output();
+                String output;
+                try {
+                    output = capture.readNewContent();
+                } catch (IOException exception) {
+                    output = "无法读取 logs/latest.log：" + safeMessage(exception);
+                }
                 if (output.isEmpty()) {
-                    output = accepted ? "命令已执行，未返回输出。" : "命令不存在或执行器拒绝执行。";
+                    output = accepted
+                            ? "命令已执行，latest.log 中没有新增日志。"
+                            : "命令不存在或执行器拒绝执行。";
                 }
                 future.complete(new ConsoleResult(request.getRequestId(),
                         accepted ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
@@ -344,68 +313,6 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             }
         }, Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS);
         return future;
-    }
-
-    private Plugin consoleLogPlugin(ConsoleRequest request) {
-        String expectedName = request.getConsoleLogPlugin();
-        if (expectedName.isEmpty()) {
-            return null;
-        }
-        String commandLine = request.getCommand();
-        int separator = commandLine.indexOf(' ');
-        String label = separator < 0 ? commandLine : commandLine.substring(0, separator);
-        while (label.startsWith("/")) {
-            label = label.substring(1);
-        }
-        Command registered = null;
-        for (Map.Entry<String, Command> entry : plugin.getProxy().getPluginManager().getCommands()) {
-            if (entry.getKey().equalsIgnoreCase(label)) {
-                registered = entry.getValue();
-                break;
-            }
-        }
-        Plugin expectedPlugin = null;
-        for (Plugin candidate : plugin.getProxy().getPluginManager().getPlugins()) {
-            if (candidate.getDescription() != null
-                    && expectedName.equalsIgnoreCase(candidate.getDescription().getName())) {
-                expectedPlugin = candidate;
-                break;
-            }
-        }
-        return registered != null
-                && expectedPlugin != null
-                && registered.getClass().getClassLoader() == expectedPlugin.getClass().getClassLoader()
-                ? expectedPlugin : null;
-    }
-
-    private void stopConsoleLogCapture(Logger logger, Handler handler) {
-        if (logger == null || handler == null) {
-            return;
-        }
-        logger.removeHandler(handler);
-        if (activeHandler == handler) {
-            activeLogger = null;
-            activeHandler = null;
-        }
-    }
-
-    private CommandSender capturingSender(final CommandSender delegate, final CommandOutputCapture capture) {
-        return (CommandSender) Proxy.newProxyInstance(
-                CommandSender.class.getClassLoader(),
-                new Class<?>[]{CommandSender.class},
-                new InvocationHandler() {
-                    @Override
-                    public Object invoke(Object proxy, Method method, Object[] arguments) throws Throwable {
-                        if ("sendMessage".equals(method.getName())) {
-                            capture.appendArguments(arguments);
-                        }
-                        try {
-                            return method.invoke(delegate, arguments);
-                        } catch (InvocationTargetException exception) {
-                            throw exception.getCause();
-                        }
-                    }
-                });
     }
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {
@@ -426,13 +333,6 @@ public final class BungeeConsoleGateway implements AutoCloseable {
 
     @Override
     public void close() {
-        Logger logger = activeLogger;
-        Handler handler = activeHandler;
-        if (logger != null && handler != null) {
-            logger.removeHandler(handler);
-        }
-        activeLogger = null;
-        activeHandler = null;
         CompletableFuture<ConsoleResult> future = activeLocalFuture;
         ConsoleRequest request = activeLocalRequest;
         if (future != null && request != null) {
@@ -450,102 +350,5 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             activeLocalFuture = null;
             activeLocalRequest = null;
         }
-    }
-
-    private static final class ConsoleLogHandler extends Handler {
-        private final CommandOutputCapture capture;
-        private final String loggerName;
-
-        private ConsoleLogHandler(CommandOutputCapture capture, String loggerName) {
-            this.capture = capture;
-            this.loggerName = loggerName;
-        }
-
-        @Override
-        public void publish(LogRecord record) {
-            if (record == null || !isLoggable(record)) {
-                return;
-            }
-            if (loggerName == null || !loggerName.equals(record.getLoggerName())) {
-                return;
-            }
-            Level level = record.getLevel();
-            capture.append("[" + (level == null ? "INFO" : level.getName()) + "] "
-                    + (record.getMessage() == null ? "" : record.getMessage()));
-            if (record.getThrown() != null) {
-                capture.append("[SEVERE] " + record.getThrown().toString());
-            }
-        }
-
-        @Override public void flush() { }
-        @Override public void close() { }
-    }
-
-    private static final class CommandOutputCapture {
-        private final StringBuilder output = new StringBuilder();
-        private int lines;
-
-        private synchronized void appendArguments(Object[] arguments) {
-            if (arguments == null) {
-                return;
-            }
-            for (Object argument : arguments) {
-                appendArgument(argument);
-            }
-        }
-
-        private void appendArgument(Object argument) {
-            if (argument == null) {
-                return;
-            }
-            if (argument instanceof String) {
-                append((String) argument);
-                return;
-            }
-            if (argument instanceof BaseComponent) {
-                append(((BaseComponent) argument).toLegacyText());
-                return;
-            }
-            if (argument instanceof BaseComponent[]) {
-                append(BaseComponent.toLegacyText((BaseComponent[]) argument));
-                return;
-            }
-            Class<?> type = argument.getClass();
-            if (type.isArray()) {
-                int length = Array.getLength(argument);
-                for (int index = 0; index < length; index++) {
-                    appendArgument(Array.get(argument, index));
-                }
-            }
-        }
-
-        private synchronized void append(String message) {
-            if (message == null || lines >= 100 || output.length() >= 4000) {
-                return;
-            }
-            String redacted = redactSensitive(message);
-            String[] messageLines = redacted.replace("\r\n", "\n").replace('\r', '\n').split("\\n", -1);
-            for (String line : messageLines) {
-                if (lines >= 100 || output.length() >= 4000) {
-                    break;
-                }
-                if (output.length() > 0) {
-                    output.append('\n');
-                }
-                int remaining = 4000 - output.length();
-                output.append(line, 0, Math.min(line.length(), remaining));
-                lines++;
-            }
-        }
-
-        private synchronized String output() {
-            return output.toString().trim();
-        }
-    }
-
-    private static String redactSensitive(String message) {
-        String redacted = BEARER_SECRET.matcher(message).replaceAll("Bearer <redacted>");
-        redacted = NAMED_SECRET.matcher(redacted).replaceAll("$1<redacted>");
-        return DATABASE_URL.matcher(redacted).replaceAll("<redacted database URL>");
     }
 }

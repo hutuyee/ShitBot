@@ -23,7 +23,6 @@ public final class ConsoleRequest {
     private final String permission;
     private final List<String> playerNames;
     private final String server;
-    private final String consoleLogPlugin;
     private final int captureSeconds;
     private final int timeoutSeconds;
     private final BackendUpdatePayload updatePayload;
@@ -38,7 +37,7 @@ public final class ConsoleRequest {
                           int captureSeconds,
                           int timeoutSeconds) {
         this(requestId, operation, target, command, permission, playerNames, server,
-                captureSeconds, timeoutSeconds, "", null);
+                captureSeconds, timeoutSeconds, null);
     }
 
     public ConsoleRequest(String requestId,
@@ -50,7 +49,6 @@ public final class ConsoleRequest {
                           String server,
                           int captureSeconds,
                           int timeoutSeconds,
-                          String consoleLogPlugin,
                           BackendUpdatePayload updatePayload) {
         this.requestId = requestId == null || requestId.trim().isEmpty()
                 ? UUID.randomUUID().toString() : requestId.trim();
@@ -62,7 +60,6 @@ public final class ConsoleRequest {
                 ? Collections.<String>emptyList()
                 : Collections.unmodifiableList(new ArrayList<String>(playerNames));
         this.server = server == null ? "" : server.trim();
-        this.consoleLogPlugin = consoleLogPlugin == null ? "" : consoleLogPlugin.trim();
         this.captureSeconds = clamp(captureSeconds, 1, 30, 5);
         this.timeoutSeconds = clamp(timeoutSeconds, 2, 60, 15);
         this.updatePayload = updatePayload;
@@ -83,7 +80,6 @@ public final class ConsoleRequest {
                         ? shortcut.getServer() : targetServer,
                 shortcut.getCaptureSeconds(),
                 timeoutSeconds,
-                shortcut.getConsoleLogPlugin(),
                 null);
     }
 
@@ -116,7 +112,7 @@ public final class ConsoleRequest {
                 checksumAsset,
                 signatureAsset);
         return new ConsoleRequest(null, Operation.UPDATE, ConsoleSettings.Target.BACKEND,
-                "", "", Collections.<String>emptyList(), targetServer, 1, 60, "", payload);
+                "", "", Collections.<String>emptyList(), targetServer, 1, 60, payload);
     }
 
     public String getRequestId() { return requestId; }
@@ -126,7 +122,6 @@ public final class ConsoleRequest {
     public String getPermission() { return permission; }
     public List<String> getPlayerNames() { return playerNames; }
     public String getServer() { return server; }
-    public String getConsoleLogPlugin() { return consoleLogPlugin; }
     public int getCaptureSeconds() { return captureSeconds; }
     public int getTimeoutSeconds() { return timeoutSeconds; }
     public BackendUpdatePayload getUpdatePayload() { return updatePayload; }

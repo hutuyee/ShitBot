@@ -92,8 +92,7 @@ shortcuts:
     target: "backend"
     # backend 目标可指定子服名；留空时优先选择绑定角色所在子服。
     server: ""
-    # 仅当 lp 确实注册给 LuckPerms 时，只抓取该插件 logger 的输出并脱敏；旧配置中的 lp 也会自动识别。
-    capture-console-logs-if-plugin: "LuckPerms"
+    # 执行前记录 logs/latest.log 的位置，等待指定秒数后读取这期间新增的日志。
     capture-seconds: 5
     message: "%at% 执行成功（%source%）：\n%result%"
     failed: "%at% 执行失败（%source%）：\n%result%"

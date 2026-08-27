@@ -77,7 +77,6 @@ public final class ConsoleSettings {
         private final boolean allowUnbound;
         private final Target target;
         private final String server;
-        private final String consoleLogPlugin;
         private final int captureSeconds;
         private final String successMessage;
         private final String failedMessage;
@@ -90,7 +89,6 @@ public final class ConsoleSettings {
                         boolean allowUnbound,
                         Target target,
                         String server,
-                        String consoleLogPlugin,
                         int captureSeconds,
                         String successMessage,
                         String failedMessage) {
@@ -102,7 +100,6 @@ public final class ConsoleSettings {
             this.allowUnbound = allowUnbound;
             this.target = target == null ? Target.BACKEND : target;
             this.server = server == null ? "" : server.trim();
-            this.consoleLogPlugin = consoleLogPlugin == null ? "" : consoleLogPlugin.trim();
             this.captureSeconds = clamp(captureSeconds, 1, 30, 5);
             this.successMessage = text(successMessage, "执行成功（%source%）：\n%result%");
             this.failedMessage = text(failedMessage, "执行失败（%source%）：\n%result%");
@@ -116,7 +113,6 @@ public final class ConsoleSettings {
         public boolean isAllowUnbound() { return allowUnbound; }
         public Target getTarget() { return target; }
         public String getServer() { return server; }
-        public String getConsoleLogPlugin() { return consoleLogPlugin; }
         public int getCaptureSeconds() { return captureSeconds; }
         public String getSuccessMessage() { return successMessage; }
         public String getFailedMessage() { return failedMessage; }

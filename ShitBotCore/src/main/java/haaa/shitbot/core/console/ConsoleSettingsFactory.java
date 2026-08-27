@@ -80,7 +80,6 @@ public final class ConsoleSettingsFactory {
                     source.getBoolean(path + ".allow-unbound", false),
                     ConsoleSettings.Target.from(source.getString(path + ".target", "backend")),
                     source.getString(path + ".server", ""),
-                    consoleLogPlugin(source, path, command),
                     durationSeconds(source.getString(path + ".capture-seconds", "5"), 5),
                     source.getString(path + ".message", "执行成功（%source%）：\n%result%"),
                     source.getString(path + ".failed", "执行失败（%source%）：\n%result%")));
@@ -130,22 +129,6 @@ public final class ConsoleSettingsFactory {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
-    }
-
-    private static String consoleLogPlugin(ConfigSource source, String path, String command) {
-        String configured = source.getString(path + ".capture-console-logs-if-plugin", "").trim();
-        if (!configured.isEmpty()) {
-            return configured;
-        }
-        String clean = command == null ? "" : command.trim().toLowerCase(Locale.ROOT);
-        int separator = clean.indexOf(' ');
-        String label = separator < 0 ? clean : clean.substring(0, separator);
-        while (label.startsWith("/")) {
-            label = label.substring(1);
-        }
-        return "lp".equals(label) || "luckperms".equals(label) || "luckperms:lp".equals(label)
-                ? "LuckPerms"
-                : "";
     }
 
     private static List<String> listOrDefault(List<String> values, String... fallback) {
