@@ -46,6 +46,8 @@ public final class LatestLogCapture {
     private static final Pattern PLAYER_LIFECYCLE_LINE = Pattern.compile(
             "(?i)\\b(?:joined the game|left the game|lost connection|logged in with entity id"
                     + "|issued server command|uuid of player|was kicked)\\b");
+    private static final Pattern COMMAND_FEEDBACK_LINE = Pattern.compile(
+            "(?i)^.*\\]:\\s*\\[[^\\[\\]:\\r\\n]{1,64}:\\s+.*\\]\\s*$");
     private static final Pattern PROXY_PLAYER_CONNECTION_LINE = Pattern.compile(
             "(?i)(?:\\[connected player\\]|initialhandler|upstreambridge|serverconnector)"
                     + ".*\\b(?:connected|disconnected)\\b");
@@ -259,6 +261,7 @@ public final class LatestLogCapture {
         String clean = stripFormatting(message);
         if (PLAYER_CHAT_LINE.matcher(clean).find()
                 || PLAYER_LIFECYCLE_LINE.matcher(clean).find()
+                || COMMAND_FEEDBACK_LINE.matcher(clean).matches()
                 || PROXY_PLAYER_CONNECTION_LINE.matcher(clean).find()) {
             return null;
         }
