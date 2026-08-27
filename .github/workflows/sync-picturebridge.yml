@@ -1,0 +1,54 @@
+name: Sync PictureBridge
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-picturebridge
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Update submodule reference
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ShitBot
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Update PictureBridge reference
+        id: update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git submodule sync -- PictureBridge
+          git submodule update --remote PictureBridge
+
+          if git diff --quiet -- PictureBridge; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git -C PictureBridge rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit updated reference
+        if: steps.update.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PictureBridge
+          git commit -m "chore: 同步 PictureBridge 到 ${{ steps.update.outputs.sha }}"
+          git push origin HEAD:main
