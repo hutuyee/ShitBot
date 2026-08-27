@@ -25,6 +25,15 @@ public final class LatestLogCapture {
                     + "\\\"?\\s*[:=]\\s*)(?:\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;]+)");
     private static final Pattern DATABASE_URL = Pattern.compile(
             "(?i)\\b(?:jdbc:(?:mysql|mariadb):|mysql:)//[^\\s]+");
+    private static final Pattern ANSI_OSC = Pattern.compile(
+            "(?:\u001B\\]|\u009D)[^\u0007]*?(?:\u0007|\u001B\\\\|\u009C|$)");
+    private static final Pattern ANSI_CSI = Pattern.compile(
+            "(?:\u001B\\[|\u009B)[0-?]*[ -/]*[@-~]");
+    private static final Pattern ANSI_TWO_CHARACTER = Pattern.compile("\u001B[@-_]");
+    private static final Pattern MINECRAFT_FORMATTING = Pattern.compile(
+            "(?i)\u00A7[0-9A-FK-ORX]");
+    private static final Pattern OTHER_CONTROL_CHARACTERS = Pattern.compile(
+            "[\\p{Cc}&&[^\\r\\n\\t]]");
 
     private final Path logFile;
     private final boolean existedAtStart;
@@ -143,9 +152,19 @@ public final class LatestLogCapture {
     }
 
     private static String redactSensitive(String message) {
-        String redacted = BEARER_SECRET.matcher(message).replaceAll("Bearer <redacted>");
+        String redacted = stripFormatting(message);
+        redacted = BEARER_SECRET.matcher(redacted).replaceAll("Bearer <redacted>");
         redacted = NAMED_SECRET.matcher(redacted).replaceAll("$1<redacted>");
         return DATABASE_URL.matcher(redacted).replaceAll("<redacted database URL>");
+    }
+
+    private static String stripFormatting(String message) {
+        String clean = message == null ? "" : message;
+        clean = ANSI_OSC.matcher(clean).replaceAll("");
+        clean = ANSI_CSI.matcher(clean).replaceAll("");
+        clean = ANSI_TWO_CHARACTER.matcher(clean).replaceAll("");
+        clean = MINECRAFT_FORMATTING.matcher(clean).replaceAll("");
+        return OTHER_CONTROL_CHARACTERS.matcher(clean).replaceAll("");
     }
 
     private static final class LimitedOutput {
