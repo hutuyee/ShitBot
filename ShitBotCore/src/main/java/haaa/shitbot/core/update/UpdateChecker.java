@@ -52,6 +52,8 @@ public final class UpdateChecker implements AutoCloseable {
 
     private static final String LATEST_RELEASE_API =
             "https://api.github.com/repos/hutuyee/ShitBot/releases/latest";
+    private static final String UPDATE_PUBLIC_KEY_RESOURCE =
+            "/haaa/shitbot/core/update/update-public-key.pem";
     private static final int CONNECT_TIMEOUT_MILLIS = 5000;
     private static final int READ_TIMEOUT_MILLIS = 5000;
     private static final int MAX_RESPONSE_BYTES = 256 * 1024;
@@ -70,7 +72,6 @@ public final class UpdateChecker implements AutoCloseable {
 
     private final String currentVersion;
     private final Path cachePath;
-    private final Path updatePublicKeyPath;
     private final PlatformBridge platform;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(
@@ -85,7 +86,6 @@ public final class UpdateChecker implements AutoCloseable {
         this.currentVersion = currentVersion == null ? "" : currentVersion.trim();
         this.platform = platform;
         this.cachePath = platform.getDataDirectory().resolve("update-cache.json");
-        this.updatePublicKeyPath = platform.getDataDirectory().resolve("update-public-key.pem");
         this.installedVersion.set(this.currentVersion);
         latestRelease.set(readCache());
     }
@@ -462,14 +462,6 @@ public final class UpdateChecker implements AutoCloseable {
     }
 
     private void verifyDetachedSignature(Path jarPath, ReleaseAsset signatureAsset) throws IOException {
-        if (!Files.isRegularFile(updatePublicKeyPath)) {
-            throw new IOException("Update signing public key is missing: " + updatePublicKeyPath
-                    + ". Install the independently distributed RSA public key before using /shitbot update");
-        }
-        long publicKeySize = Files.size(updatePublicKeyPath);
-        if (publicKeySize <= 0L || publicKeySize > MAX_PUBLIC_KEY_BYTES) {
-            throw new IOException("Update signing public key size is invalid");
-        }
         if (signatureAsset.getSize() <= 0L || signatureAsset.getSize() > MAX_SIGNATURE_BYTES) {
             throw new IOException("Release detached signature size is invalid: " + signatureAsset.getSize());
         }
@@ -497,21 +489,31 @@ public final class UpdateChecker implements AutoCloseable {
     }
 
     private PublicKey readUpdatePublicKey() throws IOException {
-        String pem = new String(Files.readAllBytes(updatePublicKeyPath), StandardCharsets.US_ASCII);
+        byte[] publicKeyBytes;
+        try (InputStream input = UpdateChecker.class.getResourceAsStream(UPDATE_PUBLIC_KEY_RESOURCE)) {
+            if (input == null) {
+                throw new IOException("Update signing public key is missing from the plugin JAR");
+            }
+            publicKeyBytes = readLimited(input, MAX_PUBLIC_KEY_BYTES);
+        }
+        if (publicKeyBytes.length == 0) {
+            throw new IOException("Embedded update signing public key is empty");
+        }
+        String pem = new String(publicKeyBytes, StandardCharsets.US_ASCII);
         String encoded = pem
                 .replace("-----BEGIN PUBLIC KEY-----", "")
                 .replace("-----END PUBLIC KEY-----", "")
                 .replaceAll("\\s", "");
         if (encoded.isEmpty()) {
-            throw new IOException("Update signing public key PEM is empty");
+            throw new IOException("Embedded update signing public key PEM is empty");
         }
         try {
             byte[] keyBytes = Base64.getDecoder().decode(encoded);
             return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
         } catch (IllegalArgumentException exception) {
-            throw new IOException("Update signing public key PEM is malformed", exception);
+            throw new IOException("Embedded update signing public key PEM is malformed", exception);
         } catch (GeneralSecurityException exception) {
-            throw new IOException("Update signing public key is not a valid RSA public key", exception);
+            throw new IOException("Embedded update signing public key is not a valid RSA public key", exception);
         }
     }
 

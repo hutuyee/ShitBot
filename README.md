@@ -193,7 +193,9 @@ Spigot 默认仅 OP 拥有该权限。BungeeCord 和 Velocity 同样检查 `shit
 
 在 BungeeCord 执行该命令时，代理会使用现有的 HMAC 鉴权 Console Socket，把同一个 Release 的 Spigot JAR、checksum 和 detached signature 元数据下发给 `backend-transport.endpoints` 中的每个后端；各后端在自己的插件目录独立校验、备份和替换，并逐个向命令发送者返回结果。没有配置 endpoint 的子服不会被扫描或更新。后端模式的 Spigot 不会在启动时单独访问 GitHub，由 BungeeCord 统一检查并联动更新。
 
-每个会执行更新的平台都必须在插件数据目录放置独立分发的 `update-public-key.pem`（X.509 PEM 格式的 RSA 公钥）。公钥应通过 GitHub Release 之外的可信渠道核对；缺少公钥、签名资产或签名不匹配时，更新器会 fail closed。发布者可用以下方式生成密钥，私钥只保存到 GitHub Actions 的 `SHITBOT_UPDATE_PRIVATE_KEY` 仓库 Secret，不能提交到仓库：
+RSA 公钥已经作为 Core 资源内置到三个平台的最终插件 JAR，更新器直接从自身 JAR 加载，服主不需要下载、放置或配置任何密钥。插件内缺少公钥、Release 缺少签名资产或签名不匹配时，更新器会 fail closed。发布签名私钥只保存到 GitHub Actions 的 `SHITBOT_UPDATE_PRIVATE_KEY` 仓库 Secret，不能放进插件或提交到仓库。需要轮换密钥时，维护者必须同时替换 Core 内置公钥和仓库 Secret，并通过手动安装可信版本完成信任切换。
+
+维护者首次生成或轮换密钥时可使用：
 
 ```bash
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out update-private-key.pem
@@ -240,7 +242,7 @@ openssl pkey -in update-private-key.pem -pubout -out update-public-key.pem
 ## 安全建议
 
 - 不要把真实 OneBot Token 和数据库密码提交到公开仓库
-- 不要提交更新签名私钥；`update-public-key.pem` 应通过独立可信渠道分发并核对
+- 不要提交更新签名私钥；服主无需管理公钥，公钥随插件 JAR 内置
 - 生产环境建议限制 `allowed-group-ids`
 - MySQL 账号只授予 ShitBot 数据库所需权限
 - 远程 MySQL 使用 `sslMode=VERIFY_IDENTITY`，远程 OneBot 使用 `wss://`
