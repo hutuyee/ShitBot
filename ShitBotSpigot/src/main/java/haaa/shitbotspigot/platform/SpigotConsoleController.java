@@ -9,6 +9,7 @@ import haaa.shitbot.core.update.UpdateInstallResult;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -318,7 +319,8 @@ public final class SpigotConsoleController implements AutoCloseable {
                     startNextCommand();
                     return;
                 }
-                final LatestLogCapture capture = LatestLogCapture.begin();
+                final LatestLogCapture capture = LatestLogCapture.begin(
+                        privacyPlayerNames(pending.request));
                 boolean dispatched;
                 String dispatchError = "";
                 try {
@@ -359,6 +361,16 @@ public final class SpigotConsoleController implements AutoCloseable {
                 }, Math.max(1, pending.request.getCaptureSeconds()), TimeUnit.SECONDS);
             }
         });
+    }
+
+    private List<String> privacyPlayerNames(ConsoleRequest request) {
+        List<String> playerNames = new ArrayList<String>(request.getPlayerNames());
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player != null && player.getName() != null) {
+                playerNames.add(player.getName());
+            }
+        }
+        return playerNames;
     }
 
     private String serverName() {

@@ -49,6 +49,11 @@ public final class LatestLogCapture {
     private static final Pattern PROXY_PLAYER_CONNECTION_LINE = Pattern.compile(
             "(?i)(?:\\[connected player\\]|initialhandler|upstreambridge|serverconnector)"
                     + ".*\\b(?:connected|disconnected)\\b");
+    private static final Pattern PLAYER_NAME_FIELD = Pattern.compile(
+            "(?i)(\\\"?(?:player(?:name)?|username)\\\"?\\s*[:=]\\s*\\\"?)"
+                    + "([A-Za-z0-9_]{1,64})(\\\"?)");
+    private static final Pattern GAME_PROFILE_NAME_FIELD = Pattern.compile(
+            "(?i)(\\bname\\s*=\\s*)([A-Za-z0-9_]{1,64})(?=\\s*[,}\\]])");
     private static final Pattern UUID_VALUE = Pattern.compile(
             "(?i)(?<![0-9a-f])(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
                     + "[89ab][0-9a-f]{3}-[0-9a-f]{12}|[0-9a-f]{32})(?![0-9a-f])");
@@ -260,6 +265,8 @@ public final class LatestLogCapture {
         for (Pattern playerPattern : playerPatterns) {
             clean = playerPattern.matcher(clean).replaceAll("<player>");
         }
+        clean = PLAYER_NAME_FIELD.matcher(clean).replaceAll("$1<player>$3");
+        clean = GAME_PROFILE_NAME_FIELD.matcher(clean).replaceAll("$1<player>");
         clean = UUID_VALUE.matcher(clean).replaceAll("<uuid>");
         clean = IPV4_ADDRESS.matcher(clean).replaceAll("<ip>");
         clean = IPV6_ADDRESS.matcher(clean).replaceAll("<ip>");

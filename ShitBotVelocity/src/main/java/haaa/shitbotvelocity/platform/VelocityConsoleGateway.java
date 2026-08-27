@@ -13,6 +13,8 @@ import haaa.shitbot.core.util.NamedThreadFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -220,7 +222,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                     request, "已有代理控制台命令正在执行。", "Velocity"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<>();
-        final LatestLogCapture capture = LatestLogCapture.begin();
+        final LatestLogCapture capture = LatestLogCapture.begin(privacyPlayerNames(request));
         activeLocalFuture = future;
         activeLocalRequest = request;
         try {
@@ -257,6 +259,16 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                     throwable.getMessage(), "Velocity"));
         }
         return future;
+    }
+
+    private List<String> privacyPlayerNames(ConsoleRequest request) {
+        List<String> playerNames = new ArrayList<>(request.getPlayerNames());
+        for (Player player : server.getAllPlayers()) {
+            if (player != null && player.getUsername() != null) {
+                playerNames.add(player.getUsername());
+            }
+        }
+        return playerNames;
     }
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {

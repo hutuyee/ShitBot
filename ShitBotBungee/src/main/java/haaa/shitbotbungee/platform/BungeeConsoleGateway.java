@@ -15,6 +15,8 @@ import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -276,7 +278,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                     request, "已有代理控制台命令正在执行。", "BungeeCord"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<ConsoleResult>();
-        final LatestLogCapture capture = LatestLogCapture.begin();
+        final LatestLogCapture capture = LatestLogCapture.begin(privacyPlayerNames(request));
         activeLocalFuture = future;
         activeLocalRequest = request;
         final boolean accepted;
@@ -313,6 +315,16 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             }
         }, Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS);
         return future;
+    }
+
+    private List<String> privacyPlayerNames(ConsoleRequest request) {
+        List<String> playerNames = new ArrayList<String>(request.getPlayerNames());
+        for (ProxiedPlayer player : plugin.getProxy().getPlayers()) {
+            if (player != null && player.getName() != null) {
+                playerNames.add(player.getName());
+            }
+        }
+        return playerNames;
     }
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {
