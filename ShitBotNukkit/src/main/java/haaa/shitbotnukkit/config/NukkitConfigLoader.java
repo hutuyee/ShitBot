@@ -26,15 +26,25 @@ public final class NukkitConfigLoader {
     public Settings load() {
         plugin.saveDefaultConfig();
         plugin.reloadConfig();
-        return SettingsFactory.create(new Source(plugin.getConfig()));
+        Config configuration = plugin.getConfig();
+        if (!configuration.isCorrect()) {
+            throw new IllegalStateException("config.yml is not a valid YAML configuration");
+        }
+        return SettingsFactory.create(new Source(configuration));
     }
 
     public ConsoleSettings loadConsoleSettings() {
         File file = new File(plugin.getDataFolder(), "commands.yml");
         if (!file.isFile()) {
-            plugin.saveResource("commands.yml", false);
+            if (!plugin.saveResource("commands.yml", false)) {
+                throw new IllegalStateException("Unable to create commands.yml");
+            }
         }
-        return ConsoleSettingsFactory.create(new Source(new Config(file, Config.YAML)));
+        Config configuration = new Config(file, Config.YAML);
+        if (!configuration.isCorrect()) {
+            throw new IllegalStateException("commands.yml is not a valid YAML configuration");
+        }
+        return ConsoleSettingsFactory.create(new Source(configuration));
     }
 
     private static final class Source implements ConfigSource {

@@ -11,14 +11,14 @@ import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbotnukkit.ShitBotNukkit;
 
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -51,11 +51,20 @@ final class NukkitConsoleGateway implements AutoCloseable {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
                     request, "QQ 控制台命令当前未启用。", platform.serverName()));
         }
+        if (request.getTarget() != ConsoleSettings.Target.BACKEND) {
+            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                    request, "Nukkit-MOT 不支持代理端执行目标。", platform.serverName()));
+        }
+        if (!request.getServer().isEmpty()) {
+            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                    request, "Nukkit-MOT 为单服平台，不能指定目标子服。", platform.serverName()));
+        }
 
         final CompletableFuture<ConsoleResult> response = new CompletableFuture<ConsoleResult>();
         long timeout = Math.max(request.getTimeoutSeconds(), request.getCaptureSeconds() + 5L);
+        final ScheduledFuture<?> timeoutTask;
         try {
-            timer.schedule(new Runnable() {
+            timeoutTask = timer.schedule(new Runnable() {
                 @Override
                 public void run() {
                     response.complete(ConsoleResult.unavailable(
@@ -67,6 +76,12 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     request, "插件已关闭。", platform.serverName()));
             return response;
         }
+        response.whenComplete(new java.util.function.BiConsumer<ConsoleResult, Throwable>() {
+            @Override
+            public void accept(ConsoleResult ignored, Throwable throwable) {
+                timeoutTask.cancel(false);
+            }
+        });
 
         hasPermission(request).whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {
             @Override
@@ -93,7 +108,7 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     operation = executeCommand(request);
                 } else {
                     operation = CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                            request, "NukkitMOT 不接受代理下发的更新请求。", platform.serverName()));
+                            request, "Nukkit-MOT 不接受代理下发的更新请求。", platform.serverName()));
                 }
                 operation.whenComplete(new java.util.function.BiConsumer<ConsoleResult, Throwable>() {
                     @Override
@@ -120,24 +135,28 @@ final class NukkitConsoleGateway implements AutoCloseable {
             return CompletableFuture.completedFuture(Boolean.FALSE);
         }
         final CompletableFuture<Boolean> onlineCheck = new CompletableFuture<Boolean>();
-        platform.executeOnPlatformThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    for (String playerName : request.getPlayerNames()) {
-                        Player player = server.getPlayerExact(playerName);
-                        if (player != null && player.isOnline()
-                                && player.hasPermission(request.getPermission())) {
-                            onlineCheck.complete(Boolean.TRUE);
-                            return;
+        try {
+            platform.executeOnPlatformThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (String playerName : request.getPlayerNames()) {
+                            Player player = server.getPlayerExact(playerName);
+                            if (player != null && player.isOnline()
+                                    && player.hasPermission(request.getPermission())) {
+                                onlineCheck.complete(Boolean.TRUE);
+                                return;
+                            }
                         }
+                        onlineCheck.complete(Boolean.FALSE);
+                    } catch (Throwable throwable) {
+                        onlineCheck.completeExceptionally(throwable);
                     }
-                    onlineCheck.complete(Boolean.FALSE);
-                } catch (Throwable throwable) {
-                    onlineCheck.completeExceptionally(throwable);
                 }
-            }
-        });
+            });
+        } catch (Throwable throwable) {
+            onlineCheck.completeExceptionally(throwable);
+        }
         return onlineCheck.thenCompose(
                 new java.util.function.Function<Boolean, CompletableFuture<Boolean>>() {
                     @Override
@@ -155,21 +174,25 @@ final class NukkitConsoleGateway implements AutoCloseable {
 
     private CompletableFuture<ConsoleResult> queryTps(final ConsoleRequest request) {
         final CompletableFuture<ConsoleResult> result = new CompletableFuture<ConsoleResult>();
-        platform.executeOnPlatformThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String output = "当前 " + server.getTicksPerSecond()
-                            + "，平均 " + server.getTicksPerSecondAverage()
-                            + "，负载 " + server.getTickUsage() + "%";
-                    result.complete(new ConsoleResult(
-                            request.getRequestId(), ConsoleResult.Status.SUCCESS,
-                            output, platform.serverName()));
-                } catch (Throwable throwable) {
-                    result.completeExceptionally(throwable);
+        try {
+            platform.executeOnPlatformThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        String output = "当前 " + server.getTicksPerSecond()
+                                + "，平均 " + server.getTicksPerSecondAverage()
+                                + "，负载 " + server.getTickUsage() + "%";
+                        result.complete(new ConsoleResult(
+                                request.getRequestId(), ConsoleResult.Status.SUCCESS,
+                                output, platform.serverName()));
+                    } catch (Throwable throwable) {
+                        result.completeExceptionally(throwable);
+                    }
                 }
-            }
-        });
+            });
+        } catch (Throwable throwable) {
+            result.completeExceptionally(throwable);
+        }
         return result;
     }
 
@@ -179,37 +202,49 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     request, "已有一条控制台命令正在捕获输出，请稍后重试。", platform.serverName()));
         }
         final CompletableFuture<ConsoleResult> result = new CompletableFuture<ConsoleResult>();
-        platform.executeOnPlatformThread(new Runnable() {
-            @Override
-            public void run() {
-                final LatestLogCapture capture = LatestLogCapture.begin(
-                        Paths.get(server.getDataPath(), "logs", "server.log"),
-                        privacyPlayerNames(request));
-                boolean dispatched;
-                String dispatchError = "";
-                try {
-                    dispatched = server.dispatchCommand(
-                            server.getConsoleSender(), request.getCommand());
-                } catch (Throwable throwable) {
-                    dispatched = false;
-                    dispatchError = "命令执行异常：" + errorMessage(throwable);
+        try {
+            platform.executeOnPlatformThread(new Runnable() {
+                @Override
+                public void run() {
+                    final LatestLogCapture capture;
+                    try {
+                        capture = LatestLogCapture.begin(
+                                Paths.get(server.getDataPath(), "logs", "server.log"),
+                                privacyPlayerNames(request));
+                    } catch (Throwable throwable) {
+                        commandRunning.set(false);
+                        result.completeExceptionally(throwable);
+                        return;
+                    }
+                    boolean dispatched;
+                    String dispatchError = "";
+                    try {
+                        dispatched = server.dispatchCommand(
+                                server.getConsoleSender(), request.getCommand());
+                    } catch (Throwable throwable) {
+                        dispatched = false;
+                        dispatchError = "命令执行异常：" + errorMessage(throwable);
+                    }
+                    final boolean commandAccepted = dispatched;
+                    final String commandError = dispatchError;
+                    try {
+                        timer.schedule(new Runnable() {
+                            @Override
+                            public void run() {
+                                completeCommand(request, capture, commandAccepted, commandError, result);
+                            }
+                        }, Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS);
+                    } catch (RejectedExecutionException exception) {
+                        commandRunning.set(false);
+                        result.complete(ConsoleResult.unavailable(
+                                request, "插件已关闭。", platform.serverName()));
+                    }
                 }
-                final boolean commandAccepted = dispatched;
-                final String commandError = dispatchError;
-                try {
-                    timer.schedule(new Runnable() {
-                        @Override
-                        public void run() {
-                            completeCommand(request, capture, commandAccepted, commandError, result);
-                        }
-                    }, Math.max(1, request.getCaptureSeconds()), TimeUnit.SECONDS);
-                } catch (RejectedExecutionException exception) {
-                    commandRunning.set(false);
-                    result.complete(ConsoleResult.unavailable(
-                            request, "插件已关闭。", platform.serverName()));
-                }
-            }
-        });
+            });
+        } catch (Throwable throwable) {
+            commandRunning.set(false);
+            result.completeExceptionally(throwable);
+        }
         return result;
     }
 
@@ -221,8 +256,8 @@ final class NukkitConsoleGateway implements AutoCloseable {
         String output;
         try {
             output = capture.readNewContent();
-        } catch (IOException exception) {
-            output = "无法读取 logs/server.log：" + errorMessage(exception);
+        } catch (Throwable throwable) {
+            output = "无法读取 logs/server.log：" + errorMessage(throwable);
         }
         if (output.isEmpty()) {
             output = commandError.isEmpty()
@@ -231,12 +266,15 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     : "命令不存在或执行器拒绝执行。")
                     : commandError;
         }
-        result.complete(new ConsoleResult(
-                request.getRequestId(),
-                commandAccepted ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
-                output,
-                platform.serverName()));
-        commandRunning.set(false);
+        try {
+            result.complete(new ConsoleResult(
+                    request.getRequestId(),
+                    commandAccepted ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
+                    output,
+                    platform.serverName()));
+        } finally {
+            commandRunning.set(false);
+        }
     }
 
     private List<String> privacyPlayerNames(ConsoleRequest request) {

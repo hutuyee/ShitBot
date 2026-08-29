@@ -127,10 +127,10 @@ binding:
   code-alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 database:
-  # sqlite 或 mysql。三个版本使用完全相同的表结构。
+  # sqlite 或 mysql。四个平台使用完全相同的表结构。
   type: "sqlite"
   sqlite:
-    # 在插件数据目录内生成，可直接在三个版本之间迁移。
+    # 在插件数据目录内生成，可直接在四个平台之间迁移。
     file: "shitbot.db"
   mysql:
     host: "127.0.0.1"

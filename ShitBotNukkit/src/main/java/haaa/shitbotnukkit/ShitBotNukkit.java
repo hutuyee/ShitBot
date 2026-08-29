@@ -147,7 +147,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
         }
         if (!notice.getTargetServer().isEmpty()) {
             platformBridge.warn("onebot.notices.server-startup.target-server is only supported "
-                    + "by proxy platforms; NukkitMOT will not send this startup notice.");
+                    + "by proxy platforms; Nukkit-MOT will not send this startup notice.");
             return;
         }
         runtime.notifyServerStarted(platformBridge.getPlatformName());

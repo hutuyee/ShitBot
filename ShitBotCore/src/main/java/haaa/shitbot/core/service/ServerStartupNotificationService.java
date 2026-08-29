@@ -21,6 +21,7 @@ public final class ServerStartupNotificationService {
     private final OneBotClient client;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean flushing = new AtomicBoolean();
+    private final AtomicBoolean reconnectWhileFlushing = new AtomicBoolean();
     private final Set<Long> deliveredGroups = Collections.synchronizedSet(new HashSet<Long>());
     private volatile String pendingServerName;
 
@@ -49,6 +50,10 @@ public final class ServerStartupNotificationService {
     }
 
     public void onConnected() {
+        if (flushing.get()) {
+            reconnectWhileFlushing.set(true);
+            return;
+        }
         flushIfConnected();
     }
 
@@ -74,6 +79,7 @@ public final class ServerStartupNotificationService {
         if (remaining.isEmpty()) {
             pendingServerName = null;
             flushing.set(false);
+            reconnectWhileFlushing.set(false);
             return;
         }
 
@@ -103,6 +109,9 @@ public final class ServerStartupNotificationService {
                             platform.info("Server startup notice sent for " + serverName + '.');
                         }
                         flushing.set(false);
+                        if (reconnectWhileFlushing.getAndSet(false)) {
+                            flushIfConnected();
+                        }
                     }
                 });
     }

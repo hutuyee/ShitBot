@@ -43,7 +43,7 @@ public final class NukkitPlatformBridge implements PlatformBridge, AutoCloseable
 
     @Override
     public String getPlatformName() {
-        return "NukkitMOT";
+        return "Nukkit-MOT";
     }
 
     @Override
@@ -316,7 +316,11 @@ public final class NukkitPlatformBridge implements PlatformBridge, AutoCloseable
 
     public String serverName() {
         String motd = server.getMotd();
-        return motd == null || motd.trim().isEmpty() ? "NukkitMOT" : motd.trim();
+        String clean = stripFormatting(motd).replace('\r', ' ').replace('\n', ' ').trim();
+        if (clean.isEmpty()) {
+            return "Nukkit-MOT";
+        }
+        return clean.length() <= 64 ? clean : clean.substring(0, 61) + "...";
     }
 
     @Override

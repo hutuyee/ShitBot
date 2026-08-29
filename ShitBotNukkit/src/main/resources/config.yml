@@ -83,7 +83,7 @@ forwarding:
 
   # QQ 群消息转发到游戏，输出格式为 [QQ] 群名片或昵称: 内容。
   # 图片、动画表情、语音、视频、文件、分享等会转换成可识别的聊天标签；
-  # OneBot 提供网络地址时，标签可在游戏聊天中点击打开。普通 Unicode 表情会原样保留。
+  # OneBot 提供网络地址时，Nukkit-MOT 会把原始 URL 附在标签后。普通 Unicode 表情会原样保留。
   # 仅处理 onebot.allowed-group-ids 中配置的群。
   group-to-game:
     # 该方向的总开关。
@@ -93,9 +93,8 @@ forwarding:
     # 转发时会移除此触发前缀；末尾空格属于前缀的一部分。
     # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
     prefix: "#mc "
-    # browser：发送可点击的 [图片]，所有原版客户端都可在浏览器查看。
-    # picturebridge：为图片和表情附加 PictureBridge 标记；装有模组的客户端会在聊天中预览并在游戏内打开。
-    # 两种模式都会保留 OPEN_URL，未安装模组的客户端仍可点击后用浏览器查看。
+    # browser：图片统一显示为 [图片]；picturebridge：优先保留 OneBot 提供的图片摘要。
+    # Nukkit-MOT 不使用 PictureBridge 客户端模组协议，两种模式都会在标签后保留原始 URL。
     media-mode: "browser"
 
 binding:
@@ -123,10 +122,10 @@ binding:
   code-alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 database:
-  # sqlite 或 mysql。三个版本使用完全相同的表结构。
+  # sqlite 或 mysql。四个平台使用完全相同的表结构。
   type: "sqlite"
   sqlite:
-    # 在插件数据目录内生成，可直接在三个版本之间迁移。
+    # 在插件数据目录内生成，可直接在四个平台之间迁移。
     file: "shitbot.db"
   mysql:
     host: "127.0.0.1"
@@ -169,10 +168,10 @@ image:
   avatar:
     # 头像下载和图片渲染全部在独立线程执行，不会阻塞服务器主线程。
     enabled: true
-    # 支持 %player% 变量。可替换成你自己的头像服务。
+    # 支持 %player% 变量。默认地址面向 Java 版名称；Bedrock 玩家请替换成兼容 Xbox ID 的头像服务。
     url-template: "https://mc-heads.net/avatar/%player%/64"
     size: 36
-    # 下载成功后同时缓存到内存和 plugins/ShitBot/images/avatar-cache。
+    # 下载成功后同时缓存到内存和 plugins/ShitBotNukkit/images/avatar-cache。
     cache-minutes: 1440
     download-threads: 4
     # 避免在线人数很多时一次性排队下载过多头像。未下载的玩家暂时使用默认头像。
@@ -211,9 +210,9 @@ inventory:
     # Nukkit-MOT 当前不启用 Mod JAR 扫描；该项保留给后续 Mod 支持。
     scan-mod-jars: false
     mods-directory: "../../mods"
-    # 自动发现服务端根目录下的 resourcepacks、server-resource-packs、versions 和客户端 JAR。
+    # 自动发现 Java 版资源包目录、versions 和客户端 JAR；Nukkit 自定义图标请放入 exported-directory。
     auto-discover: true
-    # 定期检查资源包、客户端核心和 Mod JAR 是否发生变化；变化后异步重建索引。
+    # 定期检查已配置的资源包和客户端核心是否变化；变化后异步重建索引。
     refresh-seconds: 30
     # 首次查询最多等待材质索引的时间，超时则先显示已加载图标，不能阻塞主线程。
     index-wait-ms: 5000

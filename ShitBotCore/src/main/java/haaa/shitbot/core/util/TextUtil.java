@@ -3,8 +3,8 @@ package haaa.shitbot.core.util;
 import java.util.regex.Pattern;
 
 public final class TextUtil {
-    // Nukkit-MOT accepts the spaces used by Xbox gamertags; Java names remain a subset.
-    private static final Pattern PLAYER_NAME = Pattern.compile("^[A-Za-z0-9_ ]{1,16}$");
+    // Bedrock gamertags may contain spaces and non-ASCII letters; Java names remain a subset.
+    private static final Pattern PLAYER_NAME = Pattern.compile("^[\\p{L}\\p{N}_ ]{1,16}$");
     private static final Pattern QQ_ID = Pattern.compile("^[1-9][0-9]{4,19}$");
 
     private TextUtil() {

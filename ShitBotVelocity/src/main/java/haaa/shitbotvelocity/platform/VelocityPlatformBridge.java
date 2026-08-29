@@ -68,7 +68,15 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     public ServerAvailabilityWatch watchServerAvailability(String serverName,
                                                            int intervalSeconds,
                                                            Runnable availableAction) {
-        final java.util.Optional<RegisteredServer> found = server.getServer(serverName);
+        java.util.Optional<RegisteredServer> found = server.getServer(serverName);
+        if (!found.isPresent()) {
+            for (RegisteredServer registered : server.getAllServers()) {
+                if (registered.getServerInfo().getName().equalsIgnoreCase(serverName.trim())) {
+                    found = java.util.Optional.of(registered);
+                    break;
+                }
+            }
+        }
         if (!found.isPresent()) {
             warn("Startup notice target is not configured in Velocity: " + serverName);
             return noOpWatch();
