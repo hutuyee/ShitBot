@@ -64,8 +64,7 @@ public final class OneBotCommandHandler {
             Match inventoryMatch = matchPrefix(raw, settings.getOneBot().getInventoryCommand().getAliases());
             if (inventoryMatch != null) {
                 String requestedPlayer = inventoryMatch.remaining.trim();
-                if (!requestedPlayer.isEmpty()
-                        && (requestedPlayer.contains(" ") || !TextUtil.isValidPlayerName(requestedPlayer))) {
+                if (!requestedPlayer.isEmpty() && !TextUtil.isValidPlayerName(requestedPlayer)) {
                     reply(message, settings.getOneBot().getInventoryCommand().getUsage(), null, null);
                 } else if (!isCoolingDown(message, "inventory")) {
                     handleInventory(message, requestedPlayer.isEmpty() ? null : requestedPlayer);
@@ -78,13 +77,16 @@ public final class OneBotCommandHandler {
     }
 
     private void handleBind(final GroupMessage message, String arguments) {
-        String[] parts = arguments.trim().split("\\s+");
-        if (parts.length != 2 || !TextUtil.isValidPlayerName(parts[0])) {
+        String cleanArguments = arguments == null ? "" : arguments.trim();
+        int separator = lastWhitespace(cleanArguments);
+        String playerNameArgument = separator < 0 ? "" : cleanArguments.substring(0, separator).trim();
+        String codeArgument = separator < 0 ? "" : cleanArguments.substring(separator + 1).trim();
+        if (!TextUtil.isValidPlayerName(playerNameArgument) || codeArgument.isEmpty()) {
             reply(message, settings.getMessages().getBindUsage(), null, null);
             return;
         }
-        final String playerName = parts[0];
-        final String code = parts[1];
+        final String playerName = playerNameArgument;
+        final String code = codeArgument;
         final String qqId = String.valueOf(message.getUserId());
 
         bindingService.bind(playerName, qqId, code).whenComplete(
@@ -274,6 +276,15 @@ public final class OneBotCommandHandler {
             }
         }
         return false;
+    }
+
+    private static int lastWhitespace(String value) {
+        for (int index = value.length() - 1; index >= 0; index--) {
+            if (Character.isWhitespace(value.charAt(index))) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private static final class Match {

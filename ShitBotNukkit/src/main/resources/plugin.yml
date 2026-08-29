@@ -1,0 +1,16 @@
+name: ShitBotNukkit
+version: '${project.version}'
+main: haaa.shitbotnukkit.ShitBotNukkit
+api: [ '1.0.0' ]
+author: H_aaa
+description: ShitBot for Nukkit-MOT
+softdepend: [ LuckPerms ]
+commands:
+  shitbot:
+    description: ShitBot management command
+    aliases: [ sbot ]
+    usage: /shitbot status|reload|update|image|migrate easybot [EasyBot.db]
+permissions:
+  shitbot.admin:
+    description: Allows ShitBot administration
+    default: op

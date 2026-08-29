@@ -15,5 +15,6 @@
         <module>ShitBotBungee</module>
         <module>ShitBotSpigot</module>
         <module>ShitBotVelocity</module>
+        <module>ShitBotNukkit</module>
     </modules>
 </project>

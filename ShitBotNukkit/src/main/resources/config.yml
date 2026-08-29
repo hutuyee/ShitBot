@@ -1,0 +1,250 @@
+config-version: 1
+
+onebot:
+  enabled: true
+  # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。
+  # 跨主机连接请使用 wss://；远程 ws:// 默认拒绝连接。
+  websocket-url: "ws://127.0.0.1:3001"
+  # 非空时会在 WebSocket 握手 Header 中发送：Authorization: Bearer <token>
+  access-token: ""
+  # 仅在已有加密隧道且明确接受消息与 token 明文风险时开启。
+  allow-insecure-remote-websocket: false
+  # 默认 false；只有显式开启时才接收任意群消息。
+  allow-all-groups: false
+  # 允许接收的群。列表为空且 allow-all-groups=false 时拒绝所有群消息。
+  allowed-group-ids:
+    - 123456789
+  connect-timeout-seconds: 10
+  action-timeout-seconds: 15
+  # 同时等待 OneBot 响应的 action 上限；达到后新请求会快速失败，避免无界堆积。
+  maximum-pending-actions: 256
+  heartbeat-timeout-seconds: 120
+  reconnect:
+    initial-seconds: 3
+    maximum-seconds: 60
+  command-cooldown-seconds: 2
+  reply-at-sender: true
+
+  notices:
+    server-startup:
+      # 启动通知会发送到 onebot.allowed-group-ids 中的所有群。
+      enabled: false
+      # 留空：Nukkit-MOT 启动且 OneBot 连接成功后通知。
+      # Nukkit-MOT 为单服平台，请保持为空。
+      target-server: ""
+      check-interval-seconds: 5
+      # 支持变量：%server%、%platform%。
+      message: "服务器 %server% 已启动。"
+    group-join-welcome:
+      # 新成员进入允许群时发送欢迎消息。
+      enabled: true
+      # 支持变量：%at%、%qq%、%group%、%sub_type%。
+      # 包含 %at% 时会使用 OneBot 的 at 消息段艾特新成员。
+      message: |
+        欢迎 %at% 加入群聊！
+        你的QQ：%qq%
+    group-leave-unbind:
+      # 开启后，成员退出任意 allowed-group-ids 群时删除其 QQ 绑定。
+      # 这是破坏性操作，建议确认业务规则后再开启。
+      enabled: false
+
+  commands:
+    bind:
+      enabled: true
+      aliases:
+        - "绑定"
+        - "/bind"
+      usage: "用法: 绑定 <游戏ID> <验证码>"
+    online-image:
+      enabled: true
+      aliases:
+        - "服务器状态"
+        - "在线人数"
+      usage: "服务器状态"
+    inventory:
+      enabled: true
+      aliases:
+        - "背包"
+        - "我的背包"
+      # 不带参数时自动选择一个已绑定角色；带游戏 ID 时校验该角色是否属于消息发送者 QQ。
+      usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
+
+forwarding:
+  # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
+  # 目标群使用 onebot.allowed-group-ids；该列表为空时无法确定发送目标。
+  game-to-group:
+    # 该方向的总开关。
+    enabled: false
+    # true：只有带 prefix 的消息才转发；false：所有非空消息均转发。
+    require-prefix: true
+    # 只从发往 QQ 的内容中移除，不改变游戏内原聊天。末尾空格会原样保留。
+    # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
+    prefix: "#qq "
+
+  # QQ 群消息转发到游戏，输出格式为 [QQ] 群名片或昵称: 内容。
+  # 图片、动画表情、语音、视频、文件、分享等会转换成可识别的聊天标签；
+  # OneBot 提供网络地址时，标签可在游戏聊天中点击打开。普通 Unicode 表情会原样保留。
+  # 仅处理 onebot.allowed-group-ids 中配置的群。
+  group-to-game:
+    # 该方向的总开关。
+    enabled: false
+    # true：只有带 prefix 的消息才转发；false：所有非空消息均转发。
+    require-prefix: true
+    # 转发时会移除此触发前缀；末尾空格属于前缀的一部分。
+    # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
+    prefix: "#mc "
+    # browser：发送可点击的 [图片]，所有原版客户端都可在浏览器查看。
+    # picturebridge：为图片和表情附加 PictureBridge 标记；装有模组的客户端会在聊天中预览并在游戏内打开。
+    # 两种模式都会保留 OPEN_URL，未安装模组的客户端仍可点击后用浏览器查看。
+    media-mode: "browser"
+
+binding:
+  enabled: true
+  # true：同一个 QQ 可以绑定多个大小写精确匹配的游戏 ID。
+  # false：同一个 QQ 只允许绑定一个游戏 ID。
+  # 修改后执行 /shitbot reload 即可生效。
+  allow-multiple-ids-per-qq: true
+
+  # 每个 QQ 最多可绑定的游戏 ID 数量，范围 1-1000。
+  # allow-multiple-ids-per-qq 为 false 时，本项会被强制视为 1。
+  # EasyBot 迁移前会先统计绑定 ID 最多的 QQ；若本值不足，整次迁移会直接取消。
+  maximum-ids-per-qq: 5
+
+  code-length: 6
+  expire-minutes: 10
+  # 同一个 QQ 对同一个验证码的错误尝试上限。
+  maximum-attempts-per-qq: 5
+  # 所有 QQ 对同一个验证码的错误尝试总上限；达到后短暂冻结，但不会销毁验证码。
+  # 实际值至少是单 QQ 上限的 4 倍，避免少量 QQ 恶意耗尽验证码。
+  maximum-total-attempts: 30
+  total-attempt-cooldown-seconds: 30
+  login-database-timeout-seconds: 8
+  # 去掉了容易混淆的 0/O、1/I。
+  code-alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+database:
+  # sqlite 或 mysql。三个版本使用完全相同的表结构。
+  type: "sqlite"
+  sqlite:
+    # 在插件数据目录内生成，可直接在三个版本之间迁移。
+    file: "shitbot.db"
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    database: "shitbot"
+    username: "shitbot"
+    password: "SHITBOTPASSWORD"
+    # 下列参数只适合本机 MySQL；跨主机应改为 sslMode=VERIFY_IDENTITY。
+    parameters: "useUnicode=true&characterEncoding=utf8&sslMode=DISABLED&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=false"
+    # 远程 MySQL 未强制 TLS 时默认拒绝启动；仅在接受明文风险时显式开启。
+    allow-insecure-remote-mysql: false
+    # JDBC 驱动建立 TCP 连接及等待数据库响应的硬超时。
+    connect-timeout-ms: 5000
+    socket-timeout-ms: 15000
+  pool:
+    maximum-pool-size: 10
+    minimum-idle: 2
+    connection-timeout-ms: 5000
+    validation-timeout-ms: 3000
+    idle-timeout-ms: 600000
+    # 默认 30 分钟；应略低于 MySQL/NAT 的连接回收时间。
+    maximum-lifetime-ms: 1800000
+    # 默认 5 分钟；设置 0 可关闭 keepalive。
+    keepalive-time-ms: 300000
+  # SQLite 会自动强制为 1，MySQL 可按负载调整。
+  async-threads: 2
+  # 工作线程占满时允许等待的数据库任务数；队列满后新任务快速失败。
+  maximum-queued-tasks: 256
+
+image:
+  title: "服务器在线状态"
+  server-name: "Server-Status"
+  font-name: "Microsoft YaHei"
+  width: 1200
+  # 每行最多显示几个玩家；实际卡片宽度会按头像和名字自动适配，不再强制铺满整行。
+  players-per-row: 5
+  maximum-players: 200
+  cache-seconds: 8
+  output-file: "online.png"
+  avatar:
+    # 头像下载和图片渲染全部在独立线程执行，不会阻塞服务器主线程。
+    enabled: true
+    # 支持 %player% 变量。可替换成你自己的头像服务。
+    url-template: "https://mc-heads.net/avatar/%player%/64"
+    size: 36
+    # 下载成功后同时缓存到内存和 plugins/ShitBot/images/avatar-cache。
+    cache-minutes: 1440
+    download-threads: 4
+    # 避免在线人数很多时一次性排队下载过多头像。未下载的玩家暂时使用默认头像。
+    maximum-downloads-per-render: 24
+    connect-timeout-ms: 1500
+    read-timeout-ms: 2500
+    # 单次生成最多等待头像的时间；超时先用默认头像，下载完成后下次生成自动使用。
+    wait-timeout-ms: 2200
+
+inventory:
+  enabled: true
+  title: "%player% 的背包"
+  font-name: "Microsoft YaHei"
+  width: 760
+  slot-size: 48
+  output-file: "inventory.png"
+  snapshot:
+    # 在线玩家定时写入快照；玩家退出时也会立即抓取一次。
+    interval-seconds: 60
+    # 超过保留期的离线快照不再用于查询，并由后台清理。
+    retention-days: 30
+  cache:
+    # 快照内存缓存上限；达到上限后按最近访问顺序淘汰。
+    memory-maximum-entries: 2048
+    # 相同快照短时间内复用已经渲染的 PNG。
+    render-seconds: 5
+  render:
+    # 限制并发渲染，避免大量 QQ 查询瞬间占满 CPU。
+    maximum-concurrent: 2
+    # 等待渲染的任务上限；队列满后回复查询失败，请稍后重试。
+    maximum-queued: 16
+  icons:
+    # 精确覆盖目录：item-icons/<namespace>/<path>.png
+    # CustomModelData 可使用 <path>__cmd_<值>.png。
+    exported-directory: "item-icons"
+    # Nukkit-MOT 当前不启用 Mod JAR 扫描；该项保留给后续 Mod 支持。
+    scan-mod-jars: false
+    mods-directory: "../../mods"
+    # 自动发现服务端根目录下的 resourcepacks、server-resource-packs、versions 和客户端 JAR。
+    auto-discover: true
+    # 定期检查资源包、客户端核心和 Mod JAR 是否发生变化；变化后异步重建索引。
+    refresh-seconds: 30
+    # 首次查询最多等待材质索引的时间，超时则先显示已加载图标，不能阻塞主线程。
+    index-wait-ms: 5000
+    # 额外资源包、客户端核心或资源 JAR，越靠前优先级越高。支持目录和相对路径。
+    resource-archives: []
+    cache-entries: 2048
+
+messages:
+  kick-unbound: |
+    &7欢迎 &a%player% &7加入服务器
+    &7请在QQ群发送 &6绑定 %player% %code%
+    &7验证码将在 &c%expire_minutes% 分钟 &7后失效
+  kick-after-unbind: "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。"
+  kick-database-unavailable: "&c绑定系统暂时不可用，请稍后重试。"
+  bind-usage: "用法: 绑定 <游戏ID> <验证码>"
+  bind-success: "%at% 绑定成功：%player% -> %qq%"
+  bind-invalid: "%at% 验证码错误。"
+  bind-expired: "%at% 验证码不存在、尝试次数过多或已经过期，请重新进入服务器获取。"
+  bind-qq-already-used: "%at% 该QQ已经绑定其他游戏ID。"
+  # 支持变量：%maximum_ids%。
+  bind-qq-limit-reached: "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"
+  bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
+  bind-database-error: "%at% 数据库操作失败，请联系管理员。"
+  online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+  inventory-not-bound: "%at% 你还没有绑定游戏ID。"
+  # 支持变量：%player%。当指定的游戏 ID 不属于消息发送者 QQ 时使用。
+  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
+  inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
+  inventory-disabled: "%at% 背包查询当前未启用。"
+  inventory-failed: "%at% 背包查询失败，请稍后重试。"
+  no-permission: "&c你没有权限使用此命令。"
+  reload-started: "&7正在重载 ShitBot..."
+  reload-success: "&aShitBot 已完成热重载。"
+  reload-failed: "&cShitBot 重载失败，旧配置仍在运行。"

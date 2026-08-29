@@ -55,6 +55,7 @@ jobs:
             "ShitBotSpigot"
             "ShitBotBungee"
             "ShitBotVelocity"
+            "ShitBotNukkit"
           )
 
           for module in "${modules[@]}"; do
@@ -122,8 +123,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#release_jars[@]}" -ne 3 ]]; then
-            echo "::error title=Unexpected artifact count::Expected exactly 3 plugin JAR files, found ${#release_jars[@]}."
+          if [[ "${#release_jars[@]}" -ne 4 ]]; then
+            echo "::error title=Unexpected artifact count::Expected exactly 4 plugin JAR files, found ${#release_jars[@]}."
             exit 1
           fi
 
@@ -200,8 +201,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#jars[@]}" -ne 3 ]]; then
-            echo "::error title=Unexpected release artifact count::Expected exactly 3 JAR files, found ${#jars[@]}."
+          if [[ "${#jars[@]}" -ne 4 ]]; then
+            echo "::error title=Unexpected release artifact count::Expected exactly 4 JAR files, found ${#jars[@]}."
             exit 1
           fi
 
@@ -214,8 +215,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#checksums[@]}" -ne 3 ]]; then
-            echo "::error title=Unexpected checksum count::Expected exactly 3 SHA-256 files, found ${#checksums[@]}."
+          if [[ "${#checksums[@]}" -ne 4 ]]; then
+            echo "::error title=Unexpected checksum count::Expected exactly 4 SHA-256 files, found ${#checksums[@]}."
             exit 1
           fi
 
@@ -228,8 +229,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#signatures[@]}" -ne 3 ]]; then
-            echo "::error title=Unexpected signature count::Expected exactly 3 detached signatures, found ${#signatures[@]}."
+          if [[ "${#signatures[@]}" -ne 4 ]]; then
+            echo "::error title=Unexpected signature count::Expected exactly 4 detached signatures, found ${#signatures[@]}."
             exit 1
           fi
 

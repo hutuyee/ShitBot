@@ -4,7 +4,8 @@ package haaa.shitbot.core.update;
 public enum UpdatePlatform {
     SPIGOT("ShitBotSpigot-", "plugin.yml", "haaa/shitbotspigot/ShitBotSpigot.class"),
     BUNGEE("ShitBotBungee-", "bungee.yml", "haaa/shitbotbungee/ShitBotBungee.class"),
-    VELOCITY("ShitBotVelocity-", "velocity-plugin.json", "haaa/shitbotvelocity/ShitBotVelocity.class");
+    VELOCITY("ShitBotVelocity-", "velocity-plugin.json", "haaa/shitbotvelocity/ShitBotVelocity.class"),
+    NUKKIT("ShitBotNukkit-", "plugin.yml", "haaa/shitbotnukkit/ShitBotNukkit.class");
 
     private final String assetPrefix;
     private final String descriptorPath;
