@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -121,7 +122,7 @@ final class JdbcDriverRegistry implements AutoCloseable {
                 new URL[]{sqliteJar.toUri().toURL(), slf4jJar.toUri().toURL()},
                 JdbcDriverRegistry.class.getClassLoader(),
                 new String[]{"org.sqlite.", "org.slf4j."});
-        sqliteDriver = instantiateDriver("org.sqlite.JDBC", sqliteClassLoader);
+        sqliteDriver = instantiateFallbackDriver("org.sqlite.JDBC", sqliteClassLoader);
         logDriver("SQLite", sqliteDriver, "fallback " + libraryDirectory);
         return sqliteDriver;
     }
@@ -160,7 +161,8 @@ final class JdbcDriverRegistry implements AutoCloseable {
                 new URL[]{mysqlJar.toUri().toURL(), protobufJar.toUri().toURL()},
                 JdbcDriverRegistry.class.getClassLoader(),
                 new String[]{"com.mysql.", "com.google.protobuf."});
-        mysqlDriver = instantiateDriver("com.mysql.cj.jdbc.NonRegisteringDriver", mysqlClassLoader);
+        mysqlDriver = instantiateFallbackDriver(
+                "com.mysql.cj.jdbc.NonRegisteringDriver", mysqlClassLoader);
         mysqlApi = MysqlApi.MODERN;
         logDriver("MySQL", mysqlDriver, "fallback " + libraryDirectory);
     }
@@ -197,6 +199,14 @@ final class JdbcDriverRegistry implements AutoCloseable {
                 throw (SQLException) cause;
             }
             throw new SQLException("Unable to create JDBC driver " + className, cause == null ? exception : cause);
+        }
+    }
+
+    private Driver instantiateFallbackDriver(String className, ClassLoader classLoader) throws SQLException {
+        try {
+            return instantiateDriver(className, classLoader);
+        } catch (ClassNotFoundException exception) {
+            throw new SQLException("Verified JDBC fallback does not contain " + className, exception);
         }
     }
 
@@ -289,7 +299,7 @@ final class JdbcDriverRegistry implements AutoCloseable {
     private void downloadLibrary(Library library, Path temporary) throws IOException {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(library.url);
+            URL url = URI.create(library.url).toURL();
             if (!"https".equalsIgnoreCase(url.getProtocol())
                     || !"repo.maven.apache.org".equalsIgnoreCase(url.getHost())) {
                 throw new IOException("Unexpected JDBC library source: " + library.url);
