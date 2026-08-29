@@ -31,6 +31,14 @@ onebot:
   reply-at-sender: true
 
   notices:
+    server-startup:
+      # standalone 模式启动且 OneBot 连接成功后，通知 allowed-group-ids 中的所有群。
+      enabled: false
+      # 指定代理子服仅由 BungeeCord/Velocity 版支持；Spigot 请保持为空。
+      target-server: ""
+      check-interval-seconds: 5
+      # 支持变量：%server%、%platform%。
+      message: "服务器 %server% 已启动。"
     group-join-welcome:
       # 新成员进入允许群时发送欢迎消息。
       enabled: true

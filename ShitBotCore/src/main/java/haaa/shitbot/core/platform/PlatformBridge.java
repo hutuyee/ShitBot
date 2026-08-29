@@ -36,6 +36,23 @@ public interface PlatformBridge {
                 request, "当前平台不支持控制台请求。", getPlatformName()));
     }
 
+    /** Polls a proxy-configured backend until it accepts a status ping. */
+    default ServerAvailabilityWatch watchServerAvailability(String serverName,
+                                                            int intervalSeconds,
+                                                            Runnable availableAction) {
+        warn("Current platform cannot watch backend server availability: " + serverName);
+        return new ServerAvailabilityWatch() {
+            @Override
+            public void close() {
+            }
+        };
+    }
+
+    interface ServerAvailabilityWatch extends AutoCloseable {
+        @Override
+        void close();
+    }
+
     void broadcastMessage(String message);
 
     /** Disconnects currently-online players whose names exactly match the supplied list. */

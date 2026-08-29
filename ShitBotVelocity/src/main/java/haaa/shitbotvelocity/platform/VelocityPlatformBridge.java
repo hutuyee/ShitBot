@@ -2,6 +2,8 @@ package haaa.shitbotvelocity.platform;
 
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.scheduler.ScheduledTask;
 import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
@@ -14,6 +16,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -21,8 +24,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class VelocityPlatformBridge implements PlatformBridge {
+    private final Object plugin;
     private final ProxyServer server;
     private final Logger logger;
     private final Path dataDirectory;
@@ -32,6 +38,7 @@ public final class VelocityPlatformBridge implements PlatformBridge {
                                   ProxyServer server,
                                   Logger logger,
                                   Path dataDirectory) {
+        this.plugin = plugin;
         this.server = server;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
@@ -55,6 +62,67 @@ public final class VelocityPlatformBridge implements PlatformBridge {
 
     public void configureConsole(ConsoleSettings settings) {
         consoleGateway.configure(settings);
+    }
+
+    @Override
+    public ServerAvailabilityWatch watchServerAvailability(String serverName,
+                                                           int intervalSeconds,
+                                                           Runnable availableAction) {
+        final java.util.Optional<RegisteredServer> found = server.getServer(serverName);
+        if (!found.isPresent()) {
+            warn("Startup notice target is not configured in Velocity: " + serverName);
+            return noOpWatch();
+        }
+        final RegisteredServer target = found.get();
+        final AtomicBoolean closed = new AtomicBoolean();
+        final AtomicBoolean checking = new AtomicBoolean();
+        final AtomicReference<ScheduledTask> taskReference = new AtomicReference<ScheduledTask>();
+        Runnable poll = new Runnable() {
+            @Override
+            public void run() {
+                if (closed.get() || !checking.compareAndSet(false, true)) {
+                    return;
+                }
+                target.ping().whenComplete((response, throwable) -> {
+                    checking.set(false);
+                    if (closed.get() || throwable != null || response == null
+                            || !closed.compareAndSet(false, true)) {
+                        return;
+                    }
+                    ScheduledTask task = taskReference.get();
+                    if (task != null) {
+                        task.cancel();
+                    }
+                    availableAction.run();
+                });
+            }
+        };
+        ScheduledTask task = server.getScheduler().buildTask(plugin, poll)
+                .repeat(Duration.ofSeconds(Math.max(1, intervalSeconds)))
+                .schedule();
+        taskReference.set(task);
+        if (closed.get()) {
+            task.cancel();
+        }
+        return new ServerAvailabilityWatch() {
+            @Override
+            public void close() {
+                if (closed.compareAndSet(false, true)) {
+                    ScheduledTask task = taskReference.get();
+                    if (task != null) {
+                        task.cancel();
+                    }
+                }
+            }
+        };
+    }
+
+    private ServerAvailabilityWatch noOpWatch() {
+        return new ServerAvailabilityWatch() {
+            @Override
+            public void close() {
+            }
+        };
     }
 
     public void close() {

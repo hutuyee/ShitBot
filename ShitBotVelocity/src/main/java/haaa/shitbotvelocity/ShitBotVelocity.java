@@ -15,6 +15,7 @@ import haaa.shitbotvelocity.listener.PlayerLoginListener;
 import haaa.shitbotvelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
@@ -41,6 +42,8 @@ public final class ShitBotVelocity {
     private VelocityPlatformBridge platformBridge;
     private UpdateChecker updateChecker;
     private Path pluginJarPath;
+    private PlatformBridge.ServerAvailabilityWatch startupWatch;
+    private boolean startupNoticeTriggered;
 
     @Inject
     public ShitBotVelocity(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -52,6 +55,7 @@ public final class ShitBotVelocity {
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
         stopping = false;
+        startupNoticeTriggered = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
         this.pluginJarPath = resolvePluginPath();
@@ -84,6 +88,7 @@ public final class ShitBotVelocity {
                     }
                     startupUnavailable = false;
                     runtime.activate();
+                    configureStartupNotification(runtime, true);
                     platformBridge.info("ShitBotVelocity enabled.");
                 }
             });
@@ -129,6 +134,7 @@ public final class ShitBotVelocity {
             }
             platformBridge.configureConsole(consoleSettings);
             newRuntime.activate();
+            configureStartupNotification(newRuntime, false);
             startupUnavailable = false;
             return Boolean.TRUE;
         });
@@ -137,6 +143,44 @@ public final class ShitBotVelocity {
     private synchronized void clearReloadFuture(CompletableFuture<Boolean> completed) {
         if (reloadFuture == completed) {
             reloadFuture = null;
+        }
+    }
+
+    private synchronized void configureStartupNotification(final ShitBotRuntime runtime,
+                                                           boolean initialStart) {
+        closeStartupWatch();
+        Settings.ServerStartupNotice notice = runtime.getSettings().getOneBot().getServerStartupNotice();
+        if (!notice.isEnabled()) {
+            return;
+        }
+        if (startupNoticeTriggered) {
+            return;
+        }
+        final String targetServer = notice.getTargetServer();
+        if (targetServer.isEmpty()) {
+            if (initialStart) {
+                startupNoticeTriggered = true;
+                runtime.notifyServerStarted(platformBridge.getPlatformName());
+            }
+            return;
+        }
+        startupWatch = platformBridge.watchServerAvailability(
+                targetServer, notice.getCheckIntervalSeconds(), () -> {
+                    synchronized (ShitBotVelocity.this) {
+                        if (stopping || startupNoticeTriggered
+                                || runtimeReference.get() != runtime) {
+                            return;
+                        }
+                        startupNoticeTriggered = true;
+                        runtime.notifyServerStarted(targetServer);
+                    }
+                });
+    }
+
+    private synchronized void closeStartupWatch() {
+        if (startupWatch != null) {
+            startupWatch.close();
+            startupWatch = null;
         }
     }
 
@@ -212,6 +256,7 @@ public final class ShitBotVelocity {
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         stopping = true;
+        closeStartupWatch();
         if (updateChecker != null) {
             updateChecker.close();
         }

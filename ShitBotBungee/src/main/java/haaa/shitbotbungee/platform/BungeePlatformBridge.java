@@ -6,7 +6,9 @@ import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.update.UpdateInfo;
+import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.ServerPing;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -14,6 +16,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
+import net.md_5.bungee.api.scheduler.ScheduledTask;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class BungeePlatformBridge implements PlatformBridge {
     private final Plugin plugin;
@@ -54,6 +60,80 @@ public final class BungeePlatformBridge implements PlatformBridge {
 
     public CompletableFuture<List<ConsoleResult>> updateAllBackends(UpdateInfo release) {
         return consoleGateway.updateAllBackends(release);
+    }
+
+    @Override
+    public ServerAvailabilityWatch watchServerAvailability(String serverName,
+                                                           int intervalSeconds,
+                                                           Runnable availableAction) {
+        final ServerInfo target = findServer(serverName);
+        if (target == null) {
+            warn("Startup notice target is not configured in BungeeCord: " + serverName);
+            return noOpWatch();
+        }
+        final AtomicBoolean closed = new AtomicBoolean();
+        final AtomicBoolean checking = new AtomicBoolean();
+        final AtomicReference<ScheduledTask> taskReference = new AtomicReference<ScheduledTask>();
+        Runnable poll = new Runnable() {
+            @Override
+            public void run() {
+                if (closed.get() || !checking.compareAndSet(false, true)) {
+                    return;
+                }
+                target.ping(new Callback<ServerPing>() {
+                    @Override
+                    public void done(ServerPing result, Throwable error) {
+                        checking.set(false);
+                        if (closed.get() || error != null || result == null
+                                || !closed.compareAndSet(false, true)) {
+                            return;
+                        }
+                        ScheduledTask task = taskReference.get();
+                        if (task != null) {
+                            task.cancel();
+                        }
+                        availableAction.run();
+                    }
+                });
+            }
+        };
+        ScheduledTask task = ProxyServer.getInstance().getScheduler().schedule(
+                plugin, poll, 0L, Math.max(1, intervalSeconds), TimeUnit.SECONDS);
+        taskReference.set(task);
+        if (closed.get()) {
+            task.cancel();
+        }
+        return new ServerAvailabilityWatch() {
+            @Override
+            public void close() {
+                if (closed.compareAndSet(false, true)) {
+                    ScheduledTask task = taskReference.get();
+                    if (task != null) {
+                        task.cancel();
+                    }
+                }
+            }
+        };
+    }
+
+    private ServerInfo findServer(String serverName) {
+        if (serverName == null) {
+            return null;
+        }
+        for (Map.Entry<String, ServerInfo> entry : ProxyServer.getInstance().getServers().entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(serverName.trim())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private ServerAvailabilityWatch noOpWatch() {
+        return new ServerAvailabilityWatch() {
+            @Override
+            public void close() {
+            }
+        };
     }
 
     public void close() {

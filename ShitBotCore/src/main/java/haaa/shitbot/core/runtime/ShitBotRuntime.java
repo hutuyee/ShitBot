@@ -16,6 +16,7 @@ import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.service.LoginDecision;
 import haaa.shitbot.core.service.MessageForwardingService;
 import haaa.shitbot.core.service.OnlineImageService;
+import haaa.shitbot.core.service.ServerStartupNotificationService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbot.core.util.TextUtil;
@@ -42,6 +43,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final EasyConsoleService easyConsoleService;
     private final OneBotNoticeHandler noticeHandler;
     private final MessageForwardingService forwardingService;
+    private final ServerStartupNotificationService startupNotificationService;
     private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-maintenance", true));
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -72,6 +74,8 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.noticeHandler = new OneBotNoticeHandler(
                 settings, platform, bindingService, oneBotClient);
         this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
+        this.startupNotificationService = new ServerStartupNotificationService(
+                settings, platform, oneBotClient);
         this.oneBotClient.setGroupMessageConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupMessage>() {
             @Override
             public void accept(haaa.shitbot.core.onebot.GroupMessage message) {
@@ -84,6 +88,12 @@ public final class ShitBotRuntime implements AutoCloseable {
             @Override
             public void accept(haaa.shitbot.core.onebot.GroupNotice notice) {
                 noticeHandler.handle(notice);
+            }
+        });
+        this.oneBotClient.setConnectedListener(new Runnable() {
+            @Override
+            public void run() {
+                startupNotificationService.onConnected();
             }
         });
     }
@@ -194,6 +204,12 @@ public final class ShitBotRuntime implements AutoCloseable {
         }
     }
 
+    public void notifyServerStarted(String serverName) {
+        if (!closed.get() && isReady()) {
+            startupNotificationService.request(serverName);
+        }
+    }
+
     public boolean isReady() {
         CompletableFuture<Void> current = startFuture;
         return current != null && current.isDone() && !current.isCompletedExceptionally()
@@ -216,6 +232,7 @@ public final class ShitBotRuntime implements AutoCloseable {
             return;
         }
         maintenanceExecutor.shutdownNow();
+        startupNotificationService.close();
         oneBotClient.close();
         inventoryService.close();
         imageService.close();

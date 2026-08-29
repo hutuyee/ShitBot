@@ -27,6 +27,12 @@ public final class SettingsFactory {
                         "欢迎 %at% 加入群聊！"));
         Settings.GroupLeaveUnbind groupLeaveUnbind = new Settings.GroupLeaveUnbind(
                 source.getBoolean("onebot.notices.group-leave-unbind.enabled", false));
+        Settings.ServerStartupNotice serverStartupNotice = new Settings.ServerStartupNotice(
+                source.getBoolean("onebot.notices.server-startup.enabled", false),
+                source.getString("onebot.notices.server-startup.target-server", ""),
+                source.getInt("onebot.notices.server-startup.check-interval-seconds", 5),
+                source.getString("onebot.notices.server-startup.message",
+                        "服务器 %server% 已启动。"));
 
         Settings.OneBot oneBot = new Settings.OneBot(
                 source.getBoolean("onebot.enabled", true),
@@ -47,7 +53,8 @@ public final class SettingsFactory {
                 onlineCommand,
                 inventoryCommand,
                 groupJoinWelcome,
-                groupLeaveUnbind);
+                groupLeaveUnbind,
+                serverStartupNotice);
 
         Settings.Forwarding forwarding = new Settings.Forwarding(
                 new Settings.Direction(

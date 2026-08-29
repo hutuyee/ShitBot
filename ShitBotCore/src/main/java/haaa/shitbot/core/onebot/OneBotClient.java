@@ -62,6 +62,7 @@ public final class OneBotClient implements AutoCloseable {
     private final AtomicLong lastReceivedAt = new AtomicLong();
     private volatile Consumer<GroupMessage> groupMessageConsumer;
     private volatile Consumer<GroupNotice> groupNoticeConsumer;
+    private volatile Runnable connectedListener;
     private volatile Client client;
 
     public OneBotClient(Settings.OneBot settings, PlatformBridge platform) {
@@ -82,6 +83,10 @@ public final class OneBotClient implements AutoCloseable {
 
     public void setGroupNoticeConsumer(Consumer<GroupNotice> consumer) {
         this.groupNoticeConsumer = consumer;
+    }
+
+    public void setConnectedListener(Runnable listener) {
+        this.connectedListener = listener;
     }
 
     public void start() {
@@ -798,6 +803,15 @@ public final class OneBotClient implements AutoCloseable {
             reconnectScheduled.set(false);
             lastReceivedAt.set(System.currentTimeMillis());
             platform.info("OneBot WebSocket connected: " + getURI());
+            Runnable listener = connectedListener;
+            if (listener != null) {
+                try {
+                    listener.run();
+                } catch (Throwable throwable) {
+                    platform.warn("OneBot connected listener failed: "
+                            + FutureUtil.unwrap(throwable).getMessage());
+                }
+            }
         }
 
         @Override

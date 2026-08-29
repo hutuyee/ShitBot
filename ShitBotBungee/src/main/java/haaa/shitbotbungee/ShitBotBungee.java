@@ -3,6 +3,7 @@ package haaa.shitbotbungee;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
@@ -30,10 +31,13 @@ public final class ShitBotBungee extends Plugin {
     private BungeeConfigLoader configLoader;
     private BungeePlatformBridge platformBridge;
     private UpdateChecker updateChecker;
+    private PlatformBridge.ServerAvailabilityWatch startupWatch;
+    private boolean startupNoticeTriggered;
 
     @Override
     public void onEnable() {
         stopping = false;
+        startupNoticeTriggered = false;
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);
         this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
@@ -64,6 +68,7 @@ public final class ShitBotBungee extends Plugin {
                         }
                         startupUnavailable = false;
                         runtime.activate();
+                        configureStartupNotification(runtime, true);
                         platformBridge.info("ShitBotBungee enabled.");
                     }
                 }
@@ -117,6 +122,7 @@ public final class ShitBotBungee extends Plugin {
                 }
                 platformBridge.configureConsole(consoleSettings);
                 newRuntime.activate();
+                configureStartupNotification(newRuntime, false);
                 startupUnavailable = false;
                 return Boolean.TRUE;
             }
@@ -126,6 +132,47 @@ public final class ShitBotBungee extends Plugin {
     private synchronized void clearReloadFuture(CompletableFuture<Boolean> completed) {
         if (reloadFuture == completed) {
             reloadFuture = null;
+        }
+    }
+
+    private synchronized void configureStartupNotification(final ShitBotRuntime runtime,
+                                                           boolean initialStart) {
+        closeStartupWatch();
+        Settings.ServerStartupNotice notice = runtime.getSettings().getOneBot().getServerStartupNotice();
+        if (!notice.isEnabled()) {
+            return;
+        }
+        if (startupNoticeTriggered) {
+            return;
+        }
+        final String targetServer = notice.getTargetServer();
+        if (targetServer.isEmpty()) {
+            if (initialStart) {
+                startupNoticeTriggered = true;
+                runtime.notifyServerStarted(platformBridge.getPlatformName());
+            }
+            return;
+        }
+        startupWatch = platformBridge.watchServerAvailability(
+                targetServer, notice.getCheckIntervalSeconds(), new Runnable() {
+                    @Override
+                    public void run() {
+                        synchronized (ShitBotBungee.this) {
+                            if (stopping || startupNoticeTriggered
+                                    || runtimeReference.get() != runtime) {
+                                return;
+                            }
+                            startupNoticeTriggered = true;
+                            runtime.notifyServerStarted(targetServer);
+                        }
+                    }
+                });
+    }
+
+    private synchronized void closeStartupWatch() {
+        if (startupWatch != null) {
+            startupWatch.close();
+            startupWatch = null;
         }
     }
 
@@ -194,6 +241,7 @@ public final class ShitBotBungee extends Plugin {
     @Override
     public void onDisable() {
         stopping = true;
+        closeStartupWatch();
         if (updateChecker != null) {
             updateChecker.close();
         }

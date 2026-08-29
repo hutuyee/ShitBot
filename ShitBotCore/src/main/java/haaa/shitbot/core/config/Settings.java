@@ -118,6 +118,7 @@ public final class Settings {
         private final Command inventoryCommand;
         private final GroupJoinWelcome groupJoinWelcome;
         private final GroupLeaveUnbind groupLeaveUnbind;
+        private final ServerStartupNotice serverStartupNotice;
 
         public OneBot(boolean enabled,
                       String websocketUrl,
@@ -137,7 +138,8 @@ public final class Settings {
                       Command onlineImageCommand,
                       Command inventoryCommand,
                       GroupJoinWelcome groupJoinWelcome,
-                      GroupLeaveUnbind groupLeaveUnbind) {
+                      GroupLeaveUnbind groupLeaveUnbind,
+                      ServerStartupNotice serverStartupNotice) {
             this.enabled = enabled;
             this.websocketUrl = text(websocketUrl, "ws://127.0.0.1:3001");
             this.accessToken = accessToken == null ? "" : accessToken.trim();
@@ -159,6 +161,7 @@ public final class Settings {
             this.inventoryCommand = require(inventoryCommand, "inventoryCommand");
             this.groupJoinWelcome = require(groupJoinWelcome, "groupJoinWelcome");
             this.groupLeaveUnbind = require(groupLeaveUnbind, "groupLeaveUnbind");
+            this.serverStartupNotice = require(serverStartupNotice, "serverStartupNotice");
         }
 
         public boolean isEnabled() {
@@ -237,6 +240,10 @@ public final class Settings {
             return groupLeaveUnbind;
         }
 
+        public ServerStartupNotice getServerStartupNotice() {
+            return serverStartupNotice;
+        }
+
         public boolean isGroupAllowed(long groupId) {
             return allowAllGroups || allowedGroupIds.contains(Long.valueOf(groupId));
         }
@@ -293,6 +300,39 @@ public final class Settings {
 
         public boolean isEnabled() {
             return enabled;
+        }
+    }
+
+    public static final class ServerStartupNotice {
+        private final boolean enabled;
+        private final String targetServer;
+        private final int checkIntervalSeconds;
+        private final String message;
+
+        public ServerStartupNotice(boolean enabled,
+                                   String targetServer,
+                                   int checkIntervalSeconds,
+                                   String message) {
+            this.enabled = enabled;
+            this.targetServer = targetServer == null ? "" : targetServer.trim();
+            this.checkIntervalSeconds = clamp(checkIntervalSeconds, 1, 300, 5);
+            this.message = text(message, "服务器 %server% 已启动。");
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public String getTargetServer() {
+            return targetServer;
+        }
+
+        public int getCheckIntervalSeconds() {
+            return checkIntervalSeconds;
+        }
+
+        public String getMessage() {
+            return message;
         }
     }
 

@@ -93,6 +93,7 @@ public final class ShitBotSpigot extends JavaPlugin {
                         startupUnavailable = false;
                         if (!backendMode) {
                             runtime.activate();
+                            configureStartupNotification(runtime, true);
                         }
                         platformBridge.info("ShitBotSpigot enabled (role="
                                 + (backendMode ? "backend" : "standalone") + ").");
@@ -162,6 +163,7 @@ public final class ShitBotSpigot extends JavaPlugin {
                 if (!configuredBackendMode) {
                     startUpdateCheck();
                     newRuntime.activate();
+                    configureStartupNotification(newRuntime, false);
                 }
                 startupUnavailable = false;
                 return Boolean.TRUE;
@@ -173,6 +175,19 @@ public final class ShitBotSpigot extends JavaPlugin {
         if (reloadFuture == completed) {
             reloadFuture = null;
         }
+    }
+
+    private void configureStartupNotification(ShitBotRuntime runtime, boolean initialStart) {
+        Settings.ServerStartupNotice notice = runtime.getSettings().getOneBot().getServerStartupNotice();
+        if (!notice.isEnabled() || !initialStart) {
+            return;
+        }
+        if (!notice.getTargetServer().isEmpty()) {
+            platformBridge.warn("onebot.notices.server-startup.target-server is only supported "
+                    + "by proxy platforms; Spigot will not send this startup notice.");
+            return;
+        }
+        runtime.notifyServerStarted(platformBridge.getPlatformName());
     }
 
     public boolean isStartupUnavailable() {

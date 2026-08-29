@@ -26,6 +26,15 @@ onebot:
   reply-at-sender: true
 
   notices:
+    server-startup:
+      # 启动通知会发送到 onebot.allowed-group-ids 中的所有群。
+      enabled: false
+      # 留空：Velocity 启动且 OneBot 连接成功后通知。
+      # 填写 Velocity 配置中的子服名：持续 ping，直到该子服首次启动成功后通知。
+      target-server: ""
+      check-interval-seconds: 5
+      # 支持变量：%server%、%platform%。
+      message: "服务器 %server% 已启动。"
     group-join-welcome:
       # 新成员进入允许群时发送欢迎消息。
       enabled: true
