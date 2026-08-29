@@ -1,9 +1,10 @@
 package haaa.shitbot.core.inventory;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import haaa.shitbot.core.util.JsonUtil;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -22,43 +23,43 @@ public final class InventorySnapshotCodec {
     private static final int MAX_ITEMS = InventorySnapshot.TOTAL_SLOTS;
     private static final int MAX_COMPONENT_VALUES = 16;
 
-    private final ObjectMapper mapper = new ObjectMapper();
-
     public byte[] encode(InventorySnapshot snapshot) throws IOException {
-        ObjectNode root = mapper.createObjectNode();
-        root.put("format", InventorySnapshot.FORMAT_VERSION);
-        root.put("playerName", snapshot.getPlayerName());
-        root.put("playerUuid", snapshot.getPlayerUuid());
-        root.put("serverName", snapshot.getServerName());
-        root.put("capturedAt", snapshot.getCapturedAt());
-        ArrayNode items = root.putArray("items");
+        JsonObject root = new JsonObject();
+        root.addProperty("format", InventorySnapshot.FORMAT_VERSION);
+        root.addProperty("playerName", snapshot.getPlayerName());
+        root.addProperty("playerUuid", snapshot.getPlayerUuid());
+        root.addProperty("serverName", snapshot.getServerName());
+        root.addProperty("capturedAt", snapshot.getCapturedAt());
+        JsonArray items = new JsonArray();
+        root.add("items", items);
         for (InventorySnapshot.Item item : snapshot.getItems()) {
-            ObjectNode node = items.addObject();
-            node.put("slot", item.getSlot());
-            node.put("registryId", item.getRegistryId());
-            node.put("materialName", item.getMaterialName());
-            node.put("displayName", item.getDisplayName());
-            node.put("amount", item.getAmount());
-            node.put("damage", item.getDamage());
-            node.put("maximumDurability", item.getMaximumDurability());
+            JsonObject node = new JsonObject();
+            items.add(node);
+            node.addProperty("slot", item.getSlot());
+            node.addProperty("registryId", item.getRegistryId());
+            node.addProperty("materialName", item.getMaterialName());
+            node.addProperty("displayName", item.getDisplayName());
+            node.addProperty("amount", item.getAmount());
+            node.addProperty("damage", item.getDamage());
+            node.addProperty("maximumDurability", item.getMaximumDurability());
             if (item.getCustomModelData() != null) {
-                node.put("customModelData", item.getCustomModelData().intValue());
+                node.addProperty("customModelData", item.getCustomModelData().intValue());
             }
             if (!item.getItemModel().isEmpty()) {
-                node.put("itemModel", item.getItemModel());
+                node.addProperty("itemModel", item.getItemModel());
             }
             writeFloats(node, "customModelFloats", item.getCustomModelFloats());
             writeFlags(node, "customModelFlags", item.getCustomModelFlags());
             writeStrings(node, "customModelStrings", item.getCustomModelStrings());
             writeColors(node, "customModelColors", item.getCustomModelColors());
             if (!item.getProfileTextureHash().isEmpty()) {
-                node.put("profileTextureHash", item.getProfileTextureHash());
+                node.addProperty("profileTextureHash", item.getProfileTextureHash());
             }
-            node.put("enchanted", item.isEnchanted());
-            node.put("unbreakable", item.isUnbreakable());
+            node.addProperty("enchanted", item.isEnchanted());
+            node.addProperty("unbreakable", item.isUnbreakable());
         }
 
-        byte[] json = mapper.writeValueAsBytes(root);
+        byte[] json = JsonUtil.toBytes(root);
         if (json.length > MAX_UNCOMPRESSED_BYTES) {
             throw new IOException("Inventory snapshot JSON is too large: " + json.length + " bytes");
         }
@@ -82,113 +83,124 @@ public final class InventorySnapshotCodec {
         try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(payload))) {
             json = readBounded(gzip, MAX_UNCOMPRESSED_BYTES);
         }
-        JsonNode root = mapper.readTree(json);
-        int format = root == null ? -1 : root.path("format").asInt(-1);
+        JsonElement parsed = JsonUtil.parse(json);
+        JsonObject root = parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+        int format = JsonUtil.integer(root, "format", -1);
         if (format < MIN_SUPPORTED_FORMAT || format > InventorySnapshot.FORMAT_VERSION) {
             throw new IOException("Unsupported inventory snapshot format: " + format);
         }
 
         List<InventorySnapshot.Item> items = new ArrayList<InventorySnapshot.Item>();
-        JsonNode itemNodes = root.path("items");
-        if (itemNodes.isArray()) {
+        JsonElement itemNodes = JsonUtil.get(root, "items");
+        if (itemNodes != null && itemNodes.isJsonArray()) {
             int count = 0;
-            for (JsonNode node : itemNodes) {
+            for (JsonElement node : itemNodes.getAsJsonArray()) {
                 if (++count > MAX_ITEMS) break;
-                int slot = node.path("slot").asInt(-1);
+                int slot = JsonUtil.integer(node, "slot", -1);
                 if (slot < 0 || slot >= InventorySnapshot.TOTAL_SLOTS) continue;
-                JsonNode customModelNode = node.get("customModelData");
-                Integer customModelData = customModelNode == null || !customModelNode.isNumber()
-                        ? null : Integer.valueOf(customModelNode.asInt());
+                JsonElement customModelNode = JsonUtil.get(node, "customModelData");
+                Integer customModelData = !JsonUtil.isNumber(customModelNode)
+                        ? null : Integer.valueOf(JsonUtil.integer(customModelNode, 0));
                 items.add(new InventorySnapshot.Item(
                         slot,
-                        node.path("registryId").asText(""),
-                        node.path("materialName").asText("UNKNOWN"),
-                        node.path("displayName").asText(""),
-                        node.path("amount").asInt(1),
-                        node.path("damage").asInt(0),
-                        node.path("maximumDurability").asInt(0),
+                        JsonUtil.string(node, "registryId", ""),
+                        JsonUtil.string(node, "materialName", "UNKNOWN"),
+                        JsonUtil.string(node, "displayName", ""),
+                        JsonUtil.integer(node, "amount", 1),
+                        JsonUtil.integer(node, "damage", 0),
+                        JsonUtil.integer(node, "maximumDurability", 0),
                         customModelData,
-                        format >= 2 ? node.path("itemModel").asText("") : "",
-                        format >= 2 ? readFloats(node.path("customModelFloats")) : null,
-                        format >= 2 ? readFlags(node.path("customModelFlags")) : null,
-                        format >= 2 ? readStrings(node.path("customModelStrings")) : null,
-                        format >= 2 ? readColors(node.path("customModelColors")) : null,
-                        format >= 3 ? node.path("profileTextureHash").asText("") : "",
-                        node.path("enchanted").asBoolean(false),
-                        node.path("unbreakable").asBoolean(false)));
+                        format >= 2 ? JsonUtil.string(node, "itemModel", "") : "",
+                        format >= 2 ? readFloats(JsonUtil.get(node, "customModelFloats")) : null,
+                        format >= 2 ? readFlags(JsonUtil.get(node, "customModelFlags")) : null,
+                        format >= 2 ? readStrings(JsonUtil.get(node, "customModelStrings")) : null,
+                        format >= 2 ? readColors(JsonUtil.get(node, "customModelColors")) : null,
+                        format >= 3 ? JsonUtil.string(node, "profileTextureHash", "") : "",
+                        JsonUtil.booleanValue(node, "enchanted", false),
+                        JsonUtil.booleanValue(node, "unbreakable", false)));
             }
         }
         return new InventorySnapshot(
-                root.path("playerName").asText("unknown"),
-                root.path("playerUuid").asText(""),
-                root.path("serverName").asText("unknown"),
-                root.path("capturedAt").asLong(0L),
+                JsonUtil.string(root, "playerName", "unknown"),
+                JsonUtil.string(root, "playerUuid", ""),
+                JsonUtil.string(root, "serverName", "unknown"),
+                JsonUtil.longValue(root, "capturedAt", 0L),
                 items);
     }
 
-    private void writeFloats(ObjectNode node, String name, List<Float> values) {
+    private void writeFloats(JsonObject node, String name, List<Float> values) {
         if (values.isEmpty()) return;
-        ArrayNode array = node.putArray(name);
-        for (Float value : values) array.add(value.floatValue());
+        JsonArray array = new JsonArray();
+        node.add(name, array);
+        for (Float value : values) array.add(new JsonPrimitive(value));
     }
 
-    private void writeFlags(ObjectNode node, String name, List<Boolean> values) {
+    private void writeFlags(JsonObject node, String name, List<Boolean> values) {
         if (values.isEmpty()) return;
-        ArrayNode array = node.putArray(name);
-        for (Boolean value : values) array.add(value.booleanValue());
+        JsonArray array = new JsonArray();
+        node.add(name, array);
+        for (Boolean value : values) array.add(new JsonPrimitive(value));
     }
 
-    private void writeStrings(ObjectNode node, String name, List<String> values) {
+    private void writeStrings(JsonObject node, String name, List<String> values) {
         if (values.isEmpty()) return;
-        ArrayNode array = node.putArray(name);
-        for (String value : values) array.add(value);
+        JsonArray array = new JsonArray();
+        node.add(name, array);
+        for (String value : values) array.add(new JsonPrimitive(value));
     }
 
-    private void writeColors(ObjectNode node, String name, List<Integer> values) {
+    private void writeColors(JsonObject node, String name, List<Integer> values) {
         if (values.isEmpty()) return;
-        ArrayNode array = node.putArray(name);
-        for (Integer value : values) array.add(value.intValue());
+        JsonArray array = new JsonArray();
+        node.add(name, array);
+        for (Integer value : values) array.add(new JsonPrimitive(value));
     }
 
-    private List<Float> readFloats(JsonNode node) {
+    private List<Float> readFloats(JsonElement node) {
         List<Float> values = new ArrayList<Float>();
-        if (node.isArray()) {
-            for (JsonNode value : node) {
+        if (node != null && node.isJsonArray()) {
+            for (JsonElement value : node.getAsJsonArray()) {
                 if (values.size() >= MAX_COMPONENT_VALUES) break;
-                if (value.isNumber()) values.add(Float.valueOf((float) value.asDouble()));
+                if (JsonUtil.isNumber(value)) {
+                    values.add(Float.valueOf((float) JsonUtil.doubleValue(value, 0.0D)));
+                }
             }
         }
         return values;
     }
 
-    private List<Boolean> readFlags(JsonNode node) {
+    private List<Boolean> readFlags(JsonElement node) {
         List<Boolean> values = new ArrayList<Boolean>();
-        if (node.isArray()) {
-            for (JsonNode value : node) {
+        if (node != null && node.isJsonArray()) {
+            for (JsonElement value : node.getAsJsonArray()) {
                 if (values.size() >= MAX_COMPONENT_VALUES) break;
-                if (value.isBoolean()) values.add(Boolean.valueOf(value.asBoolean()));
+                if (JsonUtil.isBoolean(value)) {
+                    values.add(Boolean.valueOf(JsonUtil.booleanValue(value, false)));
+                }
             }
         }
         return values;
     }
 
-    private List<String> readStrings(JsonNode node) {
+    private List<String> readStrings(JsonElement node) {
         List<String> values = new ArrayList<String>();
-        if (node.isArray()) {
-            for (JsonNode value : node) {
+        if (node != null && node.isJsonArray()) {
+            for (JsonElement value : node.getAsJsonArray()) {
                 if (values.size() >= MAX_COMPONENT_VALUES) break;
-                if (value.isTextual()) values.add(value.asText());
+                if (JsonUtil.isString(value)) values.add(JsonUtil.string(value, ""));
             }
         }
         return values;
     }
 
-    private List<Integer> readColors(JsonNode node) {
+    private List<Integer> readColors(JsonElement node) {
         List<Integer> values = new ArrayList<Integer>();
-        if (node.isArray()) {
-            for (JsonNode value : node) {
+        if (node != null && node.isJsonArray()) {
+            for (JsonElement value : node.getAsJsonArray()) {
                 if (values.size() >= MAX_COMPONENT_VALUES) break;
-                if (value.isNumber()) values.add(Integer.valueOf(value.asInt()));
+                if (JsonUtil.isNumber(value)) {
+                    values.add(Integer.valueOf(JsonUtil.integer(value, 0)));
+                }
             }
         }
         return values;

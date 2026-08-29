@@ -1,13 +1,14 @@
 package haaa.shitbot.core.onebot;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
 import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
+import haaa.shitbot.core.util.JsonUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbot.core.util.NetworkUtil;
 import org.java_websocket.client.WebSocketClient;
@@ -51,7 +52,6 @@ public final class OneBotClient implements AutoCloseable {
     private final Settings.OneBot settings;
     private final Settings.MediaMode mediaMode;
     private final PlatformBridge platform;
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-onebot", true));
     private final ConcurrentHashMap<String, PendingAction> pendingActions = new ConcurrentHashMap<String, PendingAction>();
@@ -192,7 +192,7 @@ public final class OneBotClient implements AutoCloseable {
         }
     }
 
-    public CompletableFuture<JsonNode> callAction(String action, ObjectNode parameters) {
+    public CompletableFuture<JsonElement> callAction(String action, JsonObject parameters) {
         if (action == null || action.trim().isEmpty()) {
             return FutureUtil.failedFuture(new IllegalArgumentException("action cannot be empty"));
         }
@@ -206,12 +206,12 @@ public final class OneBotClient implements AutoCloseable {
         }
 
         final String echo = UUID.randomUUID().toString();
-        ObjectNode request = objectMapper.createObjectNode();
-        request.put("action", action);
-        request.set("params", parameters == null ? objectMapper.createObjectNode() : parameters);
-        request.put("echo", echo);
+        JsonObject request = new JsonObject();
+        request.addProperty("action", action);
+        request.add("params", parameters == null ? new JsonObject() : parameters);
+        request.addProperty("echo", echo);
 
-        CompletableFuture<JsonNode> future = new CompletableFuture<JsonNode>();
+        CompletableFuture<JsonElement> future = new CompletableFuture<JsonElement>();
         final PendingAction pending = new PendingAction(future);
         pendingActions.put(echo, pending);
         try {
@@ -224,7 +224,7 @@ public final class OneBotClient implements AutoCloseable {
                     }
                 }
             }, settings.getActionTimeoutSeconds(), TimeUnit.SECONDS));
-            current.send(objectMapper.writeValueAsString(request));
+            current.send(JsonUtil.toJson(request));
         } catch (Throwable throwable) {
             if (pendingActions.remove(echo, pending)) {
                 pending.cancelTimeout();
@@ -235,50 +235,50 @@ public final class OneBotClient implements AutoCloseable {
         return future;
     }
 
-    public CompletableFuture<JsonNode> sendGroupText(long groupId, String text, Long atUserId) {
-        ArrayNode message = objectMapper.createArrayNode();
+    public CompletableFuture<JsonElement> sendGroupText(long groupId, String text, Long atUserId) {
+        JsonArray message = new JsonArray();
         if (atUserId != null && atUserId.longValue() > 0L) {
-            ObjectNode at = objectMapper.createObjectNode();
-            at.put("type", "at");
-            ObjectNode data = objectMapper.createObjectNode();
-            data.put("qq", String.valueOf(atUserId.longValue()));
-            at.set("data", data);
+            JsonObject at = new JsonObject();
+            at.addProperty("type", "at");
+            JsonObject data = new JsonObject();
+            data.addProperty("qq", String.valueOf(atUserId.longValue()));
+            at.add("data", data);
             message.add(at);
         }
-        ObjectNode textSegment = objectMapper.createObjectNode();
-        textSegment.put("type", "text");
-        ObjectNode textData = objectMapper.createObjectNode();
-        textData.put("text", text == null ? "" : text);
-        textSegment.set("data", textData);
+        JsonObject textSegment = new JsonObject();
+        textSegment.addProperty("type", "text");
+        JsonObject textData = new JsonObject();
+        textData.addProperty("text", text == null ? "" : text);
+        textSegment.add("data", textData);
         message.add(textSegment);
 
-        ObjectNode parameters = objectMapper.createObjectNode();
-        parameters.put("group_id", groupId);
-        parameters.set("message", message);
-        parameters.put("auto_escape", false);
+        JsonObject parameters = new JsonObject();
+        parameters.addProperty("group_id", groupId);
+        parameters.add("message", message);
+        parameters.addProperty("auto_escape", false);
         return callAction("send_group_msg", parameters);
     }
 
-    public CompletableFuture<JsonNode> sendGroupImage(long groupId, byte[] pngBytes, String fileName) {
+    public CompletableFuture<JsonElement> sendGroupImage(long groupId, byte[] pngBytes, String fileName) {
         if (pngBytes == null || pngBytes.length == 0) {
             return FutureUtil.failedFuture(new IllegalArgumentException("Image is empty"));
         }
         String encoded = Base64.getEncoder().encodeToString(pngBytes);
-        ArrayNode message = objectMapper.createArrayNode();
-        ObjectNode imageSegment = objectMapper.createObjectNode();
-        imageSegment.put("type", "image");
-        ObjectNode imageData = objectMapper.createObjectNode();
-        imageData.put("file", "base64://" + encoded);
+        JsonArray message = new JsonArray();
+        JsonObject imageSegment = new JsonObject();
+        imageSegment.addProperty("type", "image");
+        JsonObject imageData = new JsonObject();
+        imageData.addProperty("file", "base64://" + encoded);
         if (fileName != null && !fileName.trim().isEmpty()) {
-            imageData.put("name", fileName.trim());
+            imageData.addProperty("name", fileName.trim());
         }
-        imageSegment.set("data", imageData);
+        imageSegment.add("data", imageData);
         message.add(imageSegment);
 
-        ObjectNode parameters = objectMapper.createObjectNode();
-        parameters.put("group_id", groupId);
-        parameters.set("message", message);
-        parameters.put("auto_escape", false);
+        JsonObject parameters = new JsonObject();
+        parameters.addProperty("group_id", groupId);
+        parameters.add("message", message);
+        parameters.addProperty("auto_escape", false);
         return callAction("send_group_msg", parameters);
     }
 
@@ -296,10 +296,10 @@ public final class OneBotClient implements AutoCloseable {
             return;
         }
         try {
-            JsonNode root = objectMapper.readTree(message);
-            JsonNode echoNode = root.get("echo");
-            if (echoNode != null && !echoNode.isNull()) {
-                handleActionResponse(root, echoNode.asText());
+            JsonElement root = JsonUtil.parse(message);
+            JsonElement echoNode = JsonUtil.get(root, "echo");
+            if (echoNode != null) {
+                handleActionResponse(root, JsonUtil.string(echoNode, ""));
                 return;
             }
             handleEvent(root);
@@ -308,27 +308,28 @@ public final class OneBotClient implements AutoCloseable {
         }
     }
 
-    private void handleActionResponse(JsonNode root, String echo) {
+    private void handleActionResponse(JsonElement root, String echo) {
         PendingAction pending = pendingActions.remove(echo);
         if (pending == null) {
             return;
         }
         pending.cancelTimeout();
         pending.releaseCapacity(pendingCapacity);
-        String status = root.path("status").asText("");
-        int retCode = root.path("retcode").asInt(0);
+        String status = JsonUtil.string(root, "status", "");
+        int retCode = JsonUtil.integer(root, "retcode", 0);
         if ("ok".equalsIgnoreCase(status) && retCode == 0) {
-            JsonNode data = root.get("data");
-            pending.future.complete(data == null ? objectMapper.nullNode() : data);
+            JsonElement data = JsonUtil.get(root, "data");
+            pending.future.complete(data == null ? JsonNull.INSTANCE : data);
         } else {
-            String message = root.path("message").asText(root.path("wording").asText("OneBot action failed"));
+            String message = JsonUtil.string(root, "message",
+                    JsonUtil.string(root, "wording", "OneBot action failed"));
             pending.future.completeExceptionally(new IllegalStateException(
                     message + " (retcode=" + retCode + ")"));
         }
     }
 
-    private void handleEvent(JsonNode root) {
-        String postType = root.path("post_type").asText("");
+    private void handleEvent(JsonElement root) {
+        String postType = JsonUtil.string(root, "post_type", "");
         if ("message".equalsIgnoreCase(postType)) {
             handleGroupMessageEvent(root);
             return;
@@ -338,13 +339,13 @@ public final class OneBotClient implements AutoCloseable {
         }
     }
 
-    private void handleGroupMessageEvent(JsonNode root) {
-        if (!"group".equalsIgnoreCase(root.path("message_type").asText(""))) {
+    private void handleGroupMessageEvent(JsonElement root) {
+        if (!"group".equalsIgnoreCase(JsonUtil.string(root, "message_type", ""))) {
             return;
         }
-        long groupId = root.path("group_id").asLong(0L);
-        long userId = root.path("user_id").asLong(0L);
-        long selfId = root.path("self_id").asLong(0L);
+        long groupId = JsonUtil.longValue(root, "group_id", 0L);
+        long userId = JsonUtil.longValue(root, "user_id", 0L);
+        long selfId = JsonUtil.longValue(root, "self_id", 0L);
         if (!isAcceptedGroupUser(groupId, userId, selfId)) {
             return;
         }
@@ -364,8 +365,8 @@ public final class OneBotClient implements AutoCloseable {
         }
     }
 
-    private void handleGroupNoticeEvent(JsonNode root) {
-        String noticeType = root.path("notice_type").asText("");
+    private void handleGroupNoticeEvent(JsonElement root) {
+        String noticeType = JsonUtil.string(root, "notice_type", "");
         GroupNotice.Type type;
         if ("group_increase".equalsIgnoreCase(noticeType)) {
             type = GroupNotice.Type.INCREASE;
@@ -375,9 +376,9 @@ public final class OneBotClient implements AutoCloseable {
             return;
         }
 
-        long groupId = root.path("group_id").asLong(0L);
-        long userId = root.path("user_id").asLong(0L);
-        long selfId = root.path("self_id").asLong(0L);
+        long groupId = JsonUtil.longValue(root, "group_id", 0L);
+        long userId = JsonUtil.longValue(root, "user_id", 0L);
+        long selfId = JsonUtil.longValue(root, "self_id", 0L);
         if (!isAcceptedGroupUser(groupId, userId, selfId)) {
             return;
         }
@@ -390,8 +391,8 @@ public final class OneBotClient implements AutoCloseable {
                         groupId,
                         userId,
                         selfId,
-                        root.path("operator_id").asLong(0L),
-                        root.path("sub_type").asText("")));
+                        JsonUtil.longValue(root, "operator_id", 0L),
+                        JsonUtil.string(root, "sub_type", "")));
             } catch (Throwable throwable) {
                 platform.error("Unhandled OneBot group notice error", throwable);
             }
@@ -405,14 +406,14 @@ public final class OneBotClient implements AutoCloseable {
                 && settings.isGroupAllowed(groupId);
     }
 
-    private String extractSenderName(JsonNode root, long userId) {
-        JsonNode sender = root.get("sender");
-        if (sender != null && sender.isObject()) {
-            String card = sender.path("card").asText("").trim();
+    private String extractSenderName(JsonElement root, long userId) {
+        JsonElement sender = JsonUtil.get(root, "sender");
+        if (sender != null && sender.isJsonObject()) {
+            String card = JsonUtil.string(sender, "card", "").trim();
             if (!card.isEmpty()) {
                 return card;
             }
-            String nickname = sender.path("nickname").asText("").trim();
+            String nickname = JsonUtil.string(sender, "nickname", "").trim();
             if (!nickname.isEmpty()) {
                 return nickname;
             }
@@ -420,29 +421,29 @@ public final class OneBotClient implements AutoCloseable {
         return String.valueOf(userId);
     }
 
-    private ParsedMessage extractMessage(JsonNode root, long selfId) {
-        JsonNode message = root.get("message");
-        if (message != null && message.isArray()) {
+    private ParsedMessage extractMessage(JsonElement root, long selfId) {
+        JsonElement message = JsonUtil.get(root, "message");
+        if (message != null && message.isJsonArray()) {
             return extractArrayMessage(message, selfId);
         }
         String encoded = "";
-        if (message != null && message.isTextual()) {
-            encoded = message.asText("");
+        if (JsonUtil.isString(message)) {
+            encoded = JsonUtil.string(message, "");
         } else {
-            JsonNode raw = root.get("raw_message");
-            if (raw != null && raw.isTextual()) {
-                encoded = raw.asText("");
+            JsonElement raw = JsonUtil.get(root, "raw_message");
+            if (JsonUtil.isString(raw)) {
+                encoded = JsonUtil.string(raw, "");
             }
         }
         return extractCqMessage(encoded, selfId);
     }
 
-    private ParsedMessage extractArrayMessage(JsonNode message, long selfId) {
+    private ParsedMessage extractArrayMessage(JsonElement message, long selfId) {
         StringBuilder commandText = new StringBuilder();
         List<ChatPart> parts = new ArrayList<ChatPart>();
-        for (JsonNode segment : message) {
-            String type = segment.path("type").asText("");
-            JsonNode data = segment.path("data");
+        for (JsonElement segment : message.getAsJsonArray()) {
+            String type = JsonUtil.string(segment, "type", "");
+            JsonElement data = JsonUtil.get(segment, "data");
             appendSegment(parts, commandText, type, data, selfId);
         }
         return new ParsedMessage(commandText.toString(), trimParts(parts));
@@ -470,11 +471,12 @@ public final class OneBotClient implements AutoCloseable {
             String body = text.substring(start + 4, close);
             String[] values = body.split(",");
             String type = values.length == 0 ? "" : values[0];
-            ObjectNode data = objectMapper.createObjectNode();
+            JsonObject data = new JsonObject();
             for (int i = 1; i < values.length; i++) {
                 int equals = values[i].indexOf('=');
                 if (equals > 0) {
-                    data.put(values[i].substring(0, equals), decodeCq(values[i].substring(equals + 1)));
+                    data.addProperty(values[i].substring(0, equals),
+                            decodeCq(values[i].substring(equals + 1)));
                 }
             }
             appendSegment(parts, commandText, type, data, selfId);
@@ -489,15 +491,15 @@ public final class OneBotClient implements AutoCloseable {
     private void appendSegment(List<ChatPart> parts,
                                StringBuilder commandText,
                                String rawType,
-                               JsonNode data,
+                               JsonElement data,
                                long selfId) {
         String type = rawType == null ? "" : rawType.toLowerCase(Locale.ROOT);
         if ("text".equals(type)) {
-            appendText(parts, commandText, data.path("text").asText(""));
+            appendText(parts, commandText, JsonUtil.string(data, "text", ""));
             return;
         }
         if ("at".equals(type)) {
-            String qq = data.path("qq").asText("").trim();
+            String qq = JsonUtil.string(data, "qq", "").trim();
             if (isLeadingWhitespaceOnly(parts) && qq.equals(String.valueOf(selfId))) {
                 return;
             }
@@ -518,7 +520,7 @@ public final class OneBotClient implements AutoCloseable {
         }
         if ("face".equals(type)) {
             String summary = cleanSummary(firstNonBlank(data, "summary", "text", "name"));
-            String id = data.path("id").asText("").trim();
+            String id = JsonUtil.string(data, "id", "").trim();
             String url = firstUrl(data, "url", "file");
             if ((url == null || url.isEmpty()) && id.matches("\\d{1,5}")) {
                 url = "https://koishi.js.org/QFace/gif/s" + id + ".gif";
@@ -578,11 +580,13 @@ public final class OneBotClient implements AutoCloseable {
             return;
         }
         if ("dice".equals(type)) {
-            appendToken(parts, "[骰子:" + data.path("result").asText(data.path("id").asText("?")) + "]", null, null);
+            appendToken(parts, "[骰子:" + JsonUtil.string(data, "result",
+                    JsonUtil.string(data, "id", "?")) + "]", null, null);
             return;
         }
         if ("rps".equals(type)) {
-            appendToken(parts, "[猜拳:" + data.path("result").asText(data.path("id").asText("?")) + "]", null, null);
+            appendToken(parts, "[猜拳:" + JsonUtil.string(data, "result",
+                    JsonUtil.string(data, "id", "?")) + "]", null, null);
             return;
         }
         if ("poke".equals(type) || "shake".equals(type)) {
@@ -667,12 +671,12 @@ public final class OneBotClient implements AutoCloseable {
         return Collections.unmodifiableList(result);
     }
 
-    private String firstNonBlank(JsonNode data, String... keys) {
+    private String firstNonBlank(JsonElement data, String... keys) {
         if (data == null || keys == null) {
             return "";
         }
         for (String key : keys) {
-            String value = data.path(key).asText("").trim();
+            String value = JsonUtil.string(data, key, "").trim();
             if (!value.isEmpty()) {
                 return value;
             }
@@ -680,12 +684,12 @@ public final class OneBotClient implements AutoCloseable {
         return "";
     }
 
-    private String firstUrl(JsonNode data, String... keys) {
+    private String firstUrl(JsonElement data, String... keys) {
         if (data == null || keys == null) {
             return null;
         }
         for (String key : keys) {
-            String value = data.path(key).asText("").trim();
+            String value = JsonUtil.string(data, key, "").trim();
             if (value.regionMatches(true, 0, "https://", 0, 8)
                     || value.regionMatches(true, 0, "http://", 0, 7)) {
                 return value;
@@ -821,11 +825,11 @@ public final class OneBotClient implements AutoCloseable {
     }
 
     private static final class PendingAction {
-        private final CompletableFuture<JsonNode> future;
+        private final CompletableFuture<JsonElement> future;
         private final AtomicBoolean capacityReleased = new AtomicBoolean();
         private ScheduledFuture<?> timeoutTask;
 
-        private PendingAction(CompletableFuture<JsonNode> future) {
+        private PendingAction(CompletableFuture<JsonElement> future) {
             this.future = future;
         }
 

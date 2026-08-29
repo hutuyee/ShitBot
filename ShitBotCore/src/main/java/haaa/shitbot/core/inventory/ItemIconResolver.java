@@ -1,9 +1,9 @@
 package haaa.shitbot.core.inventory;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonElement;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
+import haaa.shitbot.core.util.JsonUtil;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -67,7 +67,6 @@ public final class ItemIconResolver {
     private final Path dataDirectory;
     private final Path exportedDirectory;
     private final Path profileCacheDirectory;
-    private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicReference<CompletableFuture<ResourceIndex>> indexFuture =
             new AtomicReference<CompletableFuture<ResourceIndex>>();
     private final AtomicLong generation = new AtomicLong();
@@ -645,36 +644,36 @@ public final class ItemIconResolver {
         Resource resource = index.resources.get("assets/" + definitionId.namespace
                 + "/items/" + definitionId.path + ".json");
         if (resource == null) return null;
-        JsonNode root = mapper.readTree(resource.read(MAX_JSON_BYTES));
-        JsonNode modelNode = root == null ? null : root.get("model");
+        JsonElement root = JsonUtil.parse(resource.read(MAX_JSON_BYTES));
+        JsonElement modelNode = JsonUtil.get(root, "model");
         return evaluateItemModel(modelNode, definitionId.namespace, item, 0);
     }
 
-    private Identifier evaluateItemModel(JsonNode node,
+    private Identifier evaluateItemModel(JsonElement node,
                                          String defaultNamespace,
                                          InventorySnapshot.Item item,
                                          int depth) {
         if (node == null || depth > MAX_MODEL_DEPTH) return null;
-        if (node.isTextual()) return Identifier.parse(node.asText(), defaultNamespace);
-        if (!node.isObject()) return null;
-        String type = node.path("type").asText("").toLowerCase(Locale.ROOT);
+        if (JsonUtil.isString(node)) return Identifier.parse(JsonUtil.string(node, ""), defaultNamespace);
+        if (!node.isJsonObject()) return null;
+        String type = JsonUtil.string(node, "type", "").toLowerCase(Locale.ROOT);
         String shortType = type.indexOf(':') >= 0 ? type.substring(type.indexOf(':') + 1) : type;
 
         if ("model".equals(shortType) || type.isEmpty()) {
-            JsonNode model = node.get("model");
-            if (model != null && model.isTextual()) {
-                return Identifier.parse(model.asText(), defaultNamespace);
+            JsonElement model = JsonUtil.get(node, "model");
+            if (JsonUtil.isString(model)) {
+                return Identifier.parse(JsonUtil.string(model, ""), defaultNamespace);
             }
         }
         if ("special".equals(shortType)) {
-            Identifier base = Identifier.parse(node.path("base").asText(""), defaultNamespace);
+            Identifier base = Identifier.parse(JsonUtil.string(node, "base", ""), defaultNamespace);
             if (base != null) return base;
-            return evaluateItemModel(node.get("model"), defaultNamespace, item, depth + 1);
+            return evaluateItemModel(JsonUtil.get(node, "model"), defaultNamespace, item, depth + 1);
         }
         if ("composite".equals(shortType)) {
-            JsonNode models = node.path("models");
-            if (models.isArray()) {
-                for (JsonNode child : models) {
+            JsonElement models = JsonUtil.get(node, "models");
+            if (models != null && models.isJsonArray()) {
+                for (JsonElement child : models.getAsJsonArray()) {
                     Identifier candidate = evaluateItemModel(child, defaultNamespace, item, depth + 1);
                     if (candidate != null) return candidate;
                 }
@@ -682,7 +681,7 @@ public final class ItemIconResolver {
         }
         if ("condition".equals(shortType)) {
             boolean value = evaluateBooleanProperty(node, item);
-            Identifier selected = evaluateItemModel(node.get(value ? "on_true" : "on_false"),
+            Identifier selected = evaluateItemModel(JsonUtil.get(node, value ? "on_true" : "on_false"),
                     defaultNamespace, item, depth + 1);
             if (selected != null) return selected;
         }
@@ -690,12 +689,13 @@ public final class ItemIconResolver {
             double value = evaluateNumericProperty(node, item);
             Identifier selected = null;
             double selectedThreshold = -Double.MAX_VALUE;
-            JsonNode entries = node.path("entries");
-            if (entries.isArray()) {
-                for (JsonNode entry : entries) {
-                    double threshold = entry.path("threshold").asDouble(Double.NaN);
+            JsonElement entries = JsonUtil.get(node, "entries");
+            if (entries != null && entries.isJsonArray()) {
+                for (JsonElement entry : entries.getAsJsonArray()) {
+                    double threshold = JsonUtil.doubleValue(entry, "threshold", Double.NaN);
                     if (!Double.isNaN(threshold) && threshold <= value && threshold >= selectedThreshold) {
-                        Identifier candidate = evaluateItemModel(entry.get("model"), defaultNamespace, item, depth + 1);
+                        Identifier candidate = evaluateItemModel(
+                                JsonUtil.get(entry, "model"), defaultNamespace, item, depth + 1);
                         if (candidate != null) {
                             selected = candidate;
                             selectedThreshold = threshold;
@@ -704,34 +704,38 @@ public final class ItemIconResolver {
                 }
             }
             if (selected != null) return selected;
-            Identifier fallback = evaluateItemModel(node.get("fallback"), defaultNamespace, item, depth + 1);
+            Identifier fallback = evaluateItemModel(
+                    JsonUtil.get(node, "fallback"), defaultNamespace, item, depth + 1);
             if (fallback != null) return fallback;
         }
         if ("select".equals(shortType)) {
             String value = evaluateStringProperty(node, item);
-            JsonNode cases = node.path("cases");
-            if (cases.isArray()) {
-                for (JsonNode caseNode : cases) {
-                    if (matchesCase(caseNode.get("when"), value)) {
-                        Identifier candidate = evaluateItemModel(caseNode.get("model"), defaultNamespace, item, depth + 1);
+            JsonElement cases = JsonUtil.get(node, "cases");
+            if (cases != null && cases.isJsonArray()) {
+                for (JsonElement caseNode : cases.getAsJsonArray()) {
+                    if (matchesCase(JsonUtil.get(caseNode, "when"), value)) {
+                        Identifier candidate = evaluateItemModel(
+                                JsonUtil.get(caseNode, "model"), defaultNamespace, item, depth + 1);
                         if (candidate != null) return candidate;
                     }
                 }
             }
-            Identifier fallback = evaluateItemModel(node.get("fallback"), defaultNamespace, item, depth + 1);
+            Identifier fallback = evaluateItemModel(
+                    JsonUtil.get(node, "fallback"), defaultNamespace, item, depth + 1);
             if (fallback != null) return fallback;
         }
 
         for (String key : new String[]{"model", "base", "fallback", "on_false", "on_true"}) {
-            Identifier candidate = evaluateItemModel(node.get(key), defaultNamespace, item, depth + 1);
+            Identifier candidate = evaluateItemModel(
+                    JsonUtil.get(node, key), defaultNamespace, item, depth + 1);
             if (candidate != null) return candidate;
         }
         return findFirstModelReference(node, defaultNamespace, depth + 1);
     }
 
-    private boolean evaluateBooleanProperty(JsonNode node, InventorySnapshot.Item item) {
-        String property = node.path("property").asText("");
-        int index = node.path("index").asInt(0);
+    private boolean evaluateBooleanProperty(JsonElement node, InventorySnapshot.Item item) {
+        String property = JsonUtil.string(node, "property", "");
+        int index = JsonUtil.integer(node, "index", 0);
         boolean value;
         if (property.endsWith("custom_model_data")) {
             value = item.getCustomModelFlag(index, false);
@@ -742,14 +746,14 @@ public final class ItemIconResolver {
         } else {
             value = false;
         }
-        return node.path("invert").asBoolean(false) ? !value : value;
+        return JsonUtil.booleanValue(node, "invert", false) ? !value : value;
     }
 
-    private double evaluateNumericProperty(JsonNode node, InventorySnapshot.Item item) {
-        String property = node.path("property").asText("");
+    private double evaluateNumericProperty(JsonElement node, InventorySnapshot.Item item) {
+        String property = JsonUtil.string(node, "property", "");
         double value;
         if (property.endsWith("custom_model_data")) {
-            value = item.getCustomModelFloat(node.path("index").asInt(0), 0.0F);
+            value = item.getCustomModelFloat(JsonUtil.integer(node, "index", 0), 0.0F);
         } else if (property.endsWith("damage")) {
             value = item.getMaximumDurability() <= 0 ? 0.0D
                     : (double) item.getDamage() / (double) item.getMaximumDurability();
@@ -758,46 +762,49 @@ public final class ItemIconResolver {
         } else {
             value = 0.0D;
         }
-        return value * node.path("scale").asDouble(1.0D);
+        return value * JsonUtil.doubleValue(node, "scale", 1.0D);
     }
 
-    private String evaluateStringProperty(JsonNode node, InventorySnapshot.Item item) {
-        String property = node.path("property").asText("");
+    private String evaluateStringProperty(JsonElement node, InventorySnapshot.Item item) {
+        String property = JsonUtil.string(node, "property", "");
         if (property.endsWith("custom_model_data")) {
-            return item.getCustomModelString(node.path("index").asInt(0));
+            return item.getCustomModelString(JsonUtil.integer(node, "index", 0));
         }
         if (property.endsWith("main_hand")) return "right";
         if (property.endsWith("display_context")) return "gui";
         return "";
     }
 
-    private boolean matchesCase(JsonNode when, String value) {
+    private boolean matchesCase(JsonElement when, String value) {
         if (when == null) return false;
-        if (when.isTextual()) return when.asText().equals(value);
-        if (when.isArray()) {
-            for (JsonNode candidate : when) {
-                if (candidate.isTextual() && candidate.asText().equals(value)) return true;
+        if (JsonUtil.isString(when)) return JsonUtil.string(when, "").equals(value);
+        if (when.isJsonArray()) {
+            for (JsonElement candidate : when.getAsJsonArray()) {
+                if (JsonUtil.isString(candidate)
+                        && JsonUtil.string(candidate, "").equals(value)) return true;
             }
         }
         return false;
     }
 
-    private Identifier findFirstModelReference(JsonNode node, String defaultNamespace, int depth) {
+    private Identifier findFirstModelReference(JsonElement node, String defaultNamespace, int depth) {
         if (node == null || depth > MAX_MODEL_DEPTH) return null;
-        if (node.isObject()) {
-            JsonNode modelNode = node.get("model");
-            if (modelNode != null && modelNode.isTextual()) {
-                Identifier parsed = Identifier.parse(modelNode.asText(), defaultNamespace);
+        if (node.isJsonObject()) {
+            JsonElement modelNode = JsonUtil.get(node, "model");
+            if (JsonUtil.isString(modelNode)) {
+                Identifier parsed = Identifier.parse(
+                        JsonUtil.string(modelNode, ""), defaultNamespace);
                 if (parsed != null) return parsed;
             }
-            java.util.Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            java.util.Iterator<Map.Entry<String, JsonElement>> fields =
+                    node.getAsJsonObject().entrySet().iterator();
             while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> entry = fields.next();
+                Map.Entry<String, JsonElement> entry = fields.next();
                 Identifier nested = findFirstModelReference(entry.getValue(), defaultNamespace, depth + 1);
                 if (nested != null) return nested;
             }
-        } else if (node.isArray()) {
-            for (JsonNode child : node) {
+        } else if (node.isJsonArray()) {
+            for (JsonElement child : node.getAsJsonArray()) {
                 Identifier nested = findFirstModelReference(child, defaultNamespace, depth + 1);
                 if (nested != null) return nested;
             }
@@ -815,8 +822,8 @@ public final class ItemIconResolver {
             Resource resource = index.resources.get("assets/" + modelId.namespace
                     + "/models/" + modelId.path + ".json");
             if (resource == null) return null;
-            JsonNode root = mapper.readTree(resource.read(MAX_JSON_BYTES));
-            if (root == null || !root.isObject()) return null;
+            JsonElement root = JsonUtil.parse(resource.read(MAX_JSON_BYTES));
+            if (root == null || !root.isJsonObject()) return null;
 
             Identifier selectedOverride = selectCustomModelOverride(root, item, modelId.namespace);
             if (selectedOverride != null && !selectedOverride.equals(modelId)) {
@@ -825,7 +832,7 @@ public final class ItemIconResolver {
             }
 
             Model inherited = Model.empty();
-            String parentText = root.path("parent").asText("");
+            String parentText = JsonUtil.string(root, "parent", "");
             Identifier parentId = Identifier.parse(parentText, modelId.namespace);
             if (parentId != null) {
                 if (isBuiltinParent(parentId)) {
@@ -836,29 +843,32 @@ public final class ItemIconResolver {
                 }
             }
 
-            JsonNode textureNode = root.path("textures");
-            if (textureNode.isObject()) {
-                java.util.Iterator<Map.Entry<String, JsonNode>> fields = textureNode.fields();
+            JsonElement textureNode = JsonUtil.get(root, "textures");
+            if (textureNode != null && textureNode.isJsonObject()) {
+                java.util.Iterator<Map.Entry<String, JsonElement>> fields =
+                        textureNode.getAsJsonObject().entrySet().iterator();
                 while (fields.hasNext()) {
-                    Map.Entry<String, JsonNode> entry = fields.next();
-                    if (entry.getValue().isTextual()) {
-                        inherited.textures.put(entry.getKey(), entry.getValue().asText());
+                    Map.Entry<String, JsonElement> entry = fields.next();
+                    if (JsonUtil.isString(entry.getValue())) {
+                        inherited.textures.put(
+                                entry.getKey(), JsonUtil.string(entry.getValue(), ""));
                     }
                 }
             }
 
-            JsonNode elements = root.get("elements");
-            if (elements != null && elements.isArray()) {
-                inherited.hasElements = elements.size() > 0;
+            JsonElement elements = JsonUtil.get(root, "elements");
+            if (elements != null && elements.isJsonArray()) {
+                inherited.hasElements = elements.getAsJsonArray().size() > 0;
                 inherited.flat = false;
                 inherited.faceTextures.clear();
-                for (JsonNode element : elements) {
-                    JsonNode faces = element.path("faces");
-                    if (!faces.isObject()) continue;
-                    java.util.Iterator<Map.Entry<String, JsonNode>> faceFields = faces.fields();
+                for (JsonElement element : elements.getAsJsonArray()) {
+                    JsonElement faces = JsonUtil.get(element, "faces");
+                    if (faces == null || !faces.isJsonObject()) continue;
+                    java.util.Iterator<Map.Entry<String, JsonElement>> faceFields =
+                            faces.getAsJsonObject().entrySet().iterator();
                     while (faceFields.hasNext()) {
-                        Map.Entry<String, JsonNode> face = faceFields.next();
-                        String reference = face.getValue().path("texture").asText("");
+                        Map.Entry<String, JsonElement> face = faceFields.next();
+                        String reference = JsonUtil.string(face.getValue(), "texture", "");
                         if (!reference.isEmpty() && !inherited.faceTextures.containsKey(face.getKey())) {
                             inherited.faceTextures.put(face.getKey(), reference);
                         }
@@ -872,29 +882,31 @@ public final class ItemIconResolver {
         }
     }
 
-    private Identifier selectCustomModelOverride(JsonNode root,
+    private Identifier selectCustomModelOverride(JsonElement root,
                                                  InventorySnapshot.Item item,
                                                  String defaultNamespace) {
-        JsonNode overrides = root.path("overrides");
-        if (!overrides.isArray()) return null;
+        JsonElement overrides = JsonUtil.get(root, "overrides");
+        if (overrides == null || !overrides.isJsonArray()) return null;
         Identifier selected = null;
-        for (JsonNode override : overrides) {
-            JsonNode predicate = override.path("predicate");
+        for (JsonElement override : overrides.getAsJsonArray()) {
+            JsonElement predicate = JsonUtil.get(override, "predicate");
             if (!predicateMatches(predicate, item)) continue;
-            Identifier candidate = Identifier.parse(override.path("model").asText(""), defaultNamespace);
+            Identifier candidate = Identifier.parse(
+                    JsonUtil.string(override, "model", ""), defaultNamespace);
             if (candidate != null) selected = candidate;
         }
         return selected;
     }
 
-    private boolean predicateMatches(JsonNode predicate, InventorySnapshot.Item item) {
-        if (!predicate.isObject()) return false;
-        java.util.Iterator<Map.Entry<String, JsonNode>> fields = predicate.fields();
+    private boolean predicateMatches(JsonElement predicate, InventorySnapshot.Item item) {
+        if (predicate == null || !predicate.isJsonObject()) return false;
+        java.util.Iterator<Map.Entry<String, JsonElement>> fields =
+                predicate.getAsJsonObject().entrySet().iterator();
         boolean sawSupported = false;
         while (fields.hasNext()) {
-            Map.Entry<String, JsonNode> field = fields.next();
+            Map.Entry<String, JsonElement> field = fields.next();
             String key = field.getKey();
-            double threshold = field.getValue().asDouble(Double.NaN);
+            double threshold = JsonUtil.doubleValue(field.getValue(), Double.NaN);
             if (Double.isNaN(threshold)) return false;
             double actual;
             if (key.endsWith("custom_model_data")) {

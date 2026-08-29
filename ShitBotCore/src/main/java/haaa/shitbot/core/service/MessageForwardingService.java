@@ -1,6 +1,6 @@
 package haaa.shitbot.core.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.google.gson.JsonElement;
 import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.onebot.GroupMessage;
@@ -90,9 +90,9 @@ public final class MessageForwardingService {
                 continue;
             }
             oneBotClient.sendGroupText(groupId.longValue(), output, null).exceptionally(
-                    new java.util.function.Function<Throwable, JsonNode>() {
+                    new java.util.function.Function<Throwable, JsonElement>() {
                         @Override
-                        public JsonNode apply(Throwable throwable) {
+                        public JsonElement apply(Throwable throwable) {
                             platform.warn("Failed to forward Minecraft chat to QQ group: "
                                     + FutureUtil.unwrap(throwable).getMessage());
                             return null;

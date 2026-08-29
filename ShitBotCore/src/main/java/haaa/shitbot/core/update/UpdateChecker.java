@@ -1,11 +1,11 @@
 package haaa.shitbot.core.update;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
+import haaa.shitbot.core.util.JsonUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 
 import java.io.ByteArrayOutputStream;
@@ -73,7 +73,6 @@ public final class UpdateChecker implements AutoCloseable {
     private final String currentVersion;
     private final Path cachePath;
     private final PlatformBridge platform;
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(
             new NamedThreadFactory("shitbot-update", true));
     private final AtomicReference<UpdateInfo> latestRelease = new AtomicReference<UpdateInfo>();
@@ -266,9 +265,9 @@ public final class UpdateChecker implements AutoCloseable {
                 throw new IOException("GitHub release request returned HTTP " + status);
             }
 
-            JsonNode root;
+            JsonElement root;
             try (InputStream input = connection.getInputStream()) {
-                root = objectMapper.readTree(readLimited(input, MAX_RESPONSE_BYTES));
+                root = JsonUtil.parse(readLimited(input, MAX_RESPONSE_BYTES));
             }
             UpdateInfo fetched = parseRelease(root);
             UpdateInfo previous = latestRelease.getAndSet(fetched);
@@ -287,36 +286,38 @@ public final class UpdateChecker implements AutoCloseable {
         }
     }
 
-    private UpdateInfo parseRelease(JsonNode root) throws IOException {
-        if (root == null || !root.isObject()) {
+    private UpdateInfo parseRelease(JsonElement root) throws IOException {
+        if (root == null || !root.isJsonObject()) {
             throw new IOException("GitHub release response is not a JSON object");
         }
-        String version = root.path("tag_name").asText("").trim();
+        String version = JsonUtil.string(root, "tag_name", "").trim();
         if (version.isEmpty()) {
             throw new IOException("GitHub release response has no tag_name");
         }
-        String releaseUrl = root.path("html_url").asText("").trim();
+        String releaseUrl = JsonUtil.string(root, "html_url", "").trim();
         if (releaseUrl.isEmpty()) {
             releaseUrl = RELEASES_URL;
         }
-        return new UpdateInfo(version, releaseUrl, root.path("published_at").asText(""),
-                parseAssets(root.path("assets")));
+        return new UpdateInfo(version, releaseUrl,
+                JsonUtil.string(root, "published_at", ""),
+                parseAssets(JsonUtil.get(root, "assets")));
     }
 
-    private List<ReleaseAsset> parseAssets(JsonNode assetsNode) {
+    private List<ReleaseAsset> parseAssets(JsonElement assetsNode) {
         List<ReleaseAsset> assets = new ArrayList<ReleaseAsset>();
-        if (assetsNode == null || !assetsNode.isArray()) {
+        if (assetsNode == null || !assetsNode.isJsonArray()) {
             return assets;
         }
-        for (JsonNode assetNode : assetsNode) {
+        for (JsonElement assetNode : assetsNode.getAsJsonArray()) {
             if (assets.size() >= MAX_RELEASE_ASSETS) {
                 break;
             }
-            String name = assetNode.path("name").asText("").trim();
-            String url = assetNode.path("browser_download_url").asText("").trim();
+            String name = JsonUtil.string(assetNode, "name", "").trim();
+            String url = JsonUtil.string(assetNode, "browser_download_url", "").trim();
             if (!name.isEmpty() && !url.isEmpty()) {
-                assets.add(new ReleaseAsset(name, url, assetNode.path("size").asLong(0L),
-                        assetNode.path("digest").asText("")));
+                assets.add(new ReleaseAsset(name, url,
+                        JsonUtil.longValue(assetNode, "size", 0L),
+                        JsonUtil.string(assetNode, "digest", "")));
             }
         }
         return assets;
@@ -331,40 +332,42 @@ public final class UpdateChecker implements AutoCloseable {
             if (size <= 0L || size > MAX_CACHE_BYTES) {
                 throw new IOException("cache size is invalid");
             }
-            JsonNode root = objectMapper.readTree(Files.readAllBytes(cachePath));
-            if (root == null || !root.isObject()) {
+            JsonElement root = JsonUtil.parse(Files.readAllBytes(cachePath));
+            if (root == null || !root.isJsonObject()) {
                 throw new IOException("cache is not a JSON object");
             }
-            String version = root.path("latestVersion").asText("").trim();
+            String version = JsonUtil.string(root, "latestVersion", "").trim();
             if (version.isEmpty()) {
                 throw new IOException("cache has no latestVersion");
             }
-            String releaseUrl = root.path("releaseUrl").asText(RELEASES_URL).trim();
+            String releaseUrl = JsonUtil.string(root, "releaseUrl", RELEASES_URL).trim();
             if (releaseUrl.isEmpty()) {
                 releaseUrl = RELEASES_URL;
             }
-            return new UpdateInfo(version, releaseUrl, root.path("publishedAt").asText(""),
-                    parseCachedAssets(root.path("assets")));
+            return new UpdateInfo(version, releaseUrl,
+                    JsonUtil.string(root, "publishedAt", ""),
+                    parseCachedAssets(JsonUtil.get(root, "assets")));
         } catch (IOException exception) {
             platform.warn("Unable to read update cache: " + exception.getMessage());
             return null;
         }
     }
 
-    private List<ReleaseAsset> parseCachedAssets(JsonNode assetsNode) {
+    private List<ReleaseAsset> parseCachedAssets(JsonElement assetsNode) {
         List<ReleaseAsset> assets = new ArrayList<ReleaseAsset>();
-        if (assetsNode == null || !assetsNode.isArray()) {
+        if (assetsNode == null || !assetsNode.isJsonArray()) {
             return assets;
         }
-        for (JsonNode assetNode : assetsNode) {
+        for (JsonElement assetNode : assetsNode.getAsJsonArray()) {
             if (assets.size() >= MAX_RELEASE_ASSETS) {
                 break;
             }
-            String name = assetNode.path("name").asText("").trim();
-            String url = assetNode.path("downloadUrl").asText("").trim();
+            String name = JsonUtil.string(assetNode, "name", "").trim();
+            String url = JsonUtil.string(assetNode, "downloadUrl", "").trim();
             if (!name.isEmpty() && !url.isEmpty()) {
-                assets.add(new ReleaseAsset(name, url, assetNode.path("size").asLong(0L),
-                        assetNode.path("digest").asText("")));
+                assets.add(new ReleaseAsset(name, url,
+                        JsonUtil.longValue(assetNode, "size", 0L),
+                        JsonUtil.string(assetNode, "digest", "")));
             }
         }
         return assets;
@@ -375,21 +378,23 @@ public final class UpdateChecker implements AutoCloseable {
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        ObjectNode root = objectMapper.createObjectNode();
-        root.put("latestVersion", info.getLatestVersion());
-        root.put("releaseUrl", info.getReleaseUrl());
-        root.put("publishedAt", info.getPublishedAt());
-        ArrayNode assets = root.putArray("assets");
+        JsonObject root = new JsonObject();
+        root.addProperty("latestVersion", info.getLatestVersion());
+        root.addProperty("releaseUrl", info.getReleaseUrl());
+        root.addProperty("publishedAt", info.getPublishedAt());
+        JsonArray assets = new JsonArray();
+        root.add("assets", assets);
         for (ReleaseAsset asset : info.getAssets()) {
-            ObjectNode assetNode = assets.addObject();
-            assetNode.put("name", asset.getName());
-            assetNode.put("downloadUrl", asset.getDownloadUrl());
-            assetNode.put("size", asset.getSize());
-            assetNode.put("digest", asset.getDigest());
+            JsonObject assetNode = new JsonObject();
+            assets.add(assetNode);
+            assetNode.addProperty("name", asset.getName());
+            assetNode.addProperty("downloadUrl", asset.getDownloadUrl());
+            assetNode.addProperty("size", asset.getSize());
+            assetNode.addProperty("digest", asset.getDigest());
         }
 
         Path temporary = cachePath.resolveSibling(cachePath.getFileName().toString() + ".tmp");
-        Files.write(temporary, objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(root));
+        Files.write(temporary, JsonUtil.toPrettyBytes(root));
         try {
             Files.move(temporary, cachePath, StandardCopyOption.REPLACE_EXISTING,
                     StandardCopyOption.ATOMIC_MOVE);
@@ -696,8 +701,8 @@ public final class UpdateChecker implements AutoCloseable {
 
     private String descriptorVersion(UpdatePlatform updatePlatform, byte[] descriptorBytes) throws IOException {
         if (updatePlatform == UpdatePlatform.VELOCITY) {
-            JsonNode root = objectMapper.readTree(descriptorBytes);
-            String version = root == null ? "" : root.path("version").asText("").trim();
+            JsonElement root = JsonUtil.parse(descriptorBytes);
+            String version = JsonUtil.string(root, "version", "").trim();
             if (version.isEmpty()) {
                 throw new IOException("Downloaded Velocity JAR has no version metadata");
             }

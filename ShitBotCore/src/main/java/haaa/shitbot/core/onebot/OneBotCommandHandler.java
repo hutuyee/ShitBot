@@ -1,5 +1,6 @@
 package haaa.shitbot.core.onebot;
 
+import com.google.gson.JsonElement;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.database.BindResult;
 import haaa.shitbot.core.platform.PlatformBridge;
@@ -129,14 +130,14 @@ public final class OneBotCommandHandler {
 
     private void handleOnlineImage(final GroupMessage message) {
         imageService.renderOnlineImageAsync().thenCompose(
-                new java.util.function.Function<byte[], java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode>>() {
+                new java.util.function.Function<byte[], java.util.concurrent.CompletableFuture<JsonElement>>() {
                     @Override
-                    public java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode> apply(byte[] bytes) {
+                    public java.util.concurrent.CompletableFuture<JsonElement> apply(byte[] bytes) {
                         return client.sendGroupImage(message.getGroupId(), bytes, settings.getImage().getOutputFile());
                     }
-                }).exceptionally(new java.util.function.Function<Throwable, com.fasterxml.jackson.databind.JsonNode>() {
+                }).exceptionally(new java.util.function.Function<Throwable, JsonElement>() {
                     @Override
-                    public com.fasterxml.jackson.databind.JsonNode apply(Throwable throwable) {
+                    public JsonElement apply(Throwable throwable) {
                         platform.error("Failed to render/send online image", FutureUtil.unwrap(throwable));
                         reply(message, settings.getMessages().getOnlineFailed(), null, null);
                         return null;
@@ -148,9 +149,9 @@ public final class OneBotCommandHandler {
         final String qqId = String.valueOf(message.getUserId());
         inventoryService.queryForQq(qqId, requestedPlayer).thenCompose(
                 new java.util.function.Function<InventoryQueryResult,
-                        java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode>>() {
+                        java.util.concurrent.CompletableFuture<JsonElement>>() {
                     @Override
-                    public java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode> apply(
+                    public java.util.concurrent.CompletableFuture<JsonElement> apply(
                             InventoryQueryResult result) {
                         switch (result.getStatus()) {
                             case SUCCESS:
@@ -174,9 +175,9 @@ public final class OneBotCommandHandler {
                         }
                         return java.util.concurrent.CompletableFuture.completedFuture(null);
                     }
-                }).exceptionally(new java.util.function.Function<Throwable, com.fasterxml.jackson.databind.JsonNode>() {
+                }).exceptionally(new java.util.function.Function<Throwable, JsonElement>() {
                     @Override
-                    public com.fasterxml.jackson.databind.JsonNode apply(Throwable throwable) {
+                    public JsonElement apply(Throwable throwable) {
                         platform.error("Failed to query/render/send inventory image", FutureUtil.unwrap(throwable));
                         reply(message, settings.getMessages().getInventoryFailed(), null, qqId);
                         return null;
@@ -196,9 +197,9 @@ public final class OneBotCommandHandler {
                 ? Long.valueOf(message.getUserId())
                 : null;
         client.sendGroupText(message.getGroupId(), text, at).exceptionally(
-                new java.util.function.Function<Throwable, com.fasterxml.jackson.databind.JsonNode>() {
+                new java.util.function.Function<Throwable, JsonElement>() {
                     @Override
-                    public com.fasterxml.jackson.databind.JsonNode apply(Throwable throwable) {
+                    public JsonElement apply(Throwable throwable) {
                         platform.warn("Failed to send OneBot group reply: " + FutureUtil.unwrap(throwable).getMessage());
                         return null;
                     }

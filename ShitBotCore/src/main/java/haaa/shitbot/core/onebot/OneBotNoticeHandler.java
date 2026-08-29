@@ -1,6 +1,6 @@
 package haaa.shitbot.core.onebot;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.google.gson.JsonElement;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.database.BindingRecord;
 import haaa.shitbot.core.platform.PlatformBridge;
@@ -56,9 +56,9 @@ public final class OneBotNoticeHandler {
 
         Long atUserId = mentionNewMember ? Long.valueOf(notice.getUserId()) : null;
         client.sendGroupText(notice.getGroupId(), text, atUserId).exceptionally(
-                new java.util.function.Function<Throwable, JsonNode>() {
+                new java.util.function.Function<Throwable, JsonElement>() {
                     @Override
-                    public JsonNode apply(Throwable throwable) {
+                    public JsonElement apply(Throwable throwable) {
                         platform.warn("Failed to send group join welcome message: "
                                 + FutureUtil.unwrap(throwable).getMessage());
                         return null;

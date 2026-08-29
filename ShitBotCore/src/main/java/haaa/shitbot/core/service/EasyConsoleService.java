@@ -1,6 +1,6 @@
 package haaa.shitbot.core.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.google.gson.JsonElement;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -208,9 +208,9 @@ public final class EasyConsoleService {
         text = TextUtil.replace(text, "%server%", server == null ? "" : server);
         client.sendGroupText(message.getGroupId(), text,
                 atSender ? Long.valueOf(message.getUserId()) : null).exceptionally(
-                new java.util.function.Function<Throwable, JsonNode>() {
+                new java.util.function.Function<Throwable, JsonElement>() {
                     @Override
-                    public JsonNode apply(Throwable throwable) {
+                    public JsonElement apply(Throwable throwable) {
                         platform.warn("Failed to send console command reply: "
                                 + FutureUtil.unwrap(throwable).getMessage());
                         return null;
