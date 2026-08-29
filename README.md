@@ -7,6 +7,14 @@
 >
 > 已测试：
 > - Spigot 1.8.8
+> - Spigot 1.12.2
+> - Paper 1.21
+> - Paper 1.21.11
+> - Paper 26.1
+> - Folia 1.21.11
+> - CatServer 1.12.2
+> - Velocity All version
+> - BungeeCord git:BungeeCord-Bootstrap:26.1-R0.1-SNAPSHOT:68f3e54:2065
 >
 > 插件目前仍处于开发阶段，无法 100% 保证在所有服务端核心、插件组合和命令场景下都完全一致。
 >
