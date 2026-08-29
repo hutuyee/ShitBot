@@ -1,19 +1,18 @@
 package haaa.shitbot.core.database;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbot.core.util.NetworkUtil;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLRecoverableException;
 import java.sql.Statement;
 import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -25,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Owns the JDBC pool and applies platform-independent schema migrations.
+ * Owns the JDBC connections and applies platform-independent schema migrations.
  * Every server type uses the same tables and column types, so a database can be
  * moved from Spigot to BungeeCord or Velocity without conversion.
  */
@@ -45,7 +44,8 @@ public final class DatabaseManager implements AutoCloseable {
     private final ThreadPoolExecutor executor;
     private final String workerThreadPrefix;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private volatile HikariDataSource mysqlDataSource;
+    private volatile JdbcDriverRegistry driverRegistry;
+    private volatile MysqlConnectionPool mysqlPool;
     private volatile Connection sqliteConnection;
 
     public DatabaseManager(Settings.Database settings, PlatformBridge platform) {
@@ -79,11 +79,22 @@ public final class DatabaseManager implements AutoCloseable {
         try {
             Files.createDirectories(platform.getDataDirectory());
             validateRemoteMysqlSecurity();
-            loadDriver();
-            if (settings.getType() == Settings.Database.Type.SQLITE) {
-                initializeSqlite();
-            } else {
-                initializeMysql();
+            JdbcDriverRegistry drivers = new JdbcDriverRegistry(platform.getDataDirectory(), platform);
+            boolean success = false;
+            try {
+                drivers.prepare(settings);
+                driverRegistry = drivers;
+                if (settings.getType() == Settings.Database.Type.SQLITE) {
+                    initializeSqlite(drivers);
+                } else {
+                    initializeMysql(drivers);
+                }
+                success = true;
+            } finally {
+                if (!success) {
+                    driverRegistry = null;
+                    drivers.close();
+                }
             }
             platform.info("Database initialized: " + settings.getType().name().toLowerCase(Locale.ROOT)
                     + ", schema v" + SCHEMA_VERSION);
@@ -117,31 +128,21 @@ public final class DatabaseManager implements AutoCloseable {
                 + endpoint);
     }
 
-    private void loadDriver() throws ClassNotFoundException {
-        if (settings.getType() == Settings.Database.Type.SQLITE) {
-            Class.forName("org.sqlite.JDBC");
-        } else {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        }
-    }
-
     /**
-     * SQLite deliberately does not use HikariCP. Older CraftBukkit/Spigot
+     * SQLite deliberately does not use a pool. Older CraftBukkit/Spigot
      * distributions expose a legacy org.sqlite driver through the parent
      * class loader. Those drivers can open and use a database, but they do not
-     * implement JDBC 4 methods such as Connection#isValid(int), which Hikari
-     * calls while creating a pool. A single persistent connection is safe here
+     * implement every JDBC 4 method. A single persistent connection is safe here
      * because every SQLite operation is serialized by the one database worker.
      */
-    private void initializeSqlite() throws SQLException {
-        Connection connection = DriverManager.getConnection(
-                settings.buildJdbcUrl(platform.getDataDirectory()));
+    private void initializeSqlite(JdbcDriverRegistry drivers) throws java.io.IOException, SQLException {
+        Connection connection = drivers.openConfiguredConnection(settings);
         boolean success = false;
         try {
             configureDatabase(connection);
             applyMigrations(connection);
             sqliteConnection = connection;
-            platform.info("SQLite backend uses one serialized direct connection; HikariCP is disabled for SQLite");
+            platform.info("SQLite backend uses one serialized direct connection");
             success = true;
         } finally {
             if (!success) {
@@ -150,16 +151,19 @@ public final class DatabaseManager implements AutoCloseable {
         }
     }
 
-    private void initializeMysql() throws SQLException {
-        HikariConfig config = createMysqlHikariConfig();
-        HikariDataSource newDataSource = new HikariDataSource(config);
-        try (Connection connection = newDataSource.getConnection()) {
+    private void initializeMysql(JdbcDriverRegistry drivers) throws java.io.IOException, SQLException {
+        MysqlConnectionPool newPool = new MysqlConnectionPool(drivers, settings);
+        try (MysqlConnectionPool.Borrowed borrowed = newPool.borrow()) {
+            Connection connection = borrowed.connection();
             configureDatabase(connection);
             applyMigrations(connection);
         } catch (Throwable throwable) {
-            newDataSource.close();
+            newPool.close();
             if (throwable instanceof SQLException) {
                 throw (SQLException) throwable;
+            }
+            if (throwable instanceof java.io.IOException) {
+                throw (java.io.IOException) throwable;
             }
             if (throwable instanceof RuntimeException) {
                 throw (RuntimeException) throwable;
@@ -169,34 +173,9 @@ public final class DatabaseManager implements AutoCloseable {
             }
             throw new SQLException("Failed to initialize MySQL", throwable);
         }
-        mysqlDataSource = newDataSource;
-    }
-
-    private HikariConfig createMysqlHikariConfig() {
-        HikariConfig config = new HikariConfig();
-        config.setPoolName("ShitBot-" + settings.getType().name());
-        config.setJdbcUrl(settings.buildJdbcUrl(platform.getDataDirectory()));
-        config.setUsername(settings.getMysqlUsername());
-        config.setPassword(settings.getMysqlPassword());
-        config.setMaximumPoolSize(settings.getMaximumPoolSize());
-        config.setMinimumIdle(settings.getMinimumIdle());
-        config.setIdleTimeout(settings.getIdleTimeoutMs());
-        config.setMaxLifetime(settings.getMaximumLifetimeMs());
-        if (settings.getKeepaliveTimeMs() > 0L) {
-            config.setKeepaliveTime(settings.getKeepaliveTimeMs());
-        }
-        config.addDataSourceProperty("cachePrepStmts", "true");
-        config.addDataSourceProperty("prepStmtCacheSize", "250");
-        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-        config.addDataSourceProperty("useServerPrepStmts", "true");
-        config.addDataSourceProperty("rewriteBatchedStatements", "true");
-        config.addDataSourceProperty("connectTimeout", String.valueOf(settings.getMysqlConnectTimeoutMs()));
-        config.addDataSourceProperty("socketTimeout", String.valueOf(settings.getMysqlSocketTimeoutMs()));
-        config.setConnectionTimeout(settings.getConnectionTimeoutMs());
-        config.setValidationTimeout(settings.getValidationTimeoutMs());
-        config.setAutoCommit(true);
-        config.setInitializationFailTimeout(settings.getConnectionTimeoutMs());
-        return config;
+        mysqlPool = newPool;
+        platform.info("MySQL backend uses the built-in lightweight pool (max="
+                + settings.getMaximumPoolSize() + ", minIdle=" + settings.getMinimumIdle() + ')');
     }
 
     private void configureDatabase(Connection connection) throws SQLException {
@@ -843,14 +822,24 @@ public final class DatabaseManager implements AutoCloseable {
                             return;
                         }
 
-                        HikariDataSource current = mysqlDataSource;
+                        MysqlConnectionPool current = mysqlPool;
                         if (current == null) {
                             throw new IllegalStateException("Database is not initialized");
                         }
-                        try (Connection connection = current.getConnection()) {
+                        T value;
+                        try (MysqlConnectionPool.Borrowed borrowed = current.borrow()) {
+                            Connection connection = borrowed.connection();
                             configureConnection(connection);
-                            result.complete(function.apply(connection));
+                            try {
+                                value = function.apply(connection);
+                            } catch (Throwable throwable) {
+                                if (isConnectionFailure(connection, throwable)) {
+                                    borrowed.invalidate();
+                                }
+                                throw throwable;
+                            }
                         }
+                        result.complete(value);
                     } catch (Throwable throwable) {
                         result.completeExceptionally(throwable);
                     }
@@ -905,8 +894,44 @@ public final class DatabaseManager implements AutoCloseable {
                 return false;
             }
         }
-        HikariDataSource current = mysqlDataSource;
+        MysqlConnectionPool current = mysqlPool;
         return current != null && !current.isClosed();
+    }
+
+    Connection openSqliteConnection(Path databasePath) throws java.io.IOException, SQLException {
+        JdbcDriverRegistry current = driverRegistry;
+        if (closed.get() || current == null) {
+            throw new SQLException("Database driver registry is not initialized");
+        }
+        return current.openSqlite(databasePath);
+    }
+
+    private static boolean isConnectionFailure(Connection connection, Throwable throwable) {
+        try {
+            if (connection == null || connection.isClosed()) {
+                return true;
+            }
+        } catch (SQLException ignored) {
+            return true;
+        }
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof SQLRecoverableException) {
+                return true;
+            }
+            if (current instanceof SQLException) {
+                SQLException sqlException = (SQLException) current;
+                while (sqlException != null) {
+                    String state = sqlException.getSQLState();
+                    if (state != null && state.startsWith("08")) {
+                        return true;
+                    }
+                    sqlException = sqlException.getNextException();
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private Connection requireSqliteConnection() throws SQLException {
@@ -972,10 +997,16 @@ public final class DatabaseManager implements AutoCloseable {
         sqliteConnection = null;
         closeQuietly(currentSqlite);
 
-        HikariDataSource currentMysql = mysqlDataSource;
-        mysqlDataSource = null;
+        MysqlConnectionPool currentMysql = mysqlPool;
+        mysqlPool = null;
         if (currentMysql != null) {
             currentMysql.close();
+        }
+
+        JdbcDriverRegistry currentDrivers = driverRegistry;
+        driverRegistry = null;
+        if (currentDrivers != null) {
+            currentDrivers.close();
         }
     }
 

@@ -7,7 +7,6 @@ import haaa.shitbot.core.util.TextUtil;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -390,9 +389,7 @@ public final class BindingRepository {
         return database.transactionAsync(new DatabaseManager.SqlFunction<EasyBotMigrationResult>() {
             @Override
             public EasyBotMigrationResult apply(Connection target) throws Exception {
-                Class.forName("org.sqlite.JDBC");
-                String jdbcUrl = "jdbc:sqlite:" + sourcePath.toAbsolutePath().normalize();
-                try (Connection source = DriverManager.getConnection(jdbcUrl)) {
+                try (Connection source = database.openSqliteConnection(sourcePath)) {
                     try (Statement statement = source.createStatement()) {
                         statement.execute("PRAGMA query_only=ON");
                         statement.execute("PRAGMA busy_timeout=5000");

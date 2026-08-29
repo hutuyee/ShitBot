@@ -116,6 +116,8 @@ forwarding:
 - Spigot、BungeeCord、Velocity 使用相同的数据表结构
 - 可在不同平台版本之间迁移数据
 - 远程 MySQL 默认必须启用 TLS（推荐 `sslMode=VERIFY_IDENTITY`）；明文连接需要显式风险开关
+- JDBC 驱动优先复用服务器/代理核心已经提供的版本；旧版 Connector/J 的 `com.mysql.jdbc` API 会自动切换参数用法，不会把现代 TLS 校验模式静默降级
+- 当前核心缺少所需 JDBC 驱动时，首次连接需要能访问 `repo.maven.apache.org`；插件会下载固定版本、校验文件大小与 SHA-256，并缓存到 `<插件数据目录>/libraries`，这些驱动不再塞进插件 JAR
 
 
 ## 在平台之间迁移数据
