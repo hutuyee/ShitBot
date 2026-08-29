@@ -105,6 +105,7 @@ forwarding:
 - `picturebridge`：图片和表情会附加 PictureBridge 标记；装有 [PictureBridge](https://github.com/hutuyee/PictureBridge) 的客户端直接在聊天中预览，点击后在游戏内查看高清原图。
 - 两种模式都会保留网页链接，所以没有安装模组的客户端也能点击后使用浏览器查看。
 - 仓库根目录的 `PictureBridge` 是该客户端模组的 Git 子模块，GitHub 上可直接点击跳转到独立项目。
+<img width="1920" height="1030" alt="160c91bb9aea6983d1021bb897358fe8" src="https://github.com/user-attachments/assets/357a8f0a-ba59-4c7f-a13a-9794868b1282" />
 
 ### 数据库
 
