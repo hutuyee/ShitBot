@@ -33,6 +33,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - Spigot(Bukkit) 全版本（含 Folia 核心）
 - BungeeCord 全版本
 - Velocity 全版本
+- Nukkit-MOT（需要 Java 17 或更高版本）
 
 ---
 
@@ -41,6 +42,8 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - 普通群组服只需在 BungeeCord/Velocity 安装代理版。
 - 若要从 QQ 执行子服快捷命令或查询子服 TPS，还需在 Bukkit 子服安装 Spigot 版，并把子服 `config.yml` 的 `deployment.role` 改为 `backend`。
 - 代理和子服必须连接同一个 MySQL 数据库；不要让多个实例同时使用同一个 SQLite 文件。
+- Nukkit-MOT 单服将 `ShitBotNukkit-*.jar` 放入 `plugins` 目录即可，不需要配置 `deployment` 或 Console Socket；修改生成的 `config.yml` 与 `commands.yml` 后执行 `/shitbot reload`。
+- Nukkit-MOT 模块基于 Java 17 编译，服务端运行时也必须使用 Java 17 或更高版本。
 
 ---
 
@@ -56,7 +59,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 | `/shitbot image` | 手动生成一张当前服务器在线人数图片，用于测试图片生成功能。 |
 | `/shitbot reload` | 热重载 `config.yml`、`commands.yml`、数据库、OneBot 和图片配置。 |
 
-> 上述命令默认需要 `shitbot.admin` 权限。
+> `/shitbot status` 可直接查看；`reload`、`update`、`image` 和 `migrate` 需要 `shitbot.admin` 权限。
 
 ### QQ 绑定
 
@@ -67,14 +70,16 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 
 ### QQ 快捷命令与 TPS
 
-- 快捷命令白名单、别名、权限、执行位置、`latest.log` 抓取时间和回复模板统一配置在 `commands.yml`。
-- 执行快捷命令前会以只读方式记录 `logs/latest.log` 的当前位置，捕获窗口结束后回传这期间所有插件追加的新日志，因此异步输出也能被取得；原日志文件不会被修改。回传副本会丢弃玩家聊天、上下线、连接/断开、玩家执行命令和 `[发送者: 命令反馈]` 等日志，将请求绑定玩家与在线玩家的名称、UUID、IPv4/IPv6 替换为占位符，再脱敏 Bearer、token、password、authorization、secret 和数据库 URL，并受 100 行 / 4000 字符上限约束。
+- 快捷命令白名单、别名、权限、执行位置、日志抓取时间和回复模板统一配置在 `commands.yml`。
+- 执行快捷命令前会以只读方式记录日志当前位置（Bukkit 使用 `logs/latest.log`，Nukkit-MOT 使用 `logs/server.log`），捕获窗口结束后回传这期间所有插件追加的新日志，因此异步输出也能被取得；原日志文件不会被修改。回传副本会丢弃玩家聊天、上下线、连接/断开、玩家执行命令和 `[发送者: 命令反馈]` 等日志，将请求绑定玩家与在线玩家的名称、UUID、IPv4/IPv6 替换为占位符，再脱敏 Bearer、token、password、authorization、secret 和数据库 URL，并受 100 行 / 4000 字符上限约束。
 - `target: backend` 在 Bukkit 子服执行；`target: proxy` 在 BungeeCord/Velocity 代理执行。
+- Nukkit-MOT 为单服平台，快捷命令和 TPS 始终在本服执行，`server` 保持为空，不使用 `backend-transport`。
 - 快捷命令或 TPS 后可直接加目标子服，例如 `lp编辑 survival`、`TPS lobby`；该参数会覆盖配置中的 `server`。
 - 代理使用 `backend-transport.endpoints` 的独立鉴权通道，因此目标子服零玩家也能执行；没有配置对应端点时会拒绝执行，不会回退到未认证的插件消息。
 - 带 `permission` 的快捷命令会检查绑定角色：在线时直接查询，离线时依次查询 LuckPerms、Vault 和离线 OP 状态。`permission` 留空只表示跳过游戏权限检查，默认仍要求 QQ 已绑定；只有同时显式设置 `allow-unbound: true` 才允许未绑定群成员调用，并会在启动时输出警告。
-- 每个请求只选择一个子服，使用唯一请求 ID，并校验回包来源，因此不会在多个子服重复执行或重复回复。
-- TPS 优先读取 EssentialsX，之后读取服务端原生 TPS，均不可用时使用 ShitBot 自己的 1/5/15 分钟采样。
+- Nukkit-MOT 在线角色使用 Nukkit 权限系统，离线角色使用 LuckPerms（如已安装）；不走 Bukkit 的 Vault 或离线 OP 查询。
+- 代理请求只选择一个子服，使用唯一请求 ID，并校验回包来源，因此不会在多个子服重复执行或重复回复。
+- Bukkit 的 TPS 优先读取 EssentialsX，之后读取服务端原生 TPS，均不可用时使用 ShitBot 自己的 1/5/15 分钟采样；Nukkit-MOT 直接读取服务端原生 TPS 和负载。
 - 代理 + 子服部署必须把 Spigot 端设为 `deployment.role: backend`，此模式不会连接 OneBot，因此不会与代理重复处理 QQ 消息。
 
 独立通道需要在代理 `commands.yml` 的 `backend-transport.endpoints.<子服名>` 填写子服地址、端口和至少 16 位的随机密钥，并在对应子服的 `backend-transport.listener` 中填写相同端口、密钥和子服名后启用。listener 默认只接受 `127.0.0.1` / `::1`。HMAC 负责认证和完整性，每个连接还会使用服务端随机 challenge 阻止抓包跨重启重放，但 HMAC 本身不加密内容。
@@ -88,6 +93,7 @@ ShitBot 是一个面向 Minecraft 服务器的QQ 机器人插件
 - 自动重连和指数退避
 - 心跳超时检测
 - OneBot API 调用回执与超时管理
+- 可在 `onebot.notices.server-startup` 开启启动群通知：留空 `target-server` 时在当前平台启动并连接 OneBot 后通知；BungeeCord/Velocity 也可填写一个子服名，持续探测到该子服首次可连接后通知。通知发送到所有 `allowed-group-ids`。
 
 ### 群服互通
 
@@ -100,7 +106,7 @@ MC端输入: #qq 内容即可通过机器人传到群聊
 QQ端输入: #mc 内容即可通过机器人传到MC
 ```
 
-群消息中的图片会转成带 `OPEN_URL` 的可点击聊天组件。服主可在三端通用配置中选择显示方式：
+群消息中的图片在 Bukkit/代理平台会转成带 `OPEN_URL` 的可点击聊天组件；Nukkit-MOT 会发送文本和原始 URL。服主可在配置中选择显示方式：
 
 ```yaml
 forwarding:
@@ -109,9 +115,9 @@ forwarding:
     media-mode: "browser"
 ```
 
-- `browser`：游戏里显示可点击的 `[图片]`，点击后由 Minecraft 按原版逻辑在浏览器查看。
-- `picturebridge`：图片和表情会附加 PictureBridge 标记；装有 [PictureBridge](https://github.com/hutuyee/PictureBridge) 的客户端直接在聊天中预览，点击后在游戏内查看高清原图。
-- 两种模式都会保留网页链接，所以没有安装模组的客户端也能点击后使用浏览器查看。
+- `browser`：Bukkit/代理平台在游戏里显示可点击的 `[图片]`，点击后由 Minecraft 按原版逻辑在浏览器查看；Nukkit-MOT 显示原始 URL。
+- `picturebridge`：Java 客户端中的图片和表情会附加 PictureBridge 标记；装有 [PictureBridge](https://github.com/hutuyee/PictureBridge) 的客户端直接在聊天中预览，点击后在游戏内查看高清原图。Nukkit-MOT 不使用该客户端模组协议。
+- 两种模式都会保留网页链接，所以没有安装模组的 Java 客户端仍可点击后使用浏览器查看，Nukkit-MOT 客户端也能看到 URL。
 - 仓库根目录的 `PictureBridge` 是该客户端模组的 Git 子模块，GitHub 上可直接点击跳转到独立项目。
 <img width="1920" height="1030" alt="160c91bb9aea6983d1021bb897358fe8" src="https://github.com/user-attachments/assets/357a8f0a-ba59-4c7f-a13a-9794868b1282" />
 
@@ -122,7 +128,7 @@ forwarding:
 - 自动执行数据库版本迁移
 - MySQL 迁移使用数据库级 `GET_LOCK`，代理与多个后端同时启动时只允许一个实例执行 DDL
 - 启动时只在列定义确实不符合目标 schema 时执行修复性 `ALTER TABLE`
-- Spigot、BungeeCord、Velocity 使用相同的数据表结构
+- Spigot、BungeeCord、Velocity、Nukkit-MOT 使用相同的数据表结构
 - 可在不同平台版本之间迁移数据
 - 远程 MySQL 默认必须启用 TLS（推荐 `sslMode=VERIFY_IDENTITY`）；明文连接需要显式风险开关
 - JDBC 驱动优先复用服务器/代理核心已经提供的版本；旧版 Connector/J 的 `com.mysql.jdbc` API 会自动切换参数用法，不会把现代 TLS 校验模式静默降级
@@ -133,7 +139,7 @@ forwarding:
 
 ### 使用 MySQL
 
-三个平台版本使用相同表结构。只需要让新平台插件连接原来的 MySQL 数据库即可。
+四个平台版本使用相同表结构。只需要让新平台插件连接原来的 MySQL 数据库即可。
 
 建议迁移步骤：
 
@@ -145,7 +151,7 @@ forwarding:
 
 ### 使用 SQLite
 
-从 Spigot 迁移到 BungeeCord 或 Velocity 时：
+在 Spigot、BungeeCord、Velocity、Nukkit-MOT 之间迁移 SQLite 数据时：
 
 1. 停止原服务器。
 2. 找到原插件目录中的 `shitbot.db`。
@@ -190,21 +196,21 @@ Minecraft 消息支持 `&` 颜色代码。
 | `/shitbot update` | 校验、备份并替换最新 Release JAR，等待手动重启 |
 | `/shitbot image` | 手动生成在线人数图片 |
 
-Spigot 权限：
+平台权限：
 
 ```text
 shitbot.admin
 ```
 
-Spigot 默认仅 OP 拥有该权限。BungeeCord 和 Velocity 同样检查 `shitbot.admin`。`status` 可以直接查看，`reload`、`update`、`image` 和 `migrate` 需要管理权限。
+Spigot 与 Nukkit-MOT 默认仅 OP 拥有该权限，BungeeCord 和 Velocity 同样检查 `shitbot.admin`。`status` 可以直接查看，`reload`、`update`、`image` 和 `migrate` 需要管理权限。
 
-插件启用时会在独立后台线程访问 GitHub，网络连接和读取均设置超时，不占用服务端主线程。最新 Release 信息仅在发生变化时写入插件目录下的 `update-cache.json`；有权限的管理员上线时会收到版本差异和可点击链接。
+插件启用时会在独立后台线程访问 GitHub，网络连接和读取均设置超时，不占用服务端主线程。最新 Release 信息仅在发生变化时写入插件目录下的 `update-cache.json`；有权限的管理员上线时会收到版本差异和发布链接。
 
-执行 `/shitbot update` 后，插件会从同一个 Release 中选择当前平台的 `ShitBotSpigot-*.jar`、`ShitBotBungee-*.jar` 或 `ShitBotVelocity-*.jar`。Release 必须同时包含对应的 `<JAR 文件名>.sha256` 和 `<JAR 文件名>.sig`；下载地址、文件大小、SHA-256、独立 RSA 签名、平台描述文件、主类和内嵌版本全部通过后，才会把当前 JAR 备份为同目录的 `.bak` 并替换。任何一步失败都会保留现有 JAR。替换后不会热重载插件，必须手动重启服务器或代理。
+执行 `/shitbot update` 后，插件会从同一个 Release 中选择当前平台的 `ShitBotSpigot-*.jar`、`ShitBotBungee-*.jar`、`ShitBotVelocity-*.jar` 或 `ShitBotNukkit-*.jar`。Release 必须同时包含对应的 `<JAR 文件名>.sha256` 和 `<JAR 文件名>.sig`；下载地址、文件大小、SHA-256、独立 RSA 签名、平台描述文件、主类和内嵌版本全部通过后，才会把当前 JAR 备份为同目录的 `.bak` 并替换。任何一步失败都会保留现有 JAR。替换后不会热重载插件，必须手动重启服务器或代理。
 
 在 BungeeCord 执行该命令时，代理会使用现有的 HMAC 鉴权 Console Socket，把同一个 Release 的 Spigot JAR、checksum 和 detached signature 元数据下发给 `backend-transport.endpoints` 中的每个后端；各后端在自己的插件目录独立校验、备份和替换，并逐个向命令发送者返回结果。没有配置 endpoint 的子服不会被扫描或更新。后端模式的 Spigot 不会在启动时单独访问 GitHub，由 BungeeCord 统一检查并联动更新。
 
-RSA 公钥已经作为 Core 资源内置到三个平台的最终插件 JAR，更新器直接从自身 JAR 加载，服主不需要下载、放置或配置任何密钥。插件内缺少公钥、Release 缺少签名资产或签名不匹配时，更新器会 fail closed。发布签名私钥只保存到 GitHub Actions 的 `SHITBOT_UPDATE_PRIVATE_KEY` 仓库 Secret，不能放进插件或提交到仓库。需要轮换密钥时，维护者必须同时替换 Core 内置公钥和仓库 Secret，并通过手动安装可信版本完成信任切换。
+RSA 公钥已经作为 Core 资源内置到四个平台的最终插件 JAR，更新器直接从自身 JAR 加载，服主不需要下载、放置或配置任何密钥。插件内缺少公钥、Release 缺少签名资产或签名不匹配时，更新器会 fail closed。发布签名私钥只保存到 GitHub Actions 的 `SHITBOT_UPDATE_PRIVATE_KEY` 仓库 Secret，不能放进插件或提交到仓库。需要轮换密钥时，维护者必须同时替换 Core 内置公钥和仓库 Secret，并通过手动安装可信版本完成信任切换。
 
 维护者首次生成或轮换密钥时可使用：
 
