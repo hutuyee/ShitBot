@@ -112,6 +112,10 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 - [数据库与数据迁移](docs/database.md)
 - [背包查询与材质配置](docs/inventory.md)
 - [常见问题](docs/troubleshooting.md)
+- [平台兼容性](docs/compatibility.md)
+- [升级与自动更新](docs/updating.md)
+- [生产环境安全清单](docs/security.md)
+- [构建与开发](docs/development.md)
 - [全部文档](docs/README.md)
 - [待办事项](TODO.md)
 

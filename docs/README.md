@@ -13,4 +13,11 @@
 - [数据库与数据迁移](database.md)：SQLite、MySQL、平台迁移和 EasyBot 数据导入。
 - [背包查询与材质配置](inventory.md)：离线背包快照、资源包、Mod 物品和自定义图标。
 
+## 维护和开发
+
+- [平台兼容性](compatibility.md)：已验证环境、各平台差异和可选依赖。
+- [升级与自动更新](updating.md)：手动升级、`/shitbot update` 和发布签名。
+- [生产环境安全清单](security.md)：OneBot、数据库、命令通道、权限和日志安全。
+- [构建与开发](development.md)：Maven 构建、模块结构和发布产物。
+
 第一次安装时，依次阅读[安装与部署](installation.md)和[配置说明](configuration.md)即可。只有需要从 QQ 在子服执行命令时，才需要配置[代理与后端子服](proxy-backend.md)。
