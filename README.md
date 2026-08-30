@@ -4,6 +4,11 @@
 
 支持 Spigot/Paper/Folia、BungeeCord、Velocity 和 Nukkit-MOT。OneBot 实现可以使用 [LuckyLilliaBot](https://github.com/LLOneBot/LuckyLilliaBot) 或其他兼容 OneBot v11 正向 WebSocket 的实现。
 
+> [!Warning]
+> 
+> 请勿在 LLBot 群内讨论本插件的使用问题。
+> 本插件由AI辅助完成，如有缺陷可提出
+
 ## 下载
 
 从 [GitHub Releases](https://github.com/hutuyee/ShitBot/releases) 下载当前平台的 JAR：
@@ -123,7 +128,7 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 
 项目仍在开发中。遇到问题请通过 [GitHub Issues](https://github.com/hutuyee/ShitBot/issues) 反馈，并附上运行平台、服务端版本、Java 版本和相关日志。
 
-ShitBot 不与 EasyBot 竞争；请勿在 LLBot 群内讨论本插件的使用问题。
+ShitBot 不与 EasyBot 竞争
 
 ## License
 
