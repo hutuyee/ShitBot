@@ -22,7 +22,7 @@ ShitBot 需要一个支持 OneBot v11 正向 WebSocket 的 QQ 机器人实现。
 | Velocity | `ShitBotVelocity-*.jar` | Java 21+ |
 | Nukkit-MOT | `ShitBotNukkit-*.jar` | Java 17+ |
 
-这里列的是 ShitBot JAR 的最低字节码要求。服务端核心自身可能要求更高版本的 Java，应同时满足核心要求。
+这里列的是 ShitBot JAR 的最低字节码要求。服务端核心自身可能要求更高版本的 Java，应同时满足核心要求。某个 Release 没有对应平台 JAR 时，表示该版本没有发布该平台构建，不能改用其他平台 JAR。
 
 ## 首次启动
 

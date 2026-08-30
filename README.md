@@ -15,7 +15,7 @@
 | Velocity | `ShitBotVelocity-*.jar` | `plugins/` | 21+ |
 | Nukkit-MOT | `ShitBotNukkit-*.jar` | `plugins/` | 17+ |
 
-只安装与你的平台匹配的 JAR，不要将多个平台版本放进同一个实例。
+只安装与你的平台匹配的 JAR，不要将多个平台版本放进同一个实例。某个 Release 没有对应平台 JAR 时，表示该版本没有发布该平台构建，不能用其他平台 JAR 代替。表中的 Java 是插件字节码要求，实际运行时还必须满足服务端核心自身的 Java 要求。
 
 ## 安装
 
