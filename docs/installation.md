@@ -30,7 +30,7 @@ ShitBot 需要一个支持 OneBot v11 正向 WebSocket 的 QQ 机器人实现。
 2. 将对应平台 JAR 放入该实例的 `plugins/` 目录。
 3. 启动实例，等待 ShitBot 生成插件数据目录。
 4. 停止实例。
-5. 打开生成的 `config.yml` 和 `commands.yml`。
+5. 打开生成的 `config.yml`、`commands.yml`、`lang/` 语言文件和 `templates/default.yml` 图片模板。
 6. 按下文完成最小配置后重新启动。
 
 不要修改 JAR 内部的默认配置。后续版本增加配置项时，应先备份当前配置，再对照新版本生成的配置补充内容。

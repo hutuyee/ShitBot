@@ -9,19 +9,19 @@ onebot:
   commands:
     inventory:
       enabled: true
-      aliases:
-        - "背包"
-        - "我的背包"
 
 inventory:
   enabled: true
+  template: "default"
 ```
 
 保存后执行 `/shitbot reload`。Spigot 和 Nukkit-MOT 会定时保存在线玩家背包，并在玩家退出时再保存一次。
 
+命令别名和回复文本在所选 `lang/*.yml` 的 `commands.inventory` 与 `messages` 下修改。背包图片外观在 `templates/*.yml` 的 `inventory` 段修改；复制默认模板并通过 `inventory.template` 选择，详细格式见[配置说明](configuration.md#自定义图片模板)。
+
 ## 使用方式
 
-群成员可以发送 `背包` 或 `我的背包`，让系统从自己 QQ 已绑定的角色中自动选择一个查询；命令别名可在配置中修改。
+群成员可以发送 `背包` 或 `我的背包`，让系统从自己 QQ 已绑定的角色中自动选择一个查询；命令别名可在语言文件中修改。
 
 群成员有多个游戏 ID 时，可发送 `背包 <游戏ID>` 或 `我的背包 <游戏ID>` 自由查询其中任意一个。系统会先精确校验该游戏 ID 是否绑定到消息发送者的 QQ，只有校验通过才会读取并发送背包图片，不能借此查询他人的角色。
 

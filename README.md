@@ -28,11 +28,11 @@
 
 1. 停止服务器或代理。
 2. 将对应平台的 JAR 放入 `plugins/`。
-3. 启动一次，让 ShitBot 生成 `config.yml` 和 `commands.yml`。
+3. 启动一次，让 ShitBot 生成 `config.yml`、`commands.yml`、`lang/` 语言文件和 `templates/default.yml` 图片模板。
 4. 停止实例并修改配置。
 5. 再次启动，然后执行 `/shitbot status` 检查数据库和 OneBot 连接状态。
 
-不要使用插件管理器热加载或热卸载 ShitBot。修改配置时使用 `/shitbot reload`，升级 JAR 后正常重启服务器或代理。
+不要使用插件管理器热加载或热卸载 ShitBot。修改配置、语言文件或图片模板时使用 `/shitbot reload`，升级 JAR 后正常重启服务器或代理。
 
 ## 最小配置
 
@@ -50,6 +50,12 @@ onebot:
 
 ShitBot 使用 OneBot v11 正向 WebSocket，由插件主动连接 OneBot。跨主机连接应使用 `wss://`。
 
+界面语言由 `config.yml` 顶层的 `language` 选择。内置 `zh_CN` 和 `en_US`；扩展其他语言时，复制 `lang/zh_CN.yml` 或 `lang/en_US.yml`，翻译并改名，再填写不带 `.yml` 的文件名：
+
+```yaml
+language: "en_US"
+```
+
 如需开启群服互通，再修改：
 
 ```yaml
@@ -64,6 +70,17 @@ forwarding:
     prefix: "#mc "
     media-mode: "browser"
 ```
+
+在线列表和背包图片的外观由 `templates/*.yml` 控制。复制 `templates/default.yml` 为新文件（例如 `ocean.yml`），修改布局、字号、圆角和颜色后，在 `config.yml` 中分别选择：
+
+```yaml
+image:
+  template: "ocean"
+inventory:
+  template: "ocean"
+```
+
+模板名不带 `.yml`；未写出的字段会回退到 `default.yml`。
 
 配置完成后执行：
 
@@ -87,7 +104,7 @@ forwarding:
 | 命令 | 功能 | 权限 |
 | --- | --- | --- |
 | `/shitbot status` | 查看数据库、OneBot 和插件运行状态 | 无 |
-| `/shitbot reload` | 重载 `config.yml`、`commands.yml` 和运行实例 | `shitbot.admin` |
+| `/shitbot reload` | 重载配置、语言文件、图片模板和运行实例 | `shitbot.admin` |
 | `/shitbot update` | 下载并校验当前平台的新版本，替换后等待手动重启 | `shitbot.admin` |
 | `/shitbot image` | 生成一次在线状态图片 | `shitbot.admin` |
 | `/shitbot migrate easybot [EasyBot.db]` | 导入 EasyBot 绑定数据 | `shitbot.admin` |
@@ -108,7 +125,7 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 | Minecraft | `#qq 内容` | 将游戏消息转发到 QQ 群 |
 | QQ 群 | `#mc 内容` | 将群消息转发到游戏 |
 
-别名、权限、目标子服和快捷命令内容可以在 `config.yml` 与 `commands.yml` 中修改。
+面向用户的别名和文本在所选 `lang/*.yml` 中修改；开关在 `config.yml` 中修改，权限、目标子服和快捷命令执行内容在 `commands.yml` 中修改。
 
 ## 文档
 

@@ -2,10 +2,24 @@
 
 ShitBot 首次启动会在插件数据目录生成：
 
-- `config.yml`：OneBot、转发、绑定、数据库、图片、背包和消息配置；
-- `commands.yml`：TPS、QQ 快捷命令和代理—后端命令通道。
+- `config.yml`：语言选择、OneBot、转发、绑定、数据库、图片和背包配置；
+- `commands.yml`：TPS、QQ 快捷命令和代理—后端命令通道；
+- `lang/zh_CN.yml` 与 `lang/en_US.yml`：所有主要用户文本、内置指令别名和图片文字；
+- `templates/default.yml`：在线列表与背包图片的默认布局和配色。
 
-两个文件都有默认注释。修改后执行 `/shitbot reload`；如果调整了插件 JAR、Java、TLS 证书或服务端核心，请正常重启实例。
+配置文件都有默认注释。修改后执行 `/shitbot reload`；如果调整了插件 JAR、Java、TLS 证书或服务端核心，请正常重启实例。
+
+## 语言文件
+
+`config.yml` 顶层使用不带扩展名的语言名：
+
+```yaml
+language: "zh_CN"
+```
+
+切换英文时改为 `en_US`。扩展其他语言时，复制 `lang/zh_CN.yml` 或 `lang/en_US.yml`，例如改名为 `zh_TW.yml`，完整翻译后设置 `language: "zh_TW"`。语言名只允许字母、数字、下划线和连字符。
+
+语言文件缺少某个键时会回退到 `zh_CN.yml`，因此自定义语言可以在后续版本新增文本时继续工作；建议仍然定期与最新内置文件比较并补齐键。必须保留 `%player%`、`%result%` 等占位符。Minecraft 文本支持 `&` 颜色代码。
 
 ## OneBot 连接
 
@@ -44,7 +58,6 @@ onebot:
       enabled: true
       target-server: ""
       check-interval-seconds: 5
-      message: "服务器 %server% 已启动。"
 ```
 
 - Spigot standalone 和 Nukkit-MOT：`target-server` 保持为空，在本实例启动并连接 OneBot 后通知。
@@ -58,12 +71,12 @@ onebot:
   notices:
     group-join-welcome:
       enabled: true
-      message: "欢迎 %at% 加入群聊！"
     group-leave-unbind:
       enabled: false
 ```
 
 `group-leave-unbind` 会在成员退出允许群时删除其 QQ 绑定，属于破坏性业务规则，确认符合服务器规则后再开启。
+启动通知和欢迎文本位于所选语言文件的 `notices` 下。
 
 ## QQ 内置指令
 
@@ -74,16 +87,13 @@ onebot:
   commands:
     bind:
       enabled: true
-      aliases: ["绑定", "/bind"]
     online-image:
       enabled: true
-      aliases: ["服务器状态", "在线人数"]
     inventory:
       enabled: true
-      aliases: ["背包", "我的背包"]
 ```
 
-别名必须与群消息中的文本匹配。TPS 和其他快捷命令不在这里配置，而在 `commands.yml` 中配置。
+开关在 `config.yml` 中；别名和用法文本位于语言文件的 `commands` 下。别名必须与群消息中的文本匹配。TPS 和其他快捷命令的开关、权限及执行行为在 `commands.yml` 中配置，显示文本在语言文件的 `console` 下配置。
 
 ## 群服互通
 
@@ -153,7 +163,7 @@ database:
 
 ```yaml
 image:
-  title: "服务器在线状态"
+  template: "default"
   server-name: "Server-Status"
   font-name: "Microsoft YaHei"
   players-per-row: 5
@@ -165,15 +175,36 @@ image:
 
 Linux 环境中必须安装 `font-name` 指定的字体，否则中文可能回退或显示异常。Nukkit-MOT 有 Bedrock 玩家时，可将头像地址替换为支持 Xbox ID 的服务。
 
+### 自定义图片模板
+
+首次启动生成的 `templates/default.yml` 同时包含 `online` 和 `inventory` 两段主题。不要直接依赖修改默认文件来区分多套外观；复制它并改名，例如 `templates/ocean.yml`，然后在 `config.yml` 中选择不带 `.yml` 的名称：
+
+```yaml
+image:
+  template: "ocean"
+
+inventory:
+  template: "ocean"
+```
+
+`image.template` 选择在线列表使用的文件，`inventory.template` 选择背包图片使用的文件，两者可以不同。模板名只允许字母、数字、下划线和连字符。自定义文件缺少字段时会逐项读取 `templates/default.yml`，因此也可以只保留需要覆盖的段和字段。
+
+模板可调整主要布局尺寸、各类字号、圆角、描边、背景渐变、卡片、文字、状态、槽位和占位头像颜色。颜色支持以下格式：
+
+- `#RRGGBB`：不透明颜色；
+- `#AARRGGBB`：带透明度，前两位 `AA` 是透明度。
+
+图片中的可翻译文字和时间格式仍在 `lang/*.yml` 的 `image`、`inventory` 下管理；图片宽度、字体名称、头像请求、缓存和输出文件等运行参数仍在 `config.yml`。模板数值会限制在安全范围内，修改后执行 `/shitbot reload` 生效。
+
 ## 背包查询
 
-`inventory` 控制快照间隔、离线保留时间、渲染并发和材质来源。群组服需要让后端保存快照，并让代理通过共享 MySQL 读取快照。
+`inventory` 控制图片模板、快照间隔、离线保留时间、渲染并发和材质来源。群组服需要让后端保存快照，并让代理通过共享 MySQL 读取快照。
 
 材质包、客户端 JAR、Mod 物品和自定义图标的配置见[背包查询与材质配置](inventory.md)。
 
-## 自定义消息
+## 自定义文本
 
-`messages` 中可以修改主要回复和踢出信息。常用变量：
+所选 `lang/*.yml` 中可以修改回复、踢出信息、图片文字、富媒体标签、管理员命令反馈和控制台请求结果。常用变量：
 
 | 变量 | 含义 |
 | --- | --- |
@@ -184,15 +215,15 @@ Linux 环境中必须安装 `font-name` 指定的字体，否则中文可能回�
 | `%maximum_ids%` | 单个 QQ 最大绑定数 |
 | `%at%` / `%艾特%` | 在 QQ 回复中艾特发送者 |
 
-Minecraft 消息支持 `&` 颜色代码。YAML 多行消息应使用 `|`，并保持后续行缩进一致。
+YAML 多行消息应使用 `|`，并保持后续行缩进一致。不要删除或翻译键名，只修改冒号右侧的值。
 
 ## commands.yml
 
 `commands.yml` 包含：
 
 - QQ 快捷命令总开关和冷却；
-- TPS 指令；
-- 自定义快捷命令、权限、执行位置和回复模板；
+- TPS 指令的开关、权限和目标；
+- 自定义快捷命令、权限、执行位置和执行内容；
 - BungeeCord/Velocity 到 Spigot 后端的认证通道。
 
-命令配置见[命令与权限](commands.md)，代理通道见[代理与后端子服](proxy-backend.md)。
+内置 TPS 与 `luckperms-editor` 的别名和回复模板位于语言文件；新增自定义快捷命令时，可以暂时在 `commands.yml` 中填写 `aliases`、`message` 和 `failed`，也可以在语言文件的 `console.shortcuts.<名称>` 下提供同名文本。命令配置见[命令与权限](commands.md)，代理通道见[代理与后端子服](proxy-backend.md)。

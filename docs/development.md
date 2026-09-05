@@ -76,6 +76,8 @@ ShitBotNukkit/src/main/resources/
 
 - 四个平台的 `config.yml`；
 - 平台适用的 `commands.yml`；
+- Core 中共享的 `lang/zh_CN.yml` 与 `lang/en_US.yml`；
+- Core 中共享的 `templates/default.yml`；
 - 配置加载器与默认值；
 - 重载流程；
 - 本文档中引用的配置示例。

@@ -4,7 +4,7 @@
 
 1. 阅读目标版本的 [Release Notes](https://github.com/hutuyee/ShitBot/releases)；
 2. 备份数据库；
-3. 备份 `config.yml`、`commands.yml` 和自定义图片资源；
+3. 备份 `config.yml`、`commands.yml`、`lang/`、`templates/` 和自定义图片资源；
 4. 群组服确认代理与后端是否需要同时升级；
 5. 不要在服务端运行期间直接复制 SQLite 数据库。
 

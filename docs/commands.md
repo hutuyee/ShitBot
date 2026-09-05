@@ -49,13 +49,11 @@ TPS 在 `commands.yml` 中配置：
 ```yaml
 tps:
   enabled: true
-  aliases:
-    - "TPS"
-    - "服务器TPS"
   permission: ""
   server: ""
-  message: "%at% 服务器 TPS（%source%）：%result%"
 ```
+
+别名、成功文本和失败文本在所选语言文件的 `console.tps` 中配置。
 
 - 单服部署和 Nukkit-MOT 在本服查询。
 - 代理部署可以在 `server` 中设置默认子服。
@@ -70,17 +68,15 @@ tps:
 shortcuts:
   luckperms-editor:
     enabled: true
-    aliases:
-      - "lp编辑"
     command: "lp editor"
     permission: "shitbot.admin"
     allow-unbound: false
     target: "backend"
     server: ""
     capture-seconds: 5
-    message: "%at% 执行成功（%source%）：\n%result%"
-    failed: "%at% 执行失败（%source%）：\n%result%"
 ```
+
+内置快捷命令的别名和回复模板在语言文件的 `console.shortcuts.<名称>` 中配置。新增自定义快捷命令时，如果语言文件中没有同名条目，会使用 `commands.yml` 中的 `aliases`、`message` 和 `failed` 作为后备。
 
 | 配置 | 说明 |
 | --- | --- |
@@ -126,7 +122,7 @@ Spigot 后端执行带 `permission` 的快捷命令时：
 
 ## 修改后生效
 
-保存 `commands.yml` 后执行：
+保存 `commands.yml` 或语言文件后执行：
 
 ```text
 /shitbot reload
