@@ -8,6 +8,7 @@
     <name>ShitBotBungee</name>
     <properties>
         <java.version>8</java.version>
+        <bstats.version>3.2.1</bstats.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <build>
@@ -53,6 +54,10 @@
                         <relocation>
                             <pattern>org.slf4j</pattern>
                             <shadedPattern>haaa.shitbot.lib.slf4j</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.bstats</pattern>
+                            <shadedPattern>haaa.shitbot.lib.bstats</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>
@@ -103,6 +108,11 @@
             <artifactId>bungeecord-api</artifactId>
             <version>1.16-R0.4</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bstats</groupId>
+            <artifactId>bstats-bungeecord</artifactId>
+            <version>${bstats.version}</version>
         </dependency>
     </dependencies>
 </project>

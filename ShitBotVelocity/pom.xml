@@ -8,6 +8,7 @@
     <name>ShitBotVelocity</name>
     <properties>
         <java.version>21</java.version>
+        <bstats.version>3.2.1</bstats.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <profiles>
@@ -141,6 +142,10 @@
                             <pattern>org.java_websocket</pattern>
                             <shadedPattern>haaa.shitbot.lib.websocket</shadedPattern>
                         </relocation>
+                        <relocation>
+                            <pattern>org.bstats</pattern>
+                            <shadedPattern>haaa.shitbot.lib.bstats</shadedPattern>
+                        </relocation>
                     </relocations>
                     <artifactSet>
                         <excludes>
@@ -191,6 +196,11 @@
             <artifactId>velocity-api</artifactId>
             <version>3.5.0-SNAPSHOT</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bstats</groupId>
+            <artifactId>bstats-velocity</artifactId>
+            <version>${bstats.version}</version>
         </dependency>
         <dependency>
             <groupId>org.yaml</groupId>
