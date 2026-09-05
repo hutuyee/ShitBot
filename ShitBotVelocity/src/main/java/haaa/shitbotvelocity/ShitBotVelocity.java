@@ -24,6 +24,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bstats.velocity.Metrics;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
@@ -31,9 +32,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotVelocity {
+    private static final int BSTATS_PLUGIN_ID = 33868;
     private final ProxyServer server;
     private final Logger logger;
     private final Path dataDirectory;
+    private final Metrics.Factory metricsFactory;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
     private volatile boolean stopping;
@@ -46,15 +49,20 @@ public final class ShitBotVelocity {
     private boolean startupNoticeTriggered;
 
     @Inject
-    public ShitBotVelocity(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
+    public ShitBotVelocity(ProxyServer server,
+                          Logger logger,
+                          @DataDirectory Path dataDirectory,
+                          Metrics.Factory metricsFactory) {
         this.server = server;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
+        this.metricsFactory = metricsFactory;
     }
 
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
         stopping = false;
+        metricsFactory.make(this, BSTATS_PLUGIN_ID);
         startupNoticeTriggered = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);

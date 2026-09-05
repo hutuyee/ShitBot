@@ -19,11 +19,13 @@ import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.plugin.Plugin;
+import org.bstats.bungeecord.Metrics;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotBungee extends Plugin {
+    private static final int BSTATS_PLUGIN_ID = 33866;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
     private volatile boolean stopping;
@@ -37,6 +39,7 @@ public final class ShitBotBungee extends Plugin {
     @Override
     public void onEnable() {
         stopping = false;
+        new Metrics(this, BSTATS_PLUGIN_ID);
         startupNoticeTriggered = false;
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);

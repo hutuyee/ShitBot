@@ -19,6 +19,7 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
+import org.bstats.bukkit.Metrics;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotSpigot extends JavaPlugin {
+    private static final int BSTATS_PLUGIN_ID = 33865;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private final AtomicBoolean updateCheckStarted = new AtomicBoolean();
     private volatile boolean startupUnavailable = true;
@@ -41,6 +43,7 @@ public final class ShitBotSpigot extends JavaPlugin {
     @Override
     public void onEnable() {
         stopping = false;
+        new Metrics(this, BSTATS_PLUGIN_ID);
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
         this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
