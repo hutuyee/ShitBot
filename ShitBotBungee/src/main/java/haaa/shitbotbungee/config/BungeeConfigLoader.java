@@ -1,6 +1,7 @@
 package haaa.shitbotbungee.config;
 
 import haaa.shitbot.core.config.ConfigSource;
+import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -34,7 +35,11 @@ public final class BungeeConfigLoader {
         File file = ensureConfigFile();
         Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
         Source source = new Source(configuration);
-        return SettingsFactory.create(source, loadTranslations(source));
+        return SettingsFactory.create(
+                source,
+                loadTranslations(source),
+                loadImageTemplate(source.getString("image.template", ImageTemplate.DEFAULT_TEMPLATE)),
+                loadImageTemplate(source.getString("inventory.template", ImageTemplate.DEFAULT_TEMPLATE)));
     }
 
     public boolean isBStatsEnabled() throws IOException {
@@ -89,6 +94,20 @@ public final class BungeeConfigLoader {
         ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
         return new Translations(
                 language,
+                new Source(provider.load(selectedFile)),
+                new Source(provider.load(fallbackFile)));
+    }
+
+    private ImageTemplate loadImageTemplate(String configuredName) throws IOException {
+        File fallbackFile = ensureFile(ImageTemplate.resourcePath(ImageTemplate.DEFAULT_TEMPLATE));
+        String name = ImageTemplate.normalizeName(configuredName);
+        File selectedFile = new File(plugin.getDataFolder(), ImageTemplate.resourcePath(name));
+        if (!selectedFile.isFile()) {
+            selectedFile = ensureFile(ImageTemplate.resourcePath(name));
+        }
+        ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
+        return new ImageTemplate(
+                name,
                 new Source(provider.load(selectedFile)),
                 new Source(provider.load(fallbackFile)));
     }

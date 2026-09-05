@@ -7,7 +7,10 @@ public final class SettingsFactory {
     private SettingsFactory() {
     }
 
-    public static Settings create(ConfigSource source, Translations translations) {
+    public static Settings create(ConfigSource source,
+                                  Translations translations,
+                                  ImageTemplate onlineImageTemplate,
+                                  ImageTemplate inventoryImageTemplate) {
         Settings.Command bindCommand = new Settings.Command(
                 source.getBoolean("onebot.commands.bind.enabled", true),
                 listOrDefault(translations.getList("commands.bind.aliases"), "bind", "/bind"),
@@ -105,6 +108,7 @@ public final class SettingsFactory {
                 source.getInt("database.maximum-queued-tasks", 256));
 
         Settings.Image image = new Settings.Image(
+                onlineImageTemplate,
                 translations.get("image.title"),
                 source.getString("image.server-name", "Minecraft Server"),
                 source.getString("image.font-name", "Microsoft YaHei"),
@@ -124,6 +128,7 @@ public final class SettingsFactory {
                 source.getInt("image.avatar.wait-timeout-ms", 2200));
 
         Settings.Inventory inventory = new Settings.Inventory(
+                inventoryImageTemplate,
                 source.getBoolean("inventory.enabled", true),
                 translations.get("inventory.title"),
                 source.getString("inventory.font-name", "Microsoft YaHei"),

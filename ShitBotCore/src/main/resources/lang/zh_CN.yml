@@ -53,6 +53,7 @@ messages:
 
 image:
   title: "服务器在线状态"
+  subtitle: "%server%  ·  %platform%"
   online-status: "在线"
   unknown-player: "未知玩家"
   current-players: "当前在线玩家"
@@ -60,6 +61,8 @@ image:
   waiting-for-players: "服务器正在等待玩家加入"
   online-count: "%count% 人在线"
   generated-at: "生成时间  %time%"
+  time-format: "yyyy-MM-dd HH:mm:ss"
+  footer-brand: "ShitBot  ·  OneBot 11"
   unknown-server: "未知服务器"
   no-backend: "未连接子服"
 
@@ -70,6 +73,7 @@ inventory:
   snapshot: "离线快照"
   equipment-title: "装备 / 副手"
   data-time: "数据时间 %time%"
+  time-format: "yyyy-MM-dd HH:mm:ss"
   summary: "占用 %occupied%/%slots%  ·  物品 %items%  ·  %server%"
 
 media:

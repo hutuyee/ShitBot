@@ -53,6 +53,7 @@ messages:
 
 image:
   title: "Server Status"
+  subtitle: "%server%  ·  %platform%"
   online-status: "ONLINE"
   unknown-player: "Unknown Player"
   current-players: "Players Online"
@@ -60,6 +61,8 @@ image:
   waiting-for-players: "The server is waiting for players to join"
   online-count: "%count% online"
   generated-at: "Generated  %time%"
+  time-format: "yyyy-MM-dd HH:mm:ss"
+  footer-brand: "ShitBot  ·  OneBot 11"
   unknown-server: "Unknown Server"
   no-backend: "No Backend"
 
@@ -70,6 +73,7 @@ inventory:
   snapshot: "Offline Snapshot"
   equipment-title: "Equipment / Off Hand"
   data-time: "Captured %time%"
+  time-format: "yyyy-MM-dd HH:mm:ss"
   summary: "Used %occupied%/%slots%  ·  Items %items%  ·  %server%"
 
 media:

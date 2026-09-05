@@ -144,6 +144,8 @@ database:
   maximum-queued-tasks: 256
 
 image:
+  # 图片主题位于 templates/*.yml；复制 default.yml 后改名即可扩展。
+  template: "default"
   server-name: "Server-Status"
   font-name: "Microsoft YaHei"
   width: 1200
@@ -170,6 +172,8 @@ image:
 
 inventory:
   enabled: true
+  # 可与在线列表使用不同主题文件；主题文件内读取 inventory 段。
+  template: "default"
   font-name: "Microsoft YaHei"
   width: 760
   slot-size: 48

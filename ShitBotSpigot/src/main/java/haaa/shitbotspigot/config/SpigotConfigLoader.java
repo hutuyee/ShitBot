@@ -1,6 +1,7 @@
 package haaa.shitbotspigot.config;
 
 import haaa.shitbot.core.config.ConfigSource;
+import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -29,7 +30,11 @@ public final class SpigotConfigLoader {
         plugin.saveDefaultConfig();
         plugin.reloadConfig();
         Source source = new Source(plugin.getConfig());
-        return SettingsFactory.create(source, loadTranslations(source));
+        return SettingsFactory.create(
+                source,
+                loadTranslations(source),
+                loadImageTemplate(source.getString("image.template", ImageTemplate.DEFAULT_TEMPLATE)),
+                loadImageTemplate(source.getString("inventory.template", ImageTemplate.DEFAULT_TEMPLATE)));
     }
 
     public boolean isBStatsEnabled() {
@@ -65,6 +70,36 @@ public final class SpigotConfigLoader {
         Source fallback = new Source(YamlConfiguration.loadConfiguration(
                 languageFile(Translations.DEFAULT_LANGUAGE)));
         return new Translations(language, selected, fallback);
+    }
+
+    private ImageTemplate loadImageTemplate(String configuredName) {
+        ensureImageTemplateFile(ImageTemplate.DEFAULT_TEMPLATE);
+        String name = ImageTemplate.normalizeName(configuredName);
+        File selectedFile = imageTemplateFile(name);
+        if (!selectedFile.isFile()) {
+            ensureImageTemplateFile(name);
+        }
+        return new ImageTemplate(
+                name,
+                new Source(YamlConfiguration.loadConfiguration(selectedFile)),
+                new Source(YamlConfiguration.loadConfiguration(
+                        imageTemplateFile(ImageTemplate.DEFAULT_TEMPLATE))));
+    }
+
+    private void ensureImageTemplateFile(String name) {
+        File file = imageTemplateFile(name);
+        if (file.isFile()) {
+            return;
+        }
+        try {
+            plugin.saveResource(ImageTemplate.resourcePath(name), false);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("Image template file does not exist: " + file, exception);
+        }
+    }
+
+    private File imageTemplateFile(String name) {
+        return new File(plugin.getDataFolder(), ImageTemplate.resourcePath(name));
     }
 
     private void ensureLanguageFile(String language) {

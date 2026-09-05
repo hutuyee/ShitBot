@@ -1,0 +1,144 @@
+# ShitBot 图片主题模板。
+# 复制本文件并改名（例如 ocean.yml），再把 config.yml 中对应的 template 改为 ocean。
+# 颜色支持 #RRGGBB 和 #AARRGGBB；八位颜色的前两位是透明度。
+# 数值超出安全范围时会被限制；自定义文件缺少的字段会回退到本文件。
+
+online:
+  layout:
+    outer-margin: 48
+    header-height: 154
+    footer-height: 66
+    server-gap: 20
+    minimum-height: 420
+    empty-panel-height: 116
+    panel-horizontal-padding: 26
+    panel-header-height: 78
+    panel-bottom-padding: 24
+    badge-minimum-height: 46
+    badge-horizontal-padding: 20
+    badge-avatar-gap: 12
+    badge-minimum-extra-width: 54
+    row-gap: 10
+    column-gap: 12
+    grid-size: 44
+  sizes:
+    border-width-tenths: 11
+    header-accent-width: 8
+    header-accent-height: 50
+    status-card-width: 214
+    status-card-height: 82
+    server-icon-size: 34
+    server-dot-size: 10
+    status-dot-size: 10
+  fonts:
+    title: 40
+    subtitle: 18
+    status: 13
+    total-count: 32
+    total-label: 14
+    empty-title: 23
+    empty-subtitle: 15
+    server-title: 23
+    server-count: 14
+    player: 18
+    placeholder-minimum: 14
+    footer: 14
+  radii:
+    status-card: 24
+    panel: 28
+    server-icon: 12
+    count-badge: 16
+    player-badge: 16
+    avatar: 11
+  colors:
+    background-start: "#13468B"
+    background-end: "#189185"
+    overlay-start: "#78368EEB"
+    overlay-end: "#4437CCAE"
+    decoration: "#0EFFFFFF"
+    grid: "#09FFFFFF"
+    header-accent: "#EBFFFFFF"
+    title: "#FFFFFFFF"
+    subtitle: "#D3E8F9"
+    status-dot: "#68EBB5"
+    status-text: "#D0FFED"
+    total-count: "#FFFFFFFF"
+    total-label: "#D6EBF8"
+    empty-dot: "#68EBB5"
+    empty-title: "#FFFFFFFF"
+    empty-subtitle: "#C6DDEE"
+    server-icon: "#3B69EEB8"
+    server-dot: "#83FFCB"
+    server-title: "#FFFFFFFF"
+    server-count-background: "#21FFFFFF"
+    server-count-text: "#D5ECFA"
+    divider: "#29FFFFFF"
+    player-background: "#1FFFFFFF"
+    player-border: "#2BE0F2FF"
+    player-text: "#F4F9FF"
+    avatar-border: "#52FFFFFF"
+    footer: "#B9D7EB"
+    card-shadow: "#21000000"
+    card-background: "#29FFFFFF"
+    card-border: "#35E2F5FF"
+    panel-shadow: "#1F000000"
+    panel-background: "#26FFFFFF"
+    panel-border: "#33E1F4FF"
+  placeholder-colors:
+    - "#498BFF"
+    - "#5CC4A4"
+    - "#A671F4"
+    - "#EE7E85"
+    - "#EFAA4C"
+    - "#4BAECD"
+
+inventory:
+  layout:
+    padding: 24
+    slot-gap: 5
+    header-height: 92
+    footer-height: 54
+    grid-equipment-gap: 24
+    equipment-extra-width: 72
+    equipment-icon-offset: 28
+    card-inset: 12
+    title-y: 38
+    player-y: 66
+    badge-y: 24
+    badge-height: 28
+    badge-horizontal-padding: 20
+    equipment-title-offset-y: 10
+    footer-offset-y: 30
+  fonts:
+    title: 28
+    player: 18
+    small: 13
+    minimum-amount: 12
+  radii:
+    card: 24
+    status-badge: 14
+    slot: 10
+  strokes:
+    normal-border-width-tenths: 10
+    enchanted-border-width-tenths: 20
+  colors:
+    background: "#0A0D13"
+    card: "#A61E283A"
+    title: "#F6F8FC"
+    player: "#AED6FF"
+    live-badge: "#2B8954"
+    snapshot-badge: "#80652E"
+    badge-text: "#FFFFFFFF"
+    equipment-title: "#A8B1C2"
+    secondary-text: "#97A0B2"
+    slot-background: "#EB141923"
+    slot-border: "#DC495265"
+    enchanted-border: "#DC9767FF"
+    amount-shadow: "#BE000000"
+    amount-text: "#FFFFFFFF"
+    durability-background: "#BE000000"
+    missing-light: "#F100F1"
+    missing-dark: "#180018"
+  durability:
+    saturation-percent: 90
+    brightness-percent: 95

@@ -3,6 +3,7 @@ package haaa.shitbotnukkit.config;
 import cn.nukkit.utils.Config;
 import cn.nukkit.utils.ConfigSection;
 import haaa.shitbot.core.config.ConfigSource;
+import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -32,7 +33,11 @@ public final class NukkitConfigLoader {
             throw new IllegalStateException("config.yml is not a valid YAML configuration");
         }
         Source source = new Source(configuration);
-        return SettingsFactory.create(source, loadTranslations(source));
+        return SettingsFactory.create(
+                source,
+                loadTranslations(source),
+                loadImageTemplate(source.getString("image.template", ImageTemplate.DEFAULT_TEMPLATE)),
+                loadImageTemplate(source.getString("inventory.template", ImageTemplate.DEFAULT_TEMPLATE)));
     }
 
     public ConsoleSettings loadConsoleSettings() {
@@ -63,6 +68,39 @@ public final class NukkitConfigLoader {
                 language,
                 loadLanguageSource(selectedFile),
                 loadLanguageSource(fallbackFile));
+    }
+
+    private ImageTemplate loadImageTemplate(String configuredName) {
+        File fallbackFile = ensureImageTemplateFile(ImageTemplate.DEFAULT_TEMPLATE);
+        String name = ImageTemplate.normalizeName(configuredName);
+        File selectedFile = imageTemplateFile(name);
+        if (!selectedFile.isFile()) {
+            selectedFile = ensureImageTemplateFile(name);
+        }
+        return new ImageTemplate(name, loadImageTemplateSource(selectedFile), loadImageTemplateSource(fallbackFile));
+    }
+
+    private Source loadImageTemplateSource(File file) {
+        Config configuration = new Config(file, Config.YAML);
+        if (!configuration.isCorrect()) {
+            throw new IllegalStateException(file.getName() + " is not a valid YAML image template");
+        }
+        return new Source(configuration);
+    }
+
+    private File ensureImageTemplateFile(String name) {
+        File file = imageTemplateFile(name);
+        if (file.isFile()) {
+            return file;
+        }
+        if (!plugin.saveResource(ImageTemplate.resourcePath(name), false) || !file.isFile()) {
+            throw new IllegalStateException("Image template file does not exist: " + file);
+        }
+        return file;
+    }
+
+    private File imageTemplateFile(String name) {
+        return new File(plugin.getDataFolder(), ImageTemplate.resourcePath(name));
     }
 
     private Source loadLanguageSource(File file) {

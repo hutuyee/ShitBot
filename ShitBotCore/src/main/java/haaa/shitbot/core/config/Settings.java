@@ -689,6 +689,7 @@ public final class Settings {
     }
 
     public static final class Image {
+        private final ImageTemplate template;
         private final String title;
         private final String serverName;
         private final String fontName;
@@ -707,7 +708,8 @@ public final class Settings {
         private final int avatarReadTimeoutMs;
         private final int avatarWaitTimeoutMs;
 
-        public Image(String title,
+        public Image(ImageTemplate template,
+                     String title,
                      String serverName,
                      String fontName,
                      int width,
@@ -724,6 +726,7 @@ public final class Settings {
                      int avatarConnectTimeoutMs,
                      int avatarReadTimeoutMs,
                      int avatarWaitTimeoutMs) {
+            this.template = require(template, "imageTemplate");
             this.title = text(title, "ShitBot");
             this.serverName = text(serverName, "Minecraft Server");
             this.fontName = text(fontName, "Microsoft YaHei");
@@ -741,6 +744,10 @@ public final class Settings {
             this.avatarConnectTimeoutMs = clamp(avatarConnectTimeoutMs, 250, 10000, 1500);
             this.avatarReadTimeoutMs = clamp(avatarReadTimeoutMs, 250, 15000, 2500);
             this.avatarWaitTimeoutMs = clamp(avatarWaitTimeoutMs, 0, 10000, 2200);
+        }
+
+        public ImageTemplate getTemplate() {
+            return template;
         }
 
         public String getTitle() {
@@ -813,6 +820,7 @@ public final class Settings {
     }
 
     public static final class Inventory {
+        private final ImageTemplate template;
         private final boolean enabled;
         private final String title;
         private final String fontName;
@@ -834,7 +842,8 @@ public final class Settings {
         private final List<String> resourceArchives;
         private final int iconCacheEntries;
 
-        public Inventory(boolean enabled,
+        public Inventory(ImageTemplate template,
+                         boolean enabled,
                          String title,
                          String fontName,
                          int width,
@@ -854,6 +863,7 @@ public final class Settings {
                          int resourceIndexWaitMs,
                          List<String> resourceArchives,
                          int iconCacheEntries) {
+            this.template = require(template, "inventoryTemplate");
             this.enabled = enabled;
             this.title = text(title, "%player%");
             this.fontName = text(fontName, "Microsoft YaHei");
@@ -876,6 +886,7 @@ public final class Settings {
             this.iconCacheEntries = clamp(iconCacheEntries, 64, 10000, 2048);
         }
 
+        public ImageTemplate getTemplate() { return template; }
         public boolean isEnabled() { return enabled; }
         public String getTitle() { return title; }
         public String getFontName() { return fontName; }

@@ -1,6 +1,7 @@
 package haaa.shitbotvelocity.config;
 
 import haaa.shitbot.core.config.ConfigSource;
+import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -35,7 +36,11 @@ public final class VelocityConfigLoader {
 
     public Settings load() throws IOException {
         Source source = loadSource("config.yml");
-        return SettingsFactory.create(source, loadTranslations(source));
+        return SettingsFactory.create(
+                source,
+                loadTranslations(source),
+                loadImageTemplate(source.getString("image.template", ImageTemplate.DEFAULT_TEMPLATE)),
+                loadImageTemplate(source.getString("inventory.template", ImageTemplate.DEFAULT_TEMPLATE)));
     }
 
     public boolean isBStatsEnabled() throws IOException {
@@ -89,6 +94,16 @@ public final class VelocityConfigLoader {
             selectedFile = ensureFile(Translations.resourcePath(language));
         }
         return new Translations(language, loadSource(selectedFile), loadSource(fallbackFile));
+    }
+
+    private ImageTemplate loadImageTemplate(String configuredName) throws IOException {
+        Path fallbackFile = ensureFile(ImageTemplate.resourcePath(ImageTemplate.DEFAULT_TEMPLATE));
+        String name = ImageTemplate.normalizeName(configuredName);
+        Path selectedFile = dataDirectory.resolve(ImageTemplate.resourcePath(name));
+        if (!Files.isRegularFile(selectedFile)) {
+            selectedFile = ensureFile(ImageTemplate.resourcePath(name));
+        }
+        return new ImageTemplate(name, loadSource(selectedFile), loadSource(fallbackFile));
     }
 
     private Source loadSource(Path file) throws IOException {
