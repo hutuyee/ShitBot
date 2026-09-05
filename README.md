@@ -149,6 +149,13 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 
 ShitBot 不与 EasyBot 竞争
 
+## 统计数据
+
+- [bStats Bukkit](https://bstats.org/plugin/bukkit/ShitBot/33865)
+- [bStats BungeeCord](https://bstats.org/plugin/bungeecord/ShitBot/33866)
+- [bStats Velocity](https://bstats.org/plugin/velocity/ShitBot/33868)
+- ![bStats Bukkit](https://bstats.org/signatures/bukkit/ShitBot.svg)
+
 ## License
 
 [MIT](LICENSE)
