@@ -57,32 +57,16 @@ backend-transport:
       - "::1"
 
 
-messages:
-  not-bound: "%at% 请先绑定游戏 ID。"
-  # 子服命令支持在线权限及 LuckPerms/Vault/离线 OP；代理命令的离线权限由代理 LuckPerms 查询。
-  no-permission: "%at% 你绑定的角色没有权限执行该操作。"
-  unavailable: "%at% 没有可用的子服，或请求执行超时。"
-  # 命令已经提交但没有及时捕获到结果时使用，保留 %result% 可显示防重复执行提示。
-  result-timeout: "%at% %result%"
-  invalid-target: "%at% 用法：%command% [目标子服]"
-
 tps:
   enabled: true
-  aliases:
-    - "TPS"
-    - "服务器TPS"
   # 留空表示任何群成员都能查询。
   permission: ""
   # 代理模式下可指定子服名；留空时优先选择发送者绑定角色所在子服。
   server: ""
-  message: "%at% 服务器 TPS（%source%）：%result%"
-  failed: "%at% TPS 获取失败：%result%"
 
 shortcuts:
   luckperms-editor:
     enabled: true
-    aliases:
-      - "lp编辑"
     command: "lp editor"
     permission: "shitbot.admin"
     # 即使 permission 留空也默认要求 QQ 已绑定；仅在明确接受群内未绑定成员调用时改为 true。
@@ -94,5 +78,3 @@ shortcuts:
     server: ""
     # 执行前记录 logs/latest.log 的位置，等待指定秒数后读取这期间新增的日志。
     capture-seconds: 5
-    message: "%at% 执行成功（%source%）：\n%result%"
-    failed: "%at% 执行失败（%source%）：\n%result%"

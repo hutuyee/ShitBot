@@ -1,6 +1,7 @@
 package haaa.shitbotspigot.command;
 
 import haaa.shitbot.core.database.EasyBotMigrationResult;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.service.EasyBotMigrationService;
 import haaa.shitbot.core.update.UpdateChecker;
@@ -29,12 +30,17 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(final CommandSender sender, Command command, String label, String[] args) {
         final ShitBotRuntime runtime = plugin.getRuntime();
+        final Translations translations = runtime == null
+                ? plugin.getTranslations()
+                : runtime.getSettings().getTranslations();
         if (runtime == null) {
-            sender.sendMessage("§cShitBot 尚未初始化。");
+            send(sender, translations == null
+                    ? "§cShitBot has not initialized yet."
+                    : translations.get("admin.not-initialized"));
             return true;
         }
         if (args.length == 0 || "status".equalsIgnoreCase(args[0])) {
-            sender.sendMessage("§aShitBot §7" + runtime.describeStatus());
+            send(sender, translations.format("admin.status", "%status%", runtime.describeStatus()));
             return true;
         }
         if (!sender.hasPermission("shitbot.admin")) {
@@ -64,10 +70,10 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
         if ("update".equalsIgnoreCase(args[0])) {
             final UpdateChecker updateChecker = plugin.getUpdateChecker();
             if (updateChecker == null) {
-                sender.sendMessage("§c更新检查器尚未初始化。");
+                send(sender, translations.get("admin.update.not-initialized"));
                 return true;
             }
-            sender.sendMessage("§e正在后台检查并安装 GitHub Release...");
+            send(sender, translations.get("admin.update.checking"));
             updateChecker.updateAsync(UpdatePlatform.SPIGOT, plugin.getPluginJarPath()).whenComplete(
                     new java.util.function.BiConsumer<UpdateInstallResult, Throwable>() {
                         @Override
@@ -76,11 +82,11 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                                 @Override
                                 public void run() {
                                     if (throwable != null) {
-                                        sender.sendMessage("§c更新失败，现有 JAR 未替换: §f"
-                                                + errorMessage(throwable));
+                                        send(sender, translations.format("admin.update.failed",
+                                                "%error%", errorMessage(throwable)));
                                         return;
                                     }
-                                    sendInstallResult(sender, result);
+                                    sendInstallResult(sender, result, translations);
                                 }
                             });
                         }
@@ -89,11 +95,11 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
         }
         if ("migrate".equalsIgnoreCase(args[0])) {
             if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
-                sender.sendMessage("§e用法: /shitbot migrate easybot [EasyBot.db]");
+                send(sender, translations.get("admin.migration.usage"));
                 return true;
             }
             final String fileName = args.length >= 3 ? args[2] : EasyBotMigrationService.DEFAULT_FILE_NAME;
-            sender.sendMessage("§e正在异步迁移 EasyBot 绑定数据: §f" + fileName);
+            send(sender, translations.format("admin.migration.started", "%file%", fileName));
             runtime.getEasyBotMigrationService().migrate(fileName).whenComplete(
                     new java.util.function.BiConsumer<EasyBotMigrationResult, Throwable>() {
                         @Override
@@ -102,9 +108,11 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                                 @Override
                                 public void run() {
                                     if (throwable != null) {
-                                        sender.sendMessage("§cEasyBot 迁移失败: §f" + errorMessage(throwable));
+                                        send(sender, translations.format("admin.migration.failed",
+                                                "%error%", errorMessage(throwable)));
                                     } else {
-                                        sender.sendMessage("§aEasyBot 迁移完成: §f" + result.describe());
+                                        send(sender, translations.format("admin.migration.complete",
+                                                "%result%", result.describe(translations)));
                                     }
                                 }
                             });
@@ -121,10 +129,12 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                                 @Override
                                 public void run() {
                                     if (throwable != null) {
-                                        sender.sendMessage("§c生成失败: " + FutureUtil.unwrap(throwable).getMessage());
+                                        send(sender, translations.format("admin.image.failed", "%error%",
+                                                String.valueOf(FutureUtil.unwrap(throwable).getMessage())));
                                     } else {
                                         Path path = runtime.getImageService().getOutputPath();
-                                        sender.sendMessage("§a在线图片已生成: §f" + path.toAbsolutePath());
+                                        send(sender, translations.format("admin.image.created",
+                                                "%path%", path.toAbsolutePath().toString()));
                                     }
                                 }
                             });
@@ -132,7 +142,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     });
             return true;
         }
-        sender.sendMessage("§e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]");
+        send(sender, translations.get("admin.help"));
         return true;
     }
 
@@ -144,20 +154,30 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                 : message;
     }
 
-    private void sendInstallResult(CommandSender sender, UpdateInstallResult result) {
+    private void sendInstallResult(CommandSender sender,
+                                   UpdateInstallResult result,
+                                   Translations translations) {
         if (result.getStatus() == UpdateInstallResult.Status.UP_TO_DATE) {
-            sender.sendMessage("§a当前已是最新版本: §f" + result.getLatestVersion());
+            send(sender, translations.format("admin.update.up-to-date",
+                    "%version%", result.getLatestVersion()));
             return;
         }
         if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
-            sender.sendMessage("§e新版本 §f" + result.getLatestVersion()
-                    + " §e已经替换到磁盘，请手动重启服务器生效。");
+            send(sender, translations.format("admin.update.already-installed-server",
+                    "%version%", result.getLatestVersion()));
             return;
         }
-        sender.sendMessage("§a更新包已校验并替换: §f" + result.getLatestVersion());
-        sender.sendMessage("§7当前 JAR: §f" + result.getInstalledPath());
-        sender.sendMessage("§7备份 JAR: §f" + result.getBackupPath());
-        sender.sendMessage("§e请手动重启服务器生效；不要执行插件热重载。");
+        send(sender, translations.format("admin.update.installed-server",
+                "%version%", result.getLatestVersion()));
+        send(sender, translations.format("admin.update.current-jar",
+                "%path%", String.valueOf(result.getInstalledPath())));
+        send(sender, translations.format("admin.update.backup-jar",
+                "%path%", String.valueOf(result.getBackupPath())));
+        send(sender, translations.get("admin.update.restart-server"));
+    }
+
+    private void send(CommandSender sender, String message) {
+        sender.sendMessage(TextUtil.color(message));
     }
 
     @Override

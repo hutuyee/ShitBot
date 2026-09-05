@@ -1,0 +1,222 @@
+# ShitBot English language file.
+# Copy and rename this file (for example, en_GB.yml), translate it, then set language in config.yml.
+# Keep every %placeholder% and color code (&0-&f, &k-&r) intact.
+
+commands:
+  bind:
+    aliases: ["bind", "/bind"]
+    usage: "Usage: bind <Minecraft ID> <verification code>"
+  online-image:
+    aliases: ["server status", "online players"]
+    usage: "server status"
+  inventory:
+    aliases: ["inventory", "my inventory"]
+    usage: "Usage: inventory [Minecraft ID] (you may only query a character bound to your account)"
+
+notices:
+  group-join-welcome: |
+    Welcome %at% to the group!
+    Your QQ ID: %qq%
+  server-startup: "Server %server% has started."
+
+forwarding:
+  group-to-game: "&b[QQ] &f%sender%&7: &f"
+  game-to-group: "[MC] %player%: %message%"
+
+messages:
+  kick-unbound: |
+    &7Welcome, &a%player%&7
+    &7Send &6bind %player% %code% &7in the QQ group
+    &7This code expires in &c%expire_minutes% minutes
+  kick-after-unbind: "&cYour account binding was removed. Rejoin the server to get a new verification code."
+  kick-database-unavailable: "&cThe binding service is temporarily unavailable. Please try again later."
+  initialization-failed: "&cThe binding configuration failed to load. Please contact an administrator."
+  reload-in-progress: "&cShitBot is reloading. Please try again shortly."
+  bind-usage: "Usage: bind <Minecraft ID> <verification code>"
+  bind-success: "%at% Bound successfully: %player% -> %qq%"
+  bind-invalid: "%at% Incorrect verification code."
+  bind-expired: "%at% That verification code is missing, locked, or expired. Rejoin the server to get a new one."
+  bind-qq-already-used: "%at% This QQ account is already bound to another Minecraft ID."
+  bind-qq-limit-reached: "%at% This QQ account has reached its limit of %maximum_ids% Minecraft IDs."
+  bind-player-already-used: "%at% This Minecraft ID is already bound to another QQ account."
+  bind-database-error: "%at% The database operation failed. Please contact an administrator."
+  online-failed: "%at% The online-player image could not be generated. Please try again later."
+  inventory-not-bound: "%at% You have not bound a Minecraft ID yet."
+  inventory-player-not-bound: "%at% Minecraft ID %player% is not bound to your QQ account."
+  inventory-unavailable: "%at% No inventory snapshot is available. Join the server once first."
+  inventory-disabled: "%at% Inventory lookup is currently disabled."
+  inventory-failed: "%at% Inventory lookup failed. Please try again later."
+  no-permission: "&cYou do not have permission to use this command."
+  reload-started: "&7Reloading ShitBot..."
+  reload-success: "&aShitBot was reloaded successfully."
+  reload-failed: "&cShitBot could not be reloaded. The previous configuration is still active."
+
+image:
+  title: "Server Status"
+  online-status: "ONLINE"
+  unknown-player: "Unknown Player"
+  current-players: "Players Online"
+  no-players: "No players are online"
+  waiting-for-players: "The server is waiting for players to join"
+  online-count: "%count% online"
+  generated-at: "Generated  %time%"
+  unknown-server: "Unknown Server"
+  no-backend: "No Backend"
+
+inventory:
+  title: "%player%'s Inventory"
+  equipment-labels: ["Head", "Chest", "Legs", "Feet", "Off"]
+  live: "Live"
+  snapshot: "Offline Snapshot"
+  equipment-title: "Equipment / Off Hand"
+  data-time: "Captured %time%"
+  summary: "Used %occupied%/%slots%  ·  Items %items%  ·  %server%"
+
+media:
+  all-members: "Everyone"
+  image: "[Image]"
+  emoji: "[Emoji%id%]"
+  animated-emoji: "[Animated Emoji]"
+  voice: "[Voice]"
+  video: "[Video]"
+  file: "[File]"
+  named-file: "[File: %name%]"
+  share: "[Share]"
+  named-share: "[Share: %title%]"
+  location: "[Location]"
+  named-location: "[Location: %title%]"
+  music: "[Music]"
+  named-music: "[Music: %title%]"
+  reply: "[Reply]"
+  forward: "[Forwarded Messages]"
+  card: "[Card Message]"
+  dice: "[Dice: %result%]"
+  rock-paper-scissors: "[Rock Paper Scissors: %result%]"
+  poke: "[Poke]"
+  browser-hover: "Click to view the %kind% in your browser"
+  open-hover: "Click to open"
+  image-kind: "image"
+  emoji-kind: "emoji"
+  voice-hover: "Click to open the QQ voice message"
+  video-hover: "Click to open the QQ video"
+  file-hover: "Click to open the QQ file"
+  share-hover: "Click to open the QQ share"
+  music-hover: "Click to open the QQ music"
+
+admin:
+  not-initialized: "&cShitBot has not initialized yet."
+  status: "&aShitBot &7%status%"
+  help: "&e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]"
+  migration:
+    usage: "&eUsage: /shitbot migrate easybot [EasyBot.db]"
+    started: "&eMigrating EasyBot binding data asynchronously: &f%file%"
+    failed: "&cEasyBot migration failed: &f%error%"
+    complete: "&aEasyBot migration completed: &f%result%"
+  image:
+    failed: "&cImage generation failed: &f%error%"
+    created: "&aOnline-player image generated: &f%path%"
+  update:
+    not-initialized: "&cThe update checker has not initialized yet."
+    checking: "&eChecking and installing the GitHub Release in the background..."
+    coordinated-checking: "&eChecking the Release and updating every configured backend..."
+    failed: "&cUpdate failed; the current JAR was not replaced: &f%error%"
+    check-failed: "&cRelease check failed; no JAR was replaced: &f%error%"
+    proxy-failed: "&cProxy update failed; the current JAR was not replaced: &f%error%"
+    backends-failed: "&cBackend update failed: &f%error%"
+    no-backends: "&eNo backend-transport endpoints are configured; no backend was updated."
+    coordinated-complete: "&eCoordinated update finished. Manually restart every instance reported as replaced."
+    up-to-date: "&aAlready up to date: &f%version%"
+    already-installed-server: "&eVersion &f%version% &eis already on disk. Restart the server to apply it."
+    already-installed-proxy: "&eVersion &f%version% &eis already on disk. Restart the proxy to apply it."
+    installed-server: "&aThe update was verified and installed: &f%version%"
+    installed-proxy: "&aThe proxy update was verified and installed: &f%version%"
+    current-jar: "&7Current JAR: &f%path%"
+    backup-jar: "&7Backup JAR: &f%path%"
+    restart-server: "&eRestart the server manually to apply the update; do not hot-reload the plugin."
+    restart-proxy: "&eRestart the proxy manually to apply the update; do not hot-reload the plugin."
+    notification: "&e[ShitBot] New version available: &f%current% &7-> &a%latest%"
+    notification-hover: "&7Click to open the Release page"
+    release-metadata-missing: "Release metadata is missing"
+    backend-jar-missing: "The Release must contain exactly one ShitBotSpigot-*.jar asset"
+    checksum-missing: "The Release is missing checksum asset %asset%"
+    signature-missing: "The Release is missing detached signature asset %asset%"
+
+status:
+  template: "ready=%ready%, database=%database%, db-workers=%active_workers%/%workers%, db-queue=%queued%/%queue_limit%, onebot=%onebot%"
+  ready: "ready"
+  not-ready: "not ready"
+  connected: "connected"
+  disconnected: "disconnected"
+  disabled: "disabled"
+
+console:
+  messages:
+    not-bound: "%at% Bind a Minecraft ID first."
+    no-permission: "%at% Your bound character does not have permission to perform this operation."
+    unavailable: "%at% No backend is available, or the request timed out."
+    result-timeout: "%at% %result%"
+    invalid-target: "%at% Usage: %command% [backend]"
+    request-failed: "Request failed"
+    unknown-source: "Unknown"
+    empty-result: "No log output was returned"
+  tps:
+    aliases: ["TPS", "tps", "server TPS"]
+    message: "%at% Server TPS (%source%): %result%"
+    failed: "%at% Could not get TPS: %result%"
+    single: "%value% (%source%)"
+    three: "%one% / %five% / %fifteen% (%source%, 1/5/15 min)"
+    native-source: "server native"
+    sampled-source: "sampled"
+    warming-up: "20.00 (sampling is warming up)"
+    nukkit: "current %current%, average %average%, load %load%%"
+  shortcuts:
+    luckperms-editor:
+      aliases: ["lp editor"]
+      message: "%at% Command succeeded (%source%):\n%result%"
+      failed: "%at% Command failed (%source%):\n%result%"
+  result:
+    platform-unsupported: "This platform does not support console requests."
+    insecure-fallback-refused: "The target backend has no authenticated Console Socket; the insecure Plugin Message fallback was refused."
+    expired-before-connect: "The request expired while waiting for a backend connection."
+    circuit-open: "Connections to the target backend failed repeatedly; its circuit breaker is temporarily open."
+    connect-failed: "Could not connect to the target backend: %error%"
+    queue-full: "The backend request queue is full."
+    permission-denied: "The bound character lacks permission %permission%"
+    result-timeout: "The command was submitted, but result capture timed out. Verify its result before retrying."
+    request-timeout: "The console request timed out before the command was submitted."
+    command-running: "Another console command is already running."
+    log-read-failed: "Could not read the log: %error%"
+    no-new-log: "The command ran, but the log contains no new output."
+    command-rejected: "The command does not exist or its executor rejected it."
+    plugin-disabled: "Plugin disabled"
+    request-cancelled: "The request timed out and was cancelled."
+    execution-timeout: "The request timed out."
+    console-queue-full: "The console command queue is full."
+    command-error: "Command execution error: %error%"
+    backend-updater-unavailable: "The backend updater has not initialized."
+    update-start-failed: "Could not start the update: %error%"
+    null-request: "The request is null."
+    console-disabled: "QQ console commands are currently disabled."
+    proxy-target-unsupported: "This platform does not support proxy execution targets."
+    server-target-unsupported: "This is a standalone platform; a target backend cannot be specified."
+    permission-check-failed: "Permission check failed: %error%"
+    remote-update-unsupported: "This platform does not accept update requests from a proxy."
+    update-request-invalid: "The update request is missing required data."
+    update-version-invalid: "The update version is invalid."
+    update-path-invalid: "The update file path is invalid."
+    update-failed: "Update failed: %error%"
+    update-up-to-date: "Already up to date at version %version%."
+    update-already-installed: "Version %version% is on disk and will take effect after restart."
+    update-installed: "Version %version% was verified and installed; backup: %backup%"
+
+migration:
+  file-not-found: "EasyBot database file not found: %path%"
+  already-running: "Another EasyBot migration is already running"
+  db-extension-required: "The migration file must have a .db extension"
+  invalid-file-name: "Invalid database file name"
+  direct-child-required: "The database must be placed directly in the plugin directory; enter a file name only"
+  outside-data-directory: "The database file must be inside the plugin directory"
+  limit-exceeded: "EasyBot migration cancelled: QQ %qq% has %source_count% Minecraft IDs in EasyBot, but ShitBot currently allows at most %limit%. Change binding.maximum-ids-per-qq%allow_multiple%, run /shitbot reload, and migrate again."
+  enable-multiple: " and enable binding.allow-multiple-ids-per-qq"
+  merge-limit-exceeded: "EasyBot migration cancelled: merging QQ %qq% with existing ShitBot data needs at least %required% binding slots, but only %limit% are allowed. Change binding.maximum-ids-per-qq, run /shitbot reload, and try again."
+  summary: "accounts=%accounts%, QQ accounts=%qq_accounts%, linked players=%linked_players%, name fallbacks=%fallback_names%, imported=%imported%, existing=%existing%, player conflicts=%player_conflicts%, QQ conflicts=%qq_conflicts%, invalid=%invalid%, non-QQ=%non_qq%"

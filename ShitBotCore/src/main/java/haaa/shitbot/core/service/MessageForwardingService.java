@@ -43,7 +43,9 @@ public final class MessageForwardingService {
 
         String sender = sanitizeForGame(TextUtil.singleLine(message.getSenderName(), 64));
         List<ChatPart> output = new ArrayList<ChatPart>();
-        output.add(ChatPart.text("§b[QQ] §f" + sender + "§7: §f"));
+        output.add(ChatPart.text(TextUtil.replace(
+                TextUtil.color(settings.getTranslations().get("forwarding.group-to-game")),
+                "%sender%", sender)));
         int remaining = MAX_CHAT_LENGTH;
         for (ChatPart part : content) {
             if (part == null || remaining <= 0) {
@@ -84,7 +86,9 @@ public final class MessageForwardingService {
         if (cleanContent.isEmpty()) {
             return;
         }
-        final String output = "[MC] " + player + ": " + cleanContent;
+        final String output = settings.getTranslations().format("forwarding.game-to-group",
+                "%player%", player,
+                "%message%", cleanContent);
         for (Long groupId : groupIds) {
             if (groupId == null || groupId.longValue() <= 0L) {
                 continue;

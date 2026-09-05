@@ -1,6 +1,7 @@
 package haaa.shitbot.core.service;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.database.BindingRecord;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.InventorySnapshotRepository;
@@ -48,6 +49,7 @@ public final class InventoryService implements AutoCloseable {
     private volatile ScheduledFuture<?> cleanupTask;
 
     public InventoryService(Settings.Inventory settings,
+                            Translations translations,
                             PlatformBridge platform,
                             BindingRepository bindingRepository,
                             InventorySnapshotRepository snapshotRepository) {
@@ -56,7 +58,7 @@ public final class InventoryService implements AutoCloseable {
         this.bindingRepository = bindingRepository;
         this.snapshotRepository = snapshotRepository;
         this.iconResolver = new ItemIconResolver(settings, platform);
-        this.renderer = new InventoryImageRenderer(settings, iconResolver);
+        this.renderer = new InventoryImageRenderer(settings, translations, iconResolver);
         int renderThreads = settings.getMaximumConcurrentRenders();
         this.renderExecutor = new ThreadPoolExecutor(
                 renderThreads,

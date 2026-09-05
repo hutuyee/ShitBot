@@ -1,4 +1,7 @@
-config-version: 1
+config-version: 2
+
+# 从 lang 目录选择语言文件（不写 .yml）。可复制现有语言文件后自行扩展。
+language: "zh_CN"
 
 bstats:
   # 是否启用匿名使用统计。修改后需要重启代理端。
@@ -37,16 +40,9 @@ onebot:
       # 填写 Velocity 配置中的子服名：持续 ping，直到该子服首次启动成功后通知。
       target-server: ""
       check-interval-seconds: 5
-      # 支持变量：%server%、%platform%。
-      message: "服务器 %server% 已启动。"
     group-join-welcome:
       # 新成员进入允许群时发送欢迎消息。
       enabled: true
-      # 支持变量：%at%、%qq%、%group%、%sub_type%。
-      # 包含 %at% 时会使用 OneBot 的 at 消息段艾特新成员。
-      message: |
-        欢迎 %at% 加入群聊！
-        你的QQ：%qq%
     group-leave-unbind:
       # 开启后，成员退出任意 allowed-group-ids 群时删除其 QQ 绑定。
       # 这是破坏性操作，建议确认业务规则后再开启。
@@ -55,23 +51,10 @@ onebot:
   commands:
     bind:
       enabled: true
-      aliases:
-        - "绑定"
-        - "/bind"
-      usage: "用法: 绑定 <游戏ID> <验证码>"
     online-image:
       enabled: true
-      aliases:
-        - "服务器状态"
-        - "在线人数"
-      usage: "服务器状态"
     inventory:
       enabled: true
-      aliases:
-        - "背包"
-        - "我的背包"
-      # 不带参数时自动选择一个已绑定角色；带游戏 ID 时校验该角色是否属于消息发送者 QQ。
-      usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
 
 forwarding:
   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
@@ -161,7 +144,6 @@ database:
   maximum-queued-tasks: 256
 
 image:
-  title: "服务器在线状态"
   server-name: "Server-Status"
   font-name: "Microsoft YaHei"
   width: 1200
@@ -188,7 +170,6 @@ image:
 
 inventory:
   enabled: true
-  title: "%player% 的背包"
   font-name: "Microsoft YaHei"
   width: 760
   slot-size: 48
@@ -224,31 +205,3 @@ inventory:
     # 额外资源包、客户端核心或资源 JAR，越靠前优先级越高。支持目录和相对路径。
     resource-archives: []
     cache-entries: 2048
-
-messages:
-  kick-unbound: |
-    &7欢迎 &a%player% &7加入服务器
-    &7请在QQ群发送 &6绑定 %player% %code%
-    &7验证码将在 &c%expire_minutes% 分钟 &7后失效
-  kick-after-unbind: "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。"
-  kick-database-unavailable: "&c绑定系统暂时不可用，请稍后重试。"
-  bind-usage: "用法: 绑定 <游戏ID> <验证码>"
-  bind-success: "%at% 绑定成功：%player% -> %qq%"
-  bind-invalid: "%at% 验证码错误。"
-  bind-expired: "%at% 验证码不存在、尝试次数过多或已经过期，请重新进入服务器获取。"
-  bind-qq-already-used: "%at% 该QQ已经绑定其他游戏ID。"
-  # 支持变量：%maximum_ids%。
-  bind-qq-limit-reached: "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"
-  bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
-  bind-database-error: "%at% 数据库操作失败，请联系管理员。"
-  online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
-  inventory-not-bound: "%at% 你还没有绑定游戏ID。"
-  # 支持变量：%player%。当指定的游戏 ID 不属于消息发送者 QQ 时使用。
-  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
-  inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
-  inventory-disabled: "%at% 背包查询当前未启用。"
-  inventory-failed: "%at% 背包查询失败，请稍后重试。"
-  no-permission: "&c你没有权限使用此命令。"
-  reload-started: "&7正在重载 ShitBot..."
-  reload-success: "&aShitBot 已完成热重载。"
-  reload-failed: "&cShitBot 重载失败，旧配置仍在运行。"

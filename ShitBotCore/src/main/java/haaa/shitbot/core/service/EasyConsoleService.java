@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.database.BindingRecord;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.onebot.GroupMessage;
@@ -20,16 +21,19 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class EasyConsoleService {
     private final ConsoleSettings settings;
+    private final Translations translations;
     private final PlatformBridge platform;
     private final BindingRepository repository;
     private final OneBotClient client;
     private final ConcurrentHashMap<String, Long> cooldowns = new ConcurrentHashMap<String, Long>();
 
     public EasyConsoleService(ConsoleSettings settings,
+                              Translations translations,
                               PlatformBridge platform,
                               BindingRepository repository,
                               OneBotClient client) {
         this.settings = settings;
+        this.translations = translations;
         this.platform = platform;
         this.repository = repository;
         this.client = client;
@@ -131,7 +135,9 @@ public final class EasyConsoleService {
                     public void accept(ConsoleResult result, Throwable throwable) {
                         if (throwable != null) {
                             platform.warn("TPS request failed: " + FutureUtil.unwrap(throwable).getMessage());
-                            reply(message, tps.getFailedMessage(), "请求执行失败", platform.getPlatformName(),
+                            reply(message, tps.getFailedMessage(),
+                                    translations.get("console.messages.request-failed"),
+                                    platform.getPlatformName(),
                                     firstAlias(tps.getAliases()), targetServer);
                             return;
                         }
@@ -203,7 +209,9 @@ public final class EasyConsoleService {
         text = text.replace("%at%", "").replace("%艾特%", "");
         text = TextUtil.replace(text, "%result%", cleanResult(result));
         text = TextUtil.replace(text, "{result}", cleanResult(result));
-        text = TextUtil.replace(text, "%source%", source == null || source.isEmpty() ? "未知" : source);
+        text = TextUtil.replace(text, "%source%", source == null || source.isEmpty()
+                ? translations.get("console.messages.unknown-source")
+                : source);
         text = TextUtil.replace(text, "%command%", command == null ? "" : command);
         text = TextUtil.replace(text, "%server%", server == null ? "" : server);
         client.sendGroupText(message.getGroupId(), text,
@@ -220,7 +228,7 @@ public final class EasyConsoleService {
 
     private String cleanResult(String result) {
         String clean = result == null ? "" : result.trim();
-        return clean.isEmpty() ? "未返回日志" : clean;
+        return clean.isEmpty() ? translations.get("console.messages.empty-result") : clean;
     }
 
     private TargetMatch matchTarget(String raw, List<String> aliases) {

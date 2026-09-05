@@ -12,6 +12,7 @@ import java.util.Locale;
 public final class Settings {
 
     private final int configVersion;
+    private final Translations translations;
     private final OneBot oneBot;
     private final Forwarding forwarding;
     private final Binding binding;
@@ -21,6 +22,7 @@ public final class Settings {
     private final Messages messages;
 
     public Settings(int configVersion,
+                    Translations translations,
                     OneBot oneBot,
                     Forwarding forwarding,
                     Binding binding,
@@ -29,6 +31,7 @@ public final class Settings {
                     Inventory inventory,
                     Messages messages) {
         this.configVersion = configVersion;
+        this.translations = require(translations, "translations");
         this.oneBot = require(oneBot, "oneBot");
         this.forwarding = require(forwarding, "forwarding");
         this.binding = require(binding, "binding");
@@ -40,6 +43,10 @@ public final class Settings {
 
     public int getConfigVersion() {
         return configVersion;
+    }
+
+    public Translations getTranslations() {
+        return translations;
     }
 
     public OneBot getOneBot() {
@@ -279,7 +286,7 @@ public final class Settings {
 
         public GroupJoinWelcome(boolean enabled, String message) {
             this.enabled = enabled;
-            this.message = text(message, "欢迎 %at% 加入群聊！");
+            this.message = text(message, "");
         }
 
         public boolean isEnabled() {
@@ -316,7 +323,7 @@ public final class Settings {
             this.enabled = enabled;
             this.targetServer = targetServer == null ? "" : targetServer.trim();
             this.checkIntervalSeconds = clamp(checkIntervalSeconds, 1, 300, 5);
-            this.message = text(message, "服务器 %server% 已启动。");
+            this.message = text(message, "");
         }
 
         public boolean isEnabled() {
@@ -717,7 +724,7 @@ public final class Settings {
                      int avatarConnectTimeoutMs,
                      int avatarReadTimeoutMs,
                      int avatarWaitTimeoutMs) {
-            this.title = text(title, "服务器在线状态");
+            this.title = text(title, "ShitBot");
             this.serverName = text(serverName, "Minecraft Server");
             this.fontName = text(fontName, "Microsoft YaHei");
             this.width = clamp(width, 720, 2400, 1200);
@@ -848,7 +855,7 @@ public final class Settings {
                          List<String> resourceArchives,
                          int iconCacheEntries) {
             this.enabled = enabled;
-            this.title = text(title, "%player% 的背包");
+            this.title = text(title, "%player%");
             this.fontName = text(fontName, "Microsoft YaHei");
             this.width = clamp(width, 560, 2400, 760);
             this.slotSize = clamp(slotSize, 32, 96, 48);
@@ -935,31 +942,27 @@ public final class Settings {
                         String reloadStarted,
                         String reloadSuccess,
                         String reloadFailed) {
-            this.kickUnbound = text(kickUnbound,
-                    "&7欢迎 &a%player% &7加入服务器\n&7请在QQ群发送 &6绑定 %player% %code%\n&7验证码将在 &c%expire_minutes% 分钟 &7后失效");
-            this.kickAfterUnbind = text(kickAfterUnbind,
-                    "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。");
-            this.kickDatabaseUnavailable = text(kickDatabaseUnavailable, "&c绑定系统暂时不可用，请稍后重试。");
-            this.bindUsage = text(bindUsage, "用法: 绑定 <游戏ID> <验证码>");
-            this.bindSuccess = text(bindSuccess, "%at% 绑定成功：%player% -> %qq%");
-            this.bindInvalid = text(bindInvalid, "%at% 验证码错误。");
-            this.bindExpired = text(bindExpired, "%at% 验证码不存在或已经过期，请重新进入服务器获取。");
-            this.bindQqAlreadyUsed = text(bindQqAlreadyUsed, "%at% 该QQ已经绑定其他游戏ID。");
-            this.bindQqLimitReached = text(bindQqLimitReached,
-                    "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。");
-            this.bindPlayerAlreadyUsed = text(bindPlayerAlreadyUsed, "%at% 该游戏ID已经绑定其他QQ。");
-            this.bindDatabaseError = text(bindDatabaseError, "%at% 数据库操作失败，请联系管理员。");
-            this.onlineFailed = text(onlineFailed, "%at% 在线人数图片生成失败，请稍后重试。");
-            this.inventoryNotBound = text(inventoryNotBound, "%at% 你还没有绑定游戏ID。");
-            this.inventoryPlayerNotBound = text(inventoryPlayerNotBound,
-                    "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。");
-            this.inventoryUnavailable = text(inventoryUnavailable, "%at% 暂无你的背包快照，请先进入一次服务器。");
-            this.inventoryDisabled = text(inventoryDisabled, "%at% 背包查询当前未启用。");
-            this.inventoryFailed = text(inventoryFailed, "%at% 背包查询失败，请稍后重试。");
-            this.noPermission = text(noPermission, "&c你没有权限使用此命令。");
-            this.reloadStarted = text(reloadStarted, "&7正在重载 ShitBot...");
-            this.reloadSuccess = text(reloadSuccess, "&aShitBot 已完成热重载。");
-            this.reloadFailed = text(reloadFailed, "&cShitBot 重载失败，旧配置仍在运行。");
+            this.kickUnbound = text(kickUnbound, "");
+            this.kickAfterUnbind = text(kickAfterUnbind, "");
+            this.kickDatabaseUnavailable = text(kickDatabaseUnavailable, "");
+            this.bindUsage = text(bindUsage, "");
+            this.bindSuccess = text(bindSuccess, "");
+            this.bindInvalid = text(bindInvalid, "");
+            this.bindExpired = text(bindExpired, "");
+            this.bindQqAlreadyUsed = text(bindQqAlreadyUsed, "");
+            this.bindQqLimitReached = text(bindQqLimitReached, "");
+            this.bindPlayerAlreadyUsed = text(bindPlayerAlreadyUsed, "");
+            this.bindDatabaseError = text(bindDatabaseError, "");
+            this.onlineFailed = text(onlineFailed, "");
+            this.inventoryNotBound = text(inventoryNotBound, "");
+            this.inventoryPlayerNotBound = text(inventoryPlayerNotBound, "");
+            this.inventoryUnavailable = text(inventoryUnavailable, "");
+            this.inventoryDisabled = text(inventoryDisabled, "");
+            this.inventoryFailed = text(inventoryFailed, "");
+            this.noPermission = text(noPermission, "");
+            this.reloadStarted = text(reloadStarted, "");
+            this.reloadSuccess = text(reloadSuccess, "");
+            this.reloadFailed = text(reloadFailed, "");
         }
 
         public String getKickUnbound() { return kickUnbound; }

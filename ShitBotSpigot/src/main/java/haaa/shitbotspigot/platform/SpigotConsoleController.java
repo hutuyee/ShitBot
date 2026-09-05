@@ -1,5 +1,6 @@
 package haaa.shitbotspigot.platform;
 
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -8,6 +9,7 @@ import haaa.shitbot.core.update.BackendUpdatePayload;
 import haaa.shitbot.core.update.UpdateInstallResult;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import haaa.shitbotspigot.ShitBotSpigot;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -29,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public final class SpigotConsoleController implements AutoCloseable {
-    private final JavaPlugin plugin;
+    private final ShitBotSpigot plugin;
     private final SchedulerAdapter scheduler;
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-console", true));
@@ -42,7 +44,7 @@ public final class SpigotConsoleController implements AutoCloseable {
     private boolean commandRunning;
     private SpigotConsoleSocketServer socketServer;
 
-    public SpigotConsoleController(JavaPlugin plugin, SchedulerAdapter scheduler) {
+    public SpigotConsoleController(ShitBotSpigot plugin, SchedulerAdapter scheduler) {
         this.plugin = plugin;
         this.scheduler = scheduler;
         this.tpsMonitor = new TpsMonitor(plugin, scheduler);
@@ -58,12 +60,13 @@ public final class SpigotConsoleController implements AutoCloseable {
                     public CompletableFuture<ConsoleResult> apply(Boolean allowed) {
                         if (isRequestCancelled(request.getRequestId())) {
                             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                                    request, "请求已超时取消。", serverName()));
+                                    request, text("console.result.request-cancelled"), serverName()));
                         }
                         if (!allowed.booleanValue()) {
                             return CompletableFuture.completedFuture(new ConsoleResult(
                                     request.getRequestId(), ConsoleResult.Status.NO_PERMISSION,
-                                    "绑定角色没有权限 " + request.getPermission(), serverName()));
+                                    format("console.result.permission-denied",
+                                            "%permission%", request.getPermission()), serverName()));
                         }
                         if (request.getOperation() == ConsoleRequest.Operation.UPDATE) {
                             return installBackendUpdate(request);
@@ -90,13 +93,14 @@ public final class SpigotConsoleController implements AutoCloseable {
                 @Override
                 public void run() {
                     if (result.complete(ConsoleResult.unavailable(
-                            request, "请求执行超时。", serverName()))) {
+                            request, text("console.result.execution-timeout"), serverName()))) {
                         cancelRequest(request.getRequestId());
                     }
                 }
             }, timeout, TimeUnit.SECONDS);
         } catch (RejectedExecutionException exception) {
-            result.complete(ConsoleResult.unavailable(request, "插件已关闭", serverName()));
+            result.complete(ConsoleResult.unavailable(
+                    request, text("console.result.plugin-disabled"), serverName()));
         }
         return result;
     }
@@ -186,14 +190,15 @@ public final class SpigotConsoleController implements AutoCloseable {
         final Function<BackendUpdatePayload, CompletableFuture<UpdateInstallResult>> installer = updateInstaller;
         if (payload == null || installer == null) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "后端更新器尚未初始化。", serverName()));
+                    request, text("console.result.backend-updater-unavailable"), serverName()));
         }
         final CompletableFuture<UpdateInstallResult> installation;
         try {
             installation = installer.apply(payload);
         } catch (Throwable throwable) {
             return CompletableFuture.completedFuture(new ConsoleResult(request.getRequestId(),
-                    ConsoleResult.Status.FAILED, "更新启动失败：" + errorMessage(throwable), serverName()));
+                    ConsoleResult.Status.FAILED, format("console.result.update-start-failed",
+                            "%error%", errorMessage(throwable)), serverName()));
         }
         return installation.handle(
                 new java.util.function.BiFunction<UpdateInstallResult, Throwable, ConsoleResult>() {
@@ -201,7 +206,8 @@ public final class SpigotConsoleController implements AutoCloseable {
                     public ConsoleResult apply(UpdateInstallResult result, Throwable throwable) {
                         if (throwable != null) {
                             return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
-                                    "更新失败，现有 JAR 未替换：" + errorMessage(throwable), serverName());
+                                    format("console.result.update-failed",
+                                            "%error%", errorMessage(throwable)), serverName());
                         }
                         return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.SUCCESS,
                                 describeUpdateResult(result), serverName());
@@ -211,13 +217,16 @@ public final class SpigotConsoleController implements AutoCloseable {
 
     private String describeUpdateResult(UpdateInstallResult result) {
         if (result.getStatus() == UpdateInstallResult.Status.UP_TO_DATE) {
-            return "已是最新版本 " + result.getLatestVersion() + "。";
+            return format("console.result.update-up-to-date",
+                    "%version%", result.getLatestVersion());
         }
         if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
-            return "版本 " + result.getLatestVersion() + " 已替换到磁盘，等待手动重启。";
+            return format("console.result.update-already-installed",
+                    "%version%", result.getLatestVersion());
         }
-        return "已校验并替换为 " + result.getLatestVersion()
-                + "，备份：" + result.getBackupPath() + "；请手动重启。";
+        return format("console.result.update-installed",
+                "%version%", result.getLatestVersion(),
+                "%backup%", String.valueOf(result.getBackupPath()));
     }
 
     private String errorMessage(Throwable throwable) {
@@ -248,17 +257,17 @@ public final class SpigotConsoleController implements AutoCloseable {
     private CompletableFuture<ConsoleResult> enqueueCommand(ConsoleRequest request) {
         if (isRequestCancelled(request.getRequestId())) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "请求已超时取消。", serverName()));
+                    request, text("console.result.request-cancelled"), serverName()));
         }
         PendingCommand pending = new PendingCommand(request);
         synchronized (commandQueue) {
             if (isRequestCancelled(request.getRequestId())) {
                 return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                        request, "请求已超时取消。", serverName()));
+                        request, text("console.result.request-cancelled"), serverName()));
             }
             if (commandQueue.size() >= 32) {
                 return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                        request, "控制台命令队列已满。", serverName()));
+                        request, text("console.result.console-queue-full"), serverName()));
             }
             commandQueue.addLast(pending);
             if (!commandRunning) {
@@ -327,7 +336,8 @@ public final class SpigotConsoleController implements AutoCloseable {
                     dispatched = Bukkit.dispatchCommand(
                             Bukkit.getConsoleSender(), pending.request.getCommand());
                 } catch (Throwable throwable) {
-                    dispatchError = "命令执行异常：" + errorMessage(throwable);
+                    dispatchError = format("console.result.command-error",
+                            "%error%", errorMessage(throwable));
                     dispatched = false;
                 }
                 final boolean commandAccepted = dispatched;
@@ -339,13 +349,14 @@ public final class SpigotConsoleController implements AutoCloseable {
                         try {
                             output = capture.readNewContent();
                         } catch (IOException exception) {
-                            output = "无法读取 logs/latest.log：" + errorMessage(exception);
+                            output = format("console.result.log-read-failed",
+                                    "%error%", errorMessage(exception));
                         }
                         if (output.isEmpty()) {
                             output = commandError.isEmpty()
                                     ? (commandAccepted
-                                    ? "命令已执行，latest.log 中没有新增日志。"
-                                    : "命令不存在或执行器拒绝执行。")
+                                    ? text("console.result.no-new-log")
+                                    : text("console.result.command-rejected"))
                                     : commandError;
                         }
                         pending.future.complete(new ConsoleResult(
@@ -390,7 +401,7 @@ public final class SpigotConsoleController implements AutoCloseable {
         synchronized (commandQueue) {
             for (PendingCommand pending : commandQueue) {
                 pending.future.complete(ConsoleResult.unavailable(
-                        pending.request, "插件已关闭", serverName()));
+                        pending.request, text("console.result.plugin-disabled"), serverName()));
             }
             commandQueue.clear();
             commandRunning = false;
@@ -407,16 +418,26 @@ public final class SpigotConsoleController implements AutoCloseable {
         }
     }
 
+    private String text(String key) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.get(key);
+    }
+
+    private String format(String key, String... replacements) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.format(key, replacements);
+    }
+
     private static final class TpsMonitor {
         private static final int MAX_SAMPLES = 900;
-        private final JavaPlugin plugin;
+        private final ShitBotSpigot plugin;
         private final SchedulerAdapter scheduler;
         private final double[] samples = new double[MAX_SAMPLES];
         private int sampleCount;
         private int cursor;
         private long lastSampleNanos;
 
-        private TpsMonitor(JavaPlugin plugin, SchedulerAdapter scheduler) {
+        private TpsMonitor(ShitBotSpigot plugin, SchedulerAdapter scheduler) {
             this.plugin = plugin;
             this.scheduler = scheduler;
         }
@@ -445,19 +466,23 @@ public final class SpigotConsoleController implements AutoCloseable {
         private String read() {
             Double essentials = essentialsTps();
             if (essentials != null) {
-                return String.format(java.util.Locale.ROOT, "%.2f（EssentialsX）", essentials.doubleValue());
+                return languageFormat("console.tps.single",
+                        "%value%", String.format(java.util.Locale.ROOT, "%.2f", essentials.doubleValue()),
+                        "%source%", "EssentialsX");
             }
             double[] nativeTps = nativeTps();
             if (nativeTps != null && nativeTps.length > 0) {
-                return formatThree(nativeTps, "服务端原生");
+                return formatThree(nativeTps, languageText("console.tps.native-source"));
             }
             synchronized (this) {
                 if (sampleCount == 0) {
-                    return "20.00（自采样，正在预热）";
+                    return languageText("console.tps.warming-up");
                 }
-                return String.format(java.util.Locale.ROOT,
-                        "%.2f / %.2f / %.2f（自采样 1/5/15 分钟）",
-                        average(60), average(300), average(900));
+                return languageFormat("console.tps.three",
+                        "%one%", String.format(java.util.Locale.ROOT, "%.2f", average(60)),
+                        "%five%", String.format(java.util.Locale.ROOT, "%.2f", average(300)),
+                        "%fifteen%", String.format(java.util.Locale.ROOT, "%.2f", average(900)),
+                        "%source%", languageText("console.tps.sampled-source"));
             }
         }
 
@@ -500,8 +525,11 @@ public final class SpigotConsoleController implements AutoCloseable {
             double one = Math.min(20.0D, values[0]);
             double five = Math.min(20.0D, values[Math.min(1, values.length - 1)]);
             double fifteen = Math.min(20.0D, values[Math.min(2, values.length - 1)]);
-            return String.format(java.util.Locale.ROOT, "%.2f / %.2f / %.2f（%s 1/5/15 分钟）",
-                    one, five, fifteen, source);
+            return languageFormat("console.tps.three",
+                    "%one%", String.format(java.util.Locale.ROOT, "%.2f", one),
+                    "%five%", String.format(java.util.Locale.ROOT, "%.2f", five),
+                    "%fifteen%", String.format(java.util.Locale.ROOT, "%.2f", fifteen),
+                    "%source%", source);
         }
 
         private double average(int requested) {
@@ -512,6 +540,16 @@ public final class SpigotConsoleController implements AutoCloseable {
                 total += samples[index];
             }
             return count == 0 ? 20.0D : total / count;
+        }
+
+        private String languageText(String key) {
+            Translations translations = plugin.getTranslations();
+            return translations == null ? key : translations.get(key);
+        }
+
+        private String languageFormat(String key, String... replacements) {
+            Translations translations = plugin.getTranslations();
+            return translations == null ? key : translations.format(key, replacements);
         }
     }
 }

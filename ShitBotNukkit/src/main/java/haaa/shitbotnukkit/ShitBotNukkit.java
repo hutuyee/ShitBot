@@ -12,6 +12,7 @@ import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
 import cn.nukkit.plugin.PluginBase;
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.inventory.InventorySnapshot;
@@ -36,6 +37,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
     private final AtomicReference<ShitBotRuntime> runtimeReference =
             new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
+    private volatile Translations translations;
     private volatile boolean stopping;
     private CompletableFuture<Boolean> reloadFuture;
     private NukkitConfigLoader configLoader;
@@ -53,6 +55,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
 
         try {
             Settings settings = configLoader.load();
+            translations = settings.getTranslations();
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             platformBridge.configureConsole(consoleSettings);
             final ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
@@ -103,8 +106,9 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
         final ShitBotRuntime newRuntime;
         final ConsoleSettings consoleSettings;
         try {
+            Settings settings = configLoader.load();
             consoleSettings = configLoader.loadConsoleSettings();
-            newRuntime = new ShitBotRuntime(configLoader.load(), consoleSettings, platformBridge);
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -124,6 +128,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
                             return Boolean.FALSE;
                         }
                         platformBridge.configureConsole(consoleSettings);
+                        ShitBotNukkit.this.translations = newRuntime.getSettings().getTranslations();
                         if (oldRuntime != null) {
                             oldRuntime.close();
                         }
@@ -157,9 +162,16 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
     public void onAsyncPreLogin(PlayerAsyncPreLoginEvent event) {
         ShitBotRuntime runtime = runtimeReference.get();
         if (runtime == null) {
-            event.disAllow(startupUnavailable
-                    ? "§c绑定系统配置加载失败，请联系管理员。"
-                    : "§cShitBot 正在重载，请稍后重试。");
+            Translations currentTranslations = translations;
+            String key = startupUnavailable
+                    ? "messages.initialization-failed"
+                    : "messages.reload-in-progress";
+            String fallback = startupUnavailable
+                    ? "§cThe binding service is unavailable."
+                    : "§cShitBot is reloading.";
+            event.disAllow(TextUtil.color(currentTranslations == null
+                    ? fallback
+                    : currentTranslations.get(key, fallback)));
             return;
         }
         if (!runtime.getSettings().getBinding().isEnabled()) {
@@ -245,12 +257,17 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
                              String label,
                              String[] args) {
         final ShitBotRuntime runtime = runtimeReference.get();
+        final Translations translations = runtime == null
+                ? this.translations
+                : runtime.getSettings().getTranslations();
         if (runtime == null) {
-            sender.sendMessage("§cShitBot 尚未初始化。");
+            send(sender, translations == null
+                    ? "§cShitBot has not initialized yet."
+                    : translations.get("admin.not-initialized"));
             return true;
         }
         if (args.length == 0 || "status".equalsIgnoreCase(args[0])) {
-            sender.sendMessage("§aShitBot §7" + runtime.describeStatus());
+            send(sender, translations.format("admin.status", "%status%", runtime.describeStatus()));
             return true;
         }
         if (!sender.hasPermission("shitbot.admin")) {
@@ -278,7 +295,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
             return true;
         }
         if ("update".equalsIgnoreCase(args[0])) {
-            installUpdate(sender);
+            installUpdate(sender, translations);
             return true;
         }
         if ("migrate".equalsIgnoreCase(args[0])) {
@@ -289,16 +306,16 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
             renderImage(sender, runtime);
             return true;
         }
-        sender.sendMessage("§e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]");
+        send(sender, translations.get("admin.help"));
         return true;
     }
 
-    private void installUpdate(final CommandSender sender) {
+    private void installUpdate(final CommandSender sender, final Translations translations) {
         if (updateChecker == null) {
-            sender.sendMessage("§c更新检查器尚未初始化。");
+            send(sender, translations.get("admin.update.not-initialized"));
             return;
         }
-        sender.sendMessage("§e正在后台检查并安装 GitHub Release...");
+        send(sender, translations.get("admin.update.checking"));
         updateChecker.updateAsync(UpdatePlatform.NUKKIT, getPluginJarPath()).whenComplete(
                 new java.util.function.BiConsumer<UpdateInstallResult, Throwable>() {
                     @Override
@@ -307,11 +324,11 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
                             @Override
                             public void run() {
                                 if (throwable != null) {
-                                    sender.sendMessage("§c更新失败，现有 JAR 未替换: §f"
-                                            + errorMessage(throwable));
+                                    send(sender, translations.format("admin.update.failed",
+                                            "%error%", errorMessage(throwable)));
                                     return;
                                 }
-                                sendInstallResult(sender, result);
+                                sendInstallResult(sender, result, translations);
                             }
                         });
                     }
@@ -322,12 +339,13 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
                                 final ShitBotRuntime runtime,
                                 String[] args) {
         if (args.length < 2 || !"easybot".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("§e用法: /shitbot migrate easybot [EasyBot.db]");
+            send(sender, runtime.getSettings().getTranslations().get("admin.migration.usage"));
             return;
         }
         final String fileName = args.length >= 3
                 ? args[2] : EasyBotMigrationService.DEFAULT_FILE_NAME;
-        sender.sendMessage("§e正在异步迁移 EasyBot 绑定数据: §f" + fileName);
+        final Translations translations = runtime.getSettings().getTranslations();
+        send(sender, translations.format("admin.migration.started", "%file%", fileName));
         runtime.getEasyBotMigrationService().migrate(fileName).whenComplete(
                 new java.util.function.BiConsumer<EasyBotMigrationResult, Throwable>() {
                     @Override
@@ -335,9 +353,11 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
                         platformBridge.executeOnSenderThread(sender, new Runnable() {
                             @Override
                             public void run() {
-                                sender.sendMessage(throwable == null
-                                        ? "§aEasyBot 迁移完成: §f" + result.describe()
-                                        : "§cEasyBot 迁移失败: §f" + errorMessage(throwable));
+                                send(sender, throwable == null
+                                        ? translations.format("admin.migration.complete",
+                                                "%result%", result.describe(translations))
+                                        : translations.format("admin.migration.failed",
+                                                "%error%", errorMessage(throwable)));
                             }
                         });
                     }
@@ -345,6 +365,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
     }
 
     private void renderImage(final CommandSender sender, final ShitBotRuntime runtime) {
+        final Translations translations = runtime.getSettings().getTranslations();
         runtime.getImageService().renderOnlineImageAsync().whenComplete(
                 new java.util.function.BiConsumer<byte[], Throwable>() {
                     @Override
@@ -353,10 +374,12 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
                             @Override
                             public void run() {
                                 if (throwable != null) {
-                                    sender.sendMessage("§c生成失败: " + errorMessage(throwable));
+                                    send(sender, translations.format("admin.image.failed",
+                                            "%error%", errorMessage(throwable)));
                                 } else {
                                     Path path = runtime.getImageService().getOutputPath();
-                                    sender.sendMessage("§a在线图片已生成: §f" + path.toAbsolutePath());
+                                    send(sender, translations.format("admin.image.created",
+                                            "%path%", path.toAbsolutePath().toString()));
                                 }
                             }
                         });
@@ -368,25 +391,41 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
         if (sender == null || info == null || updateChecker == null) {
             return;
         }
-        sender.sendMessage("§e[ShitBot] 发现新版本: §f" + updateChecker.getCurrentVersion()
-                + " §7-> §a" + info.getLatestVersion());
+        ShitBotRuntime runtime = runtimeReference.get();
+        if (runtime == null) {
+            return;
+        }
+        Translations translations = runtime.getSettings().getTranslations();
+        send(sender, translations.format("admin.update.notification",
+                "%current%", updateChecker.getCurrentVersion(),
+                "%latest%", info.getLatestVersion()));
         sender.sendMessage("§b" + info.getReleaseUrl());
     }
 
-    private void sendInstallResult(CommandSender sender, UpdateInstallResult result) {
+    private void sendInstallResult(CommandSender sender,
+                                   UpdateInstallResult result,
+                                   Translations translations) {
         if (result.getStatus() == UpdateInstallResult.Status.UP_TO_DATE) {
-            sender.sendMessage("§a当前已是最新版本: §f" + result.getLatestVersion());
+            send(sender, translations.format("admin.update.up-to-date",
+                    "%version%", result.getLatestVersion()));
             return;
         }
         if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
-            sender.sendMessage("§e新版本 §f" + result.getLatestVersion()
-                    + " §e已经替换到磁盘，请手动重启服务器生效。");
+            send(sender, translations.format("admin.update.already-installed-server",
+                    "%version%", result.getLatestVersion()));
             return;
         }
-        sender.sendMessage("§a更新包已校验并替换: §f" + result.getLatestVersion());
-        sender.sendMessage("§7当前 JAR: §f" + result.getInstalledPath());
-        sender.sendMessage("§7备份 JAR: §f" + result.getBackupPath());
-        sender.sendMessage("§e请手动重启服务器生效；不要执行插件热重载。");
+        send(sender, translations.format("admin.update.installed-server",
+                "%version%", result.getLatestVersion()));
+        send(sender, translations.format("admin.update.current-jar",
+                "%path%", String.valueOf(result.getInstalledPath())));
+        send(sender, translations.format("admin.update.backup-jar",
+                "%path%", String.valueOf(result.getBackupPath())));
+        send(sender, translations.get("admin.update.restart-server"));
+    }
+
+    private void send(CommandSender sender, String message) {
+        sender.sendMessage(TextUtil.color(message));
     }
 
     private void startUpdateCheck() {
@@ -423,6 +462,10 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
 
     public ShitBotRuntime getRuntime() {
         return runtimeReference.get();
+    }
+
+    public Translations getTranslations() {
+        return translations;
     }
 
     public NukkitPlatformBridge getPlatformBridge() {

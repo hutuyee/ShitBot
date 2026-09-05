@@ -35,11 +35,11 @@ public final class ConsoleSettings {
         this.enabled = enabled;
         this.requestTimeoutSeconds = clamp(requestTimeoutSeconds, 2, 60, 15);
         this.commandCooldownSeconds = clamp(commandCooldownSeconds, 0, 300, 5);
-        this.notBoundMessage = text(notBoundMessage, "%at% 请先绑定游戏 ID。");
-        this.noPermissionMessage = text(noPermissionMessage, "%at% 你绑定的角色没有权限执行该操作。");
-        this.unavailableMessage = text(unavailableMessage, "%at% 没有可用的子服，或请求执行超时。");
+        this.notBoundMessage = text(notBoundMessage, "%at%");
+        this.noPermissionMessage = text(noPermissionMessage, "%at%");
+        this.unavailableMessage = text(unavailableMessage, "%at%");
         this.resultTimeoutMessage = text(resultTimeoutMessage, "%at% %result%");
-        this.invalidTargetMessage = text(invalidTargetMessage, "%at% 用法：%command% [目标子服]");
+        this.invalidTargetMessage = text(invalidTargetMessage, "%at% %command%");
         this.backendTransport = backendTransport == null ? BackendTransport.disabled() : backendTransport;
         this.tps = tps == null ? Tps.disabled() : tps;
         this.shortcuts = shortcuts == null
@@ -101,8 +101,8 @@ public final class ConsoleSettings {
             this.target = target == null ? Target.BACKEND : target;
             this.server = server == null ? "" : server.trim();
             this.captureSeconds = clamp(captureSeconds, 1, 30, 5);
-            this.successMessage = text(successMessage, "执行成功（%source%）：\n%result%");
-            this.failedMessage = text(failedMessage, "执行失败（%source%）：\n%result%");
+            this.successMessage = text(successMessage, "%result%");
+            this.failedMessage = text(failedMessage, "%result%");
         }
 
         public String getName() { return name; }
@@ -136,8 +136,8 @@ public final class ConsoleSettings {
             this.aliases = cleanAliases(aliases);
             this.permission = permission == null ? "" : permission.trim();
             this.server = server == null ? "" : server.trim();
-            this.successMessage = text(successMessage, "服务器 TPS（%source%）：%result%");
-            this.failedMessage = text(failedMessage, "TPS 获取失败：%result%");
+            this.successMessage = text(successMessage, "%result%");
+            this.failedMessage = text(failedMessage, "%result%");
         }
 
         private static Tps disabled() {

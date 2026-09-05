@@ -1,6 +1,7 @@
 package haaa.shitbot.core.console;
 
 import haaa.shitbot.core.config.ConfigSource;
+import haaa.shitbot.core.config.Translations;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,18 +14,19 @@ public final class ConsoleSettingsFactory {
     private ConsoleSettingsFactory() {
     }
 
-    public static ConsoleSettings create(ConfigSource source) {
+    public static ConsoleSettings create(ConfigSource source, Translations translations) {
         Set<String> claimedAliases = new LinkedHashSet<String>();
         List<String> tpsAliases = uniqueAliases(
-                listOrDefault(source.getStringList("tps.aliases"), "TPS", "tps", "服务器TPS"),
+                listOrDefault(translations.getList("console.tps.aliases", source.getStringList("tps.aliases")),
+                        "TPS", "tps"),
                 claimedAliases);
         ConsoleSettings.Tps tps = new ConsoleSettings.Tps(
                 source.getBoolean("tps.enabled", true),
                 tpsAliases,
                 source.getString("tps.permission", ""),
                 source.getString("tps.server", ""),
-                source.getString("tps.message", "服务器 TPS（%source%）：%result%"),
-                source.getString("tps.failed", "TPS 获取失败：%result%"));
+                translations.get("console.tps.message", source.getString("tps.message", "%result%")),
+                translations.get("console.tps.failed", source.getString("tps.failed", "%result%")));
 
         ConsoleSettings.BackendListener backendListener = new ConsoleSettings.BackendListener(
                 source.getBoolean("backend-transport.listener.enabled", false),
@@ -66,7 +68,10 @@ public final class ConsoleSettingsFactory {
         List<ConsoleSettings.Shortcut> shortcuts = new ArrayList<ConsoleSettings.Shortcut>();
         for (String name : source.getSectionKeys("shortcuts")) {
             String path = "shortcuts." + name;
-            List<String> aliases = uniqueAliases(source.getStringList(path + ".aliases"), claimedAliases);
+            List<String> aliases = uniqueAliases(
+                    translations.getList("console.shortcuts." + name + ".aliases",
+                            source.getStringList(path + ".aliases")),
+                    claimedAliases);
             String command = source.getString(path + ".command", "").trim();
             if (aliases.isEmpty() || command.isEmpty()) {
                 continue;
@@ -81,19 +86,26 @@ public final class ConsoleSettingsFactory {
                     ConsoleSettings.Target.from(source.getString(path + ".target", "backend")),
                     source.getString(path + ".server", ""),
                     durationSeconds(source.getString(path + ".capture-seconds", "5"), 5),
-                    source.getString(path + ".message", "执行成功（%source%）：\n%result%"),
-                    source.getString(path + ".failed", "执行失败（%source%）：\n%result%")));
+                    translations.get("console.shortcuts." + name + ".message",
+                            source.getString(path + ".message", "%result%")),
+                    translations.get("console.shortcuts." + name + ".failed",
+                            source.getString(path + ".failed", "%result%"))));
         }
 
         return new ConsoleSettings(
                 source.getBoolean("enabled", true),
                 source.getInt("request-timeout-seconds", 15),
                 source.getInt("command-cooldown-seconds", 5),
-                source.getString("messages.not-bound", "%at% 请先绑定游戏 ID。"),
-                source.getString("messages.no-permission", "%at% 你绑定的角色没有权限执行该操作。"),
-                source.getString("messages.unavailable", "%at% 没有可用的子服，或请求执行超时。"),
-                source.getString("messages.result-timeout", "%at% %result%"),
-                source.getString("messages.invalid-target", "%at% 用法：%command% [目标子服]"),
+                translations.get("console.messages.not-bound",
+                        source.getString("messages.not-bound", "%at%")),
+                translations.get("console.messages.no-permission",
+                        source.getString("messages.no-permission", "%at%")),
+                translations.get("console.messages.unavailable",
+                        source.getString("messages.unavailable", "%at%")),
+                translations.get("console.messages.result-timeout",
+                        source.getString("messages.result-timeout", "%at% %result%")),
+                translations.get("console.messages.invalid-target",
+                        source.getString("messages.invalid-target", "%at% %command%")),
                 backendTransport,
                 tps,
                 shortcuts);

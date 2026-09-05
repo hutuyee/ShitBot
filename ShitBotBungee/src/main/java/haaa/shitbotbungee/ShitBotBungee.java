@@ -1,12 +1,14 @@
 package haaa.shitbotbungee;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
+import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotbungee.command.ShitBotCommand;
 import haaa.shitbotbungee.config.BungeeConfigLoader;
 import haaa.shitbotbungee.listener.PlayerChatListener;
@@ -28,6 +30,7 @@ public final class ShitBotBungee extends Plugin {
     private static final int BSTATS_PLUGIN_ID = 33866;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
+    private volatile Translations translations;
     private volatile boolean stopping;
     private CompletableFuture<Boolean> reloadFuture;
     private BungeeConfigLoader configLoader;
@@ -50,6 +53,7 @@ public final class ShitBotBungee extends Plugin {
 
         try {
             Settings settings = configLoader.load();
+            translations = settings.getTranslations();
             if (configLoader.isBStatsEnabled()) {
                 new Metrics(this, BSTATS_PLUGIN_ID);
             }
@@ -104,8 +108,8 @@ public final class ShitBotBungee extends Plugin {
         final ConsoleSettings consoleSettings;
         try {
             consoleSettings = configLoader.loadConsoleSettings();
-            newRuntime = new ShitBotRuntime(
-                    configLoader.load(), consoleSettings, platformBridge);
+            Settings settings = configLoader.load();
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -126,6 +130,7 @@ public final class ShitBotBungee extends Plugin {
                     oldRuntime.close();
                 }
                 platformBridge.configureConsole(consoleSettings);
+                ShitBotBungee.this.translations = newRuntime.getSettings().getTranslations();
                 newRuntime.activate();
                 configureStartupNotification(newRuntime, false);
                 startupUnavailable = false;
@@ -189,6 +194,10 @@ public final class ShitBotBungee extends Plugin {
         return runtimeReference.get();
     }
 
+    public Translations getTranslations() {
+        return translations;
+    }
+
     public BungeePlatformBridge getPlatformBridge() {
         return platformBridge;
     }
@@ -205,13 +214,21 @@ public final class ShitBotBungee extends Plugin {
         if (sender == null || info == null || updateChecker == null) {
             return;
         }
-        sender.sendMessage(TextComponent.fromLegacyText("§e[ShitBot] 发现新版本: §f"
-                + updateChecker.getCurrentVersion() + " §7-> §a" + info.getLatestVersion()));
+        ShitBotRuntime runtime = runtimeReference.get();
+        if (runtime == null) {
+            return;
+        }
+        Translations translations = runtime.getSettings().getTranslations();
+        sender.sendMessage(TextComponent.fromLegacyText(TextUtil.color(translations.format(
+                "admin.update.notification",
+                "%current%", updateChecker.getCurrentVersion(),
+                "%latest%", info.getLatestVersion()))));
         BaseComponent[] link = TextComponent.fromLegacyText("§b§n" + info.getReleaseUrl());
         for (BaseComponent component : link) {
             component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, info.getReleaseUrl()));
             component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                    TextComponent.fromLegacyText("§7点击打开 Release 页面")));
+                    TextComponent.fromLegacyText(TextUtil.color(
+                            translations.get("admin.update.notification-hover")))));
         }
         sender.sendMessage(link);
     }

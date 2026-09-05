@@ -3,6 +3,7 @@ package haaa.shitbotvelocity.config;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -33,7 +34,8 @@ public final class VelocityConfigLoader {
     }
 
     public Settings load() throws IOException {
-        return SettingsFactory.create(loadSource("config.yml"));
+        Source source = loadSource("config.yml");
+        return SettingsFactory.create(source, loadTranslations(source));
     }
 
     public boolean isBStatsEnabled() throws IOException {
@@ -41,7 +43,8 @@ public final class VelocityConfigLoader {
     }
 
     public ConsoleSettings loadConsoleSettings() throws IOException {
-        return ConsoleSettingsFactory.create(loadSource("commands.yml"));
+        Source config = loadSource("config.yml");
+        return ConsoleSettingsFactory.create(loadSource("commands.yml"), loadTranslations(config));
     }
 
     private Source loadSource(String resourceName) throws IOException {
@@ -64,6 +67,10 @@ public final class VelocityConfigLoader {
         if (Files.isRegularFile(file)) {
             return file;
         }
+        Path parent = file.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
         try (InputStream input = classLoader.getResourceAsStream(resourceName)) {
             if (input == null) {
                 throw new IOException("Embedded " + resourceName + " is missing");
@@ -71,6 +78,30 @@ public final class VelocityConfigLoader {
             Files.copy(input, file, StandardCopyOption.REPLACE_EXISTING);
         }
         return file;
+    }
+
+    private Translations loadTranslations(Source config) throws IOException {
+        Path fallbackFile = ensureFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE));
+        ensureFile(Translations.resourcePath("en_US"));
+        String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
+        Path selectedFile = dataDirectory.resolve(Translations.resourcePath(language));
+        if (!Files.isRegularFile(selectedFile)) {
+            selectedFile = ensureFile(Translations.resourcePath(language));
+        }
+        return new Translations(language, loadSource(selectedFile), loadSource(fallbackFile));
+    }
+
+    private Source loadSource(Path file) throws IOException {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setAllowDuplicateKeys(false);
+        loaderOptions.setMaxAliasesForCollections(50);
+        Yaml yaml = new Yaml(new SafeConstructor(loaderOptions));
+        Object loaded;
+        try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            loaded = yaml.load(reader);
+        }
+        Map<?, ?> root = loaded instanceof Map ? (Map<?, ?>) loaded : Collections.emptyMap();
+        return new Source(root);
     }
 
     private static final class Source implements ConfigSource {

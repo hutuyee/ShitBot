@@ -1,6 +1,7 @@
 package haaa.shitbot.core.database;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.util.HashUtil;
 import haaa.shitbot.core.util.TextUtil;
 
@@ -44,11 +45,15 @@ public final class BindingRepository {
 
     private final DatabaseManager database;
     private final Settings.Binding settings;
+    private final Translations translations;
     private final Object[] bindLocks = new Object[BIND_LOCK_STRIPES];
 
-    public BindingRepository(DatabaseManager database, Settings.Binding settings) {
+    public BindingRepository(DatabaseManager database,
+                             Settings.Binding settings,
+                             Translations translations) {
         this.database = database;
         this.settings = settings;
+        this.translations = translations;
         for (int i = 0; i < bindLocks.length; i++) bindLocks[i] = new Object();
     }
 
@@ -410,15 +415,13 @@ public final class BindingRepository {
             return;
         }
 
-        throw new IllegalStateException(
-                "EasyBot 迁移已取消：QQ " + sourceLimit.qqId
-                        + " 在 EasyBot 中绑定了 " + sourceLimit.bindingCount
-                        + " 个游戏ID，但 ShitBot 当前最多允许 " + configuredLimit
-                        + " 个。请修改 binding.maximum-ids-per-qq"
-                        + (settings.isAllowMultipleIdsPerQq()
+        throw new IllegalStateException(translations.format("migration.limit-exceeded",
+                "%qq%", sourceLimit.qqId,
+                "%source_count%", String.valueOf(sourceLimit.bindingCount),
+                "%limit%", String.valueOf(configuredLimit),
+                "%allow_multiple%", settings.isAllowMultipleIdsPerQq()
                         ? ""
-                        : " 并开启 binding.allow-multiple-ids-per-qq")
-                        + "，执行 /shitbot reload 后重新迁移。");
+                        : translations.get("migration.enable-multiple")));
     }
 
     /** Finds the largest distinct, valid player-name count owned by one lowercase qq account. */
@@ -634,11 +637,10 @@ public final class BindingRepository {
                 qqBindingCounts,
                 qqId);
         if (currentCount >= settings.getMaximumIdsPerQq()) {
-            throw new IllegalStateException(
-                    "EasyBot 迁移已取消：QQ " + qqId
-                            + " 与 ShitBot 现有数据合并后至少需要 " + (currentCount + 1)
-                            + " 个绑定名额，但当前最多允许 " + settings.getMaximumIdsPerQq()
-                            + " 个。请修改 binding.maximum-ids-per-qq，执行 /shitbot reload 后重试。");
+            throw new IllegalStateException(translations.format("migration.merge-limit-exceeded",
+                    "%qq%", qqId,
+                    "%required%", String.valueOf(currentCount + 1),
+                    "%limit%", String.valueOf(settings.getMaximumIdsPerQq())));
         }
 
         try {

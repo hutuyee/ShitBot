@@ -1,6 +1,7 @@
 package haaa.shitbotspigot.platform;
 
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -17,6 +18,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import haaa.shitbotspigot.ShitBotSpigot;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -52,12 +54,12 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     private static final Pattern TEXTURE_HASH = Pattern.compile("(?i)^[0-9a-f]{32,128}$");
     private static final int MAX_PROFILE_PROPERTY_LENGTH = 32768;
 
-    private final JavaPlugin plugin;
+    private final ShitBotSpigot plugin;
     private final SpigotItemIdentityResolver itemIdentityResolver;
     private final SchedulerAdapter scheduler;
     private final SpigotConsoleController consoleController;
 
-    public SpigotPlatformBridge(JavaPlugin plugin) {
+    public SpigotPlatformBridge(ShitBotSpigot plugin) {
         this.plugin = plugin;
         this.itemIdentityResolver = new SpigotItemIdentityResolver();
         this.scheduler = SchedulerAdapter.forPlugin(plugin);
@@ -893,7 +895,10 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                 for (BaseComponent component : parsed) {
                     if (part.hasClickUrl()) {
                         component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, part.getClickUrl()));
-                        String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                        Translations translations = plugin.getTranslations();
+                        String hover = part.getHoverText().isEmpty()
+                                ? (translations == null ? "Click to open" : translations.get("media.open-hover"))
+                                : part.getHoverText();
                         component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                                 TextComponent.fromLegacyText("§7" + hover)));
                     }

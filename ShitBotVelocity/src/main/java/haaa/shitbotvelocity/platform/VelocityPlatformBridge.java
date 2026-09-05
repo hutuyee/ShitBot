@@ -5,6 +5,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -14,6 +15,7 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.slf4j.Logger;
+import haaa.shitbotvelocity.ShitBotVelocity;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -28,13 +30,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class VelocityPlatformBridge implements PlatformBridge {
-    private final Object plugin;
+    private final ShitBotVelocity plugin;
     private final ProxyServer server;
     private final Logger logger;
     private final Path dataDirectory;
     private final VelocityConsoleGateway consoleGateway;
 
-    public VelocityPlatformBridge(Object plugin,
+    public VelocityPlatformBridge(ShitBotVelocity plugin,
                                   ProxyServer server,
                                   Logger logger,
                                   Path dataDirectory) {
@@ -143,7 +145,9 @@ public final class VelocityPlatformBridge implements PlatformBridge {
         for (Player player : server.getAllPlayers()) {
             String serverName = player.getCurrentServer().isPresent()
                     ? player.getCurrentServer().get().getServerInfo().getName()
-                    : "未连接子服";
+                    : (plugin.getTranslations() == null
+                            ? "No backend"
+                            : plugin.getTranslations().get("image.no-backend"));
             List<String> players = snapshot.get(serverName);
             if (players == null) {
                 players = new ArrayList<String>();
@@ -202,7 +206,10 @@ public final class VelocityPlatformBridge implements PlatformBridge {
                 Component component = LegacyComponentSerializer.legacySection().deserialize(part.getText());
                 if (part.hasClickUrl()) {
                     component = component.clickEvent(ClickEvent.openUrl(part.getClickUrl()));
-                    String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                    Translations translations = plugin.getTranslations();
+                    String hover = part.getHoverText().isEmpty()
+                            ? (translations == null ? "Click to open" : translations.get("media.open-hover"))
+                            : part.getHoverText();
                     component = component.hoverEvent(HoverEvent.showText(Component.text(hover)));
                 }
                 output = output.append(component);

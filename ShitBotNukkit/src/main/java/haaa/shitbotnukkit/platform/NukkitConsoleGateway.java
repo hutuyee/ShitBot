@@ -2,6 +2,7 @@ package haaa.shitbotnukkit.platform;
 
 import cn.nukkit.Player;
 import cn.nukkit.Server;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -45,19 +46,20 @@ final class NukkitConsoleGateway implements AutoCloseable {
     CompletableFuture<ConsoleResult> execute(final ConsoleRequest request) {
         if (request == null) {
             return CompletableFuture.completedFuture(new ConsoleResult(
-                    "", ConsoleResult.Status.FAILED, "请求为空。", platform.serverName()));
+                    "", ConsoleResult.Status.FAILED,
+                    text("console.result.null-request"), platform.serverName()));
         }
         if (closed.get() || !enabled) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "QQ 控制台命令当前未启用。", platform.serverName()));
+                    request, text("console.result.console-disabled"), platform.serverName()));
         }
         if (request.getTarget() != ConsoleSettings.Target.BACKEND) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "Nukkit-MOT 不支持代理端执行目标。", platform.serverName()));
+                    request, text("console.result.proxy-target-unsupported"), platform.serverName()));
         }
         if (!request.getServer().isEmpty()) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "Nukkit-MOT 为单服平台，不能指定目标子服。", platform.serverName()));
+                    request, text("console.result.server-target-unsupported"), platform.serverName()));
         }
 
         final CompletableFuture<ConsoleResult> response = new CompletableFuture<ConsoleResult>();
@@ -68,12 +70,12 @@ final class NukkitConsoleGateway implements AutoCloseable {
                 @Override
                 public void run() {
                     response.complete(ConsoleResult.unavailable(
-                            request, "请求执行超时。", platform.serverName()));
+                            request, text("console.result.execution-timeout"), platform.serverName()));
                 }
             }, timeout, TimeUnit.SECONDS);
         } catch (RejectedExecutionException exception) {
             response.complete(ConsoleResult.unavailable(
-                    request, "插件已关闭。", platform.serverName()));
+                    request, text("console.result.plugin-disabled"), platform.serverName()));
             return response;
         }
         response.whenComplete(new java.util.function.BiConsumer<ConsoleResult, Throwable>() {
@@ -92,13 +94,15 @@ final class NukkitConsoleGateway implements AutoCloseable {
                 if (throwable != null) {
                     response.complete(new ConsoleResult(
                             request.getRequestId(), ConsoleResult.Status.FAILED,
-                            "权限检查失败：" + errorMessage(throwable), platform.serverName()));
+                            format("console.result.permission-check-failed",
+                                    "%error%", errorMessage(throwable)), platform.serverName()));
                     return;
                 }
                 if (!Boolean.TRUE.equals(allowed)) {
                     response.complete(new ConsoleResult(
                             request.getRequestId(), ConsoleResult.Status.NO_PERMISSION,
-                            "绑定角色没有权限 " + request.getPermission(), platform.serverName()));
+                            format("console.result.permission-denied",
+                                    "%permission%", request.getPermission()), platform.serverName()));
                     return;
                 }
                 CompletableFuture<ConsoleResult> operation;
@@ -108,7 +112,7 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     operation = executeCommand(request);
                 } else {
                     operation = CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                            request, "Nukkit-MOT 不接受代理下发的更新请求。", platform.serverName()));
+                            request, text("console.result.remote-update-unsupported"), platform.serverName()));
                 }
                 operation.whenComplete(new java.util.function.BiConsumer<ConsoleResult, Throwable>() {
                     @Override
@@ -179,9 +183,10 @@ final class NukkitConsoleGateway implements AutoCloseable {
                 @Override
                 public void run() {
                     try {
-                        String output = "当前 " + server.getTicksPerSecond()
-                                + "，平均 " + server.getTicksPerSecondAverage()
-                                + "，负载 " + server.getTickUsage() + "%";
+                        String output = format("console.tps.nukkit",
+                                "%current%", String.valueOf(server.getTicksPerSecond()),
+                                "%average%", String.valueOf(server.getTicksPerSecondAverage()),
+                                "%load%", String.valueOf(server.getTickUsage()));
                         result.complete(new ConsoleResult(
                                 request.getRequestId(), ConsoleResult.Status.SUCCESS,
                                 output, platform.serverName()));
@@ -199,7 +204,7 @@ final class NukkitConsoleGateway implements AutoCloseable {
     private CompletableFuture<ConsoleResult> executeCommand(final ConsoleRequest request) {
         if (!commandRunning.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "已有一条控制台命令正在捕获输出，请稍后重试。", platform.serverName()));
+                    request, text("console.result.command-running"), platform.serverName()));
         }
         final CompletableFuture<ConsoleResult> result = new CompletableFuture<ConsoleResult>();
         try {
@@ -223,7 +228,8 @@ final class NukkitConsoleGateway implements AutoCloseable {
                                 server.getConsoleSender(), request.getCommand());
                     } catch (Throwable throwable) {
                         dispatched = false;
-                        dispatchError = "命令执行异常：" + errorMessage(throwable);
+                        dispatchError = format("console.result.command-error",
+                                "%error%", errorMessage(throwable));
                     }
                     final boolean commandAccepted = dispatched;
                     final String commandError = dispatchError;
@@ -237,7 +243,7 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     } catch (RejectedExecutionException exception) {
                         commandRunning.set(false);
                         result.complete(ConsoleResult.unavailable(
-                                request, "插件已关闭。", platform.serverName()));
+                                request, text("console.result.plugin-disabled"), platform.serverName()));
                     }
                 }
             });
@@ -257,13 +263,14 @@ final class NukkitConsoleGateway implements AutoCloseable {
         try {
             output = capture.readNewContent();
         } catch (Throwable throwable) {
-            output = "无法读取 logs/server.log：" + errorMessage(throwable);
+            output = format("console.result.log-read-failed",
+                    "%error%", errorMessage(throwable));
         }
         if (output.isEmpty()) {
             output = commandError.isEmpty()
                     ? (commandAccepted
-                    ? "命令已执行，server.log 中没有新增日志。"
-                    : "命令不存在或执行器拒绝执行。")
+                    ? text("console.result.no-new-log")
+                    : text("console.result.command-rejected"))
                     : commandError;
         }
         try {
@@ -295,6 +302,16 @@ final class NukkitConsoleGateway implements AutoCloseable {
         String message = cause.getMessage();
         return message == null || message.trim().isEmpty()
                 ? cause.getClass().getSimpleName() : message;
+    }
+
+    private String text(String key) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.get(key);
+    }
+
+    private String format(String key, String... replacements) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.format(key, replacements);
     }
 
     @Override

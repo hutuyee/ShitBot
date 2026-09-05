@@ -3,6 +3,7 @@ package haaa.shitbotbungee.config;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -32,7 +33,8 @@ public final class BungeeConfigLoader {
     public Settings load() throws IOException {
         File file = ensureConfigFile();
         Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
-        return SettingsFactory.create(new Source(configuration));
+        Source source = new Source(configuration);
+        return SettingsFactory.create(source, loadTranslations(source));
     }
 
     public boolean isBStatsEnabled() throws IOException {
@@ -44,7 +46,11 @@ public final class BungeeConfigLoader {
     public ConsoleSettings loadConsoleSettings() throws IOException {
         File file = ensureFile("commands.yml");
         Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
-        return ConsoleSettingsFactory.create(new Source(configuration));
+        Configuration mainConfiguration = ConfigurationProvider.getProvider(YamlConfiguration.class)
+                .load(ensureConfigFile());
+        return ConsoleSettingsFactory.create(
+                new Source(configuration),
+                loadTranslations(new Source(mainConfiguration)));
     }
 
     private File ensureConfigFile() throws IOException {
@@ -59,6 +65,10 @@ public final class BungeeConfigLoader {
         if (file.isFile()) {
             return file;
         }
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("Cannot create resource directory: " + parent);
+        }
         try (InputStream input = plugin.getResourceAsStream(resourceName)) {
             if (input == null) {
                 throw new IOException("Embedded " + resourceName + " is missing");
@@ -66,6 +76,25 @@ public final class BungeeConfigLoader {
             Files.copy(input, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
         return file;
+    }
+
+    private Translations loadTranslations(Source config) throws IOException {
+        File fallbackFile = ensureFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE));
+        ensureFile(Translations.resourcePath("en_US"));
+        String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
+        File selectedFile = languageFile(language);
+        if (!selectedFile.isFile()) {
+            selectedFile = ensureFile(Translations.resourcePath(language));
+        }
+        ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
+        return new Translations(
+                language,
+                new Source(provider.load(selectedFile)),
+                new Source(provider.load(fallbackFile)));
+    }
+
+    private File languageFile(String language) {
+        return new File(plugin.getDataFolder(), Translations.resourcePath(language));
     }
 
     private static final class Source implements ConfigSource {

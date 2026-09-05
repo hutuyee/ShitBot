@@ -1,5 +1,7 @@
 package haaa.shitbot.core.database;
 
+import haaa.shitbot.core.config.Translations;
+
 /** Immutable summary returned after importing EasyBot binding records. */
 public final class EasyBotMigrationResult {
     private final int totalRows;
@@ -39,11 +41,17 @@ public final class EasyBotMigrationResult {
     public int getInvalidRows() { return invalidRows; }
     public int getNonQqRows() { return nonQqRows; }
 
-    public String describe() {
-        return "账号=" + totalRows + ", QQ账号=" + qqRows + ", 关联玩家=" + linkedPlayerRows
-                + ", 名称回退=" + fallbackRows + ", 导入=" + importedRows
-                + ", 已存在=" + alreadyPresentRows + ", 玩家冲突=" + playerConflictRows
-                + ", QQ冲突=" + qqConflictRows + ", 无效=" + invalidRows
-                + ", 非QQ账号=" + nonQqRows;
+    public String describe(Translations translations) {
+        return translations.format("migration.summary",
+                "%accounts%", String.valueOf(totalRows),
+                "%qq_accounts%", String.valueOf(qqRows),
+                "%linked_players%", String.valueOf(linkedPlayerRows),
+                "%fallback_names%", String.valueOf(fallbackRows),
+                "%imported%", String.valueOf(importedRows),
+                "%existing%", String.valueOf(alreadyPresentRows),
+                "%player_conflicts%", String.valueOf(playerConflictRows),
+                "%qq_conflicts%", String.valueOf(qqConflictRows),
+                "%invalid%", String.valueOf(invalidRows),
+                "%non_qq%", String.valueOf(nonQqRows));
     }
 }

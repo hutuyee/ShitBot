@@ -1,6 +1,7 @@
 package haaa.shitbot.core.inventory;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 
 import javax.imageio.ImageIO;
 import java.awt.AlphaComposite;
@@ -34,9 +35,9 @@ public final class InventoryImageRenderer {
             InventorySnapshot.BOOTS_SLOT,
             InventorySnapshot.OFFHAND_SLOT
     };
-    private static final String[] EQUIPMENT_LABELS = new String[]{"头", "胸", "腿", "靴", "副"};
-
     private final Settings.Inventory settings;
+    private final Translations translations;
+    private final java.util.List<String> equipmentLabels;
     private final ItemIconResolver iconResolver;
     private final Semaphore renderPermits;
     private final Map<String, CachedRender> renderCache = new LinkedHashMap<String, CachedRender>(32, 0.75F, true) {
@@ -46,8 +47,13 @@ public final class InventoryImageRenderer {
         }
     };
 
-    public InventoryImageRenderer(Settings.Inventory settings, ItemIconResolver iconResolver) {
+    public InventoryImageRenderer(Settings.Inventory settings,
+                                  Translations translations,
+                                  ItemIconResolver iconResolver) {
         this.settings = settings;
+        this.translations = translations;
+        this.equipmentLabels = translations.getList("inventory.equipment-labels",
+                java.util.Arrays.asList("H", "C", "L", "F", "O"));
         this.iconResolver = iconResolver;
         this.renderPermits = new Semaphore(settings.getMaximumConcurrentRenders(), true);
     }
@@ -112,7 +118,7 @@ public final class InventoryImageRenderer {
             graphics.setColor(new Color(174, 214, 255));
             graphics.drawString(snapshot.getPlayerName(), padding, 66);
 
-            String badge = live ? "实时" : "离线快照";
+            String badge = translations.get(live ? "inventory.live" : "inventory.snapshot");
             graphics.setFont(smallFont);
             int badgeWidth = graphics.getFontMetrics().stringWidth(badge) + 20;
             int badgeX = width - padding - badgeWidth;
@@ -133,12 +139,15 @@ public final class InventoryImageRenderer {
             int equipmentX = left + gridWidth + 24;
             graphics.setFont(smallFont);
             graphics.setColor(new Color(168, 177, 194));
-            graphics.drawString("装备 / 副手", equipmentX, top - 10);
+            graphics.drawString(translations.get("inventory.equipment-title"), equipmentX, top - 10);
             for (int index = 0; index < EQUIPMENT_SLOTS.length; index++) {
                 int y = top + index * (slot + gap);
                 graphics.setFont(smallFont);
                 graphics.setColor(new Color(151, 160, 178));
-                graphics.drawString(EQUIPMENT_LABELS[index], equipmentX, y + slot / 2 + 5);
+                String equipmentLabel = index < equipmentLabels.size()
+                        ? equipmentLabels.get(index)
+                        : String.valueOf(index + 1);
+                graphics.drawString(equipmentLabel, equipmentX, y + slot / 2 + 5);
                 paintSlot(graphics, equipmentX + 28, y, slot,
                         snapshot.getItem(EQUIPMENT_SLOTS[index]), amountFont);
             }
@@ -148,11 +157,13 @@ public final class InventoryImageRenderer {
             graphics.setColor(new Color(151, 160, 178));
             String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
                     .format(new Date(snapshot.getCapturedAt()));
-            String timeText = "数据时间 " + timestamp;
+            String timeText = translations.format("inventory.data-time", "%time%", timestamp);
             int timeWidth = graphics.getFontMetrics().stringWidth(timeText);
-            String summary = "占用 " + snapshot.getOccupiedSlots() + "/" + InventorySnapshot.TOTAL_SLOTS
-                    + "  ·  物品 " + snapshot.getTotalItemCount()
-                    + "  ·  " + snapshot.getServerName();
+            String summary = translations.format("inventory.summary",
+                    "%occupied%", String.valueOf(snapshot.getOccupiedSlots()),
+                    "%slots%", String.valueOf(InventorySnapshot.TOTAL_SLOTS),
+                    "%items%", String.valueOf(snapshot.getTotalItemCount()),
+                    "%server%", snapshot.getServerName());
             int summaryWidth = Math.max(80, width - padding * 2 - timeWidth - 24);
             graphics.drawString(ellipsize(summary, graphics.getFontMetrics(), summaryWidth), padding, footerY);
             graphics.drawString(timeText, width - padding - timeWidth, footerY);

@@ -7,32 +7,30 @@ public final class SettingsFactory {
     private SettingsFactory() {
     }
 
-    public static Settings create(ConfigSource source) {
+    public static Settings create(ConfigSource source, Translations translations) {
         Settings.Command bindCommand = new Settings.Command(
                 source.getBoolean("onebot.commands.bind.enabled", true),
-                listOrDefault(source.getStringList("onebot.commands.bind.aliases"), "绑定", "/bind"),
-                source.getString("onebot.commands.bind.usage", "用法: 绑定 <游戏ID> <验证码>"));
+                listOrDefault(translations.getList("commands.bind.aliases"), "bind", "/bind"),
+                translations.get("commands.bind.usage"));
         Settings.Command onlineCommand = new Settings.Command(
                 source.getBoolean("onebot.commands.online-image.enabled", true),
-                listOrDefault(source.getStringList("onebot.commands.online-image.aliases"), "服务器状态", "在线人数"),
-                source.getString("onebot.commands.online-image.usage", "服务器状态"));
+                listOrDefault(translations.getList("commands.online-image.aliases"), "server status", "online"),
+                translations.get("commands.online-image.usage"));
         Settings.Command inventoryCommand = new Settings.Command(
                 source.getBoolean("onebot.commands.inventory.enabled", true),
-                listOrDefault(source.getStringList("onebot.commands.inventory.aliases"), "背包", "我的背包"),
-                source.getString("onebot.commands.inventory.usage", "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"));
+                listOrDefault(translations.getList("commands.inventory.aliases"), "inventory", "my inventory"),
+                translations.get("commands.inventory.usage"));
 
         Settings.GroupJoinWelcome groupJoinWelcome = new Settings.GroupJoinWelcome(
                 source.getBoolean("onebot.notices.group-join-welcome.enabled", true),
-                source.getString("onebot.notices.group-join-welcome.message",
-                        "欢迎 %at% 加入群聊！"));
+                translations.get("notices.group-join-welcome"));
         Settings.GroupLeaveUnbind groupLeaveUnbind = new Settings.GroupLeaveUnbind(
                 source.getBoolean("onebot.notices.group-leave-unbind.enabled", false));
         Settings.ServerStartupNotice serverStartupNotice = new Settings.ServerStartupNotice(
                 source.getBoolean("onebot.notices.server-startup.enabled", false),
                 source.getString("onebot.notices.server-startup.target-server", ""),
                 source.getInt("onebot.notices.server-startup.check-interval-seconds", 5),
-                source.getString("onebot.notices.server-startup.message",
-                        "服务器 %server% 已启动。"));
+                translations.get("notices.server-startup"));
 
         Settings.OneBot oneBot = new Settings.OneBot(
                 source.getBoolean("onebot.enabled", true),
@@ -107,7 +105,7 @@ public final class SettingsFactory {
                 source.getInt("database.maximum-queued-tasks", 256));
 
         Settings.Image image = new Settings.Image(
-                source.getString("image.title", "服务器在线状态"),
+                translations.get("image.title"),
                 source.getString("image.server-name", "Minecraft Server"),
                 source.getString("image.font-name", "Microsoft YaHei"),
                 source.getInt("image.width", 1200),
@@ -127,7 +125,7 @@ public final class SettingsFactory {
 
         Settings.Inventory inventory = new Settings.Inventory(
                 source.getBoolean("inventory.enabled", true),
-                source.getString("inventory.title", "%player% 的背包"),
+                translations.get("inventory.title"),
                 source.getString("inventory.font-name", "Microsoft YaHei"),
                 source.getInt("inventory.width", 760),
                 source.getInt("inventory.slot-size", 48),
@@ -148,33 +146,29 @@ public final class SettingsFactory {
                 source.getInt("inventory.icons.cache-entries", 2048));
 
         Settings.Messages messages = new Settings.Messages(
-                source.getString("messages.kick-unbound",
-                        "&7欢迎 &a%player% &7加入服务器\n&7请在QQ群发送 &6绑定 %player% %code%\n&7验证码将在 &c%expire_minutes% 分钟 &7后失效"),
-                source.getString("messages.kick-after-unbind",
-                        "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。"),
-                source.getString("messages.kick-database-unavailable", "&c绑定系统暂时不可用，请稍后重试。"),
-                source.getString("messages.bind-usage", "用法: 绑定 <游戏ID> <验证码>"),
-                source.getString("messages.bind-success", "%at% 绑定成功：%player% -> %qq%"),
-                source.getString("messages.bind-invalid", "%at% 验证码错误。"),
-                source.getString("messages.bind-expired", "%at% 验证码不存在或已经过期，请重新进入服务器获取。"),
-                source.getString("messages.bind-qq-already-used", "%at% 该QQ已经绑定其他游戏ID。"),
-                source.getString("messages.bind-qq-limit-reached",
-                        "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"),
-                source.getString("messages.bind-player-already-used", "%at% 该游戏ID已经绑定其他QQ。"),
-                source.getString("messages.bind-database-error", "%at% 数据库操作失败，请联系管理员。"),
-                source.getString("messages.online-failed", "%at% 在线人数图片生成失败，请稍后重试。"),
-                source.getString("messages.inventory-not-bound", "%at% 你还没有绑定游戏ID。"),
-                source.getString("messages.inventory-player-not-bound",
-                        "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"),
-                source.getString("messages.inventory-unavailable", "%at% 暂无你的背包快照，请先进入一次服务器。"),
-                source.getString("messages.inventory-disabled", "%at% 背包查询当前未启用。"),
-                source.getString("messages.inventory-failed", "%at% 背包查询失败，请稍后重试。"),
-                source.getString("messages.no-permission", "&c你没有权限使用此命令。"),
-                source.getString("messages.reload-started", "&7正在重载 ShitBot..."),
-                source.getString("messages.reload-success", "&aShitBot 已完成热重载。"),
-                source.getString("messages.reload-failed", "&cShitBot 重载失败，旧配置仍在运行。"));
+                translations.get("messages.kick-unbound"),
+                translations.get("messages.kick-after-unbind"),
+                translations.get("messages.kick-database-unavailable"),
+                translations.get("messages.bind-usage"),
+                translations.get("messages.bind-success"),
+                translations.get("messages.bind-invalid"),
+                translations.get("messages.bind-expired"),
+                translations.get("messages.bind-qq-already-used"),
+                translations.get("messages.bind-qq-limit-reached"),
+                translations.get("messages.bind-player-already-used"),
+                translations.get("messages.bind-database-error"),
+                translations.get("messages.online-failed"),
+                translations.get("messages.inventory-not-bound"),
+                translations.get("messages.inventory-player-not-bound"),
+                translations.get("messages.inventory-unavailable"),
+                translations.get("messages.inventory-disabled"),
+                translations.get("messages.inventory-failed"),
+                translations.get("messages.no-permission"),
+                translations.get("messages.reload-started"),
+                translations.get("messages.reload-success"),
+                translations.get("messages.reload-failed"));
 
-        return new Settings(source.getInt("config-version", 1), oneBot, forwarding, binding,
+        return new Settings(source.getInt("config-version", 2), translations, oneBot, forwarding, binding,
                 database, image, inventory, messages);
     }
 

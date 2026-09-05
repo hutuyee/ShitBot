@@ -14,12 +14,14 @@ import haaa.shitbotvelocity.listener.PlayerChatListener;
 import haaa.shitbotvelocity.listener.PlayerLoginListener;
 import haaa.shitbotvelocity.platform.VelocityPlatformBridge;
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.util.FutureUtil;
+import haaa.shitbot.core.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -39,6 +41,7 @@ public final class ShitBotVelocity {
     private final Metrics.Factory metricsFactory;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
+    private volatile Translations translations;
     private volatile boolean stopping;
     private CompletableFuture<Boolean> reloadFuture;
     private VelocityConfigLoader configLoader;
@@ -77,6 +80,7 @@ public final class ShitBotVelocity {
 
         try {
             Settings settings = configLoader.load();
+            translations = settings.getTranslations();
             if (configLoader.isBStatsEnabled()) {
                 metricsFactory.make(this, BSTATS_PLUGIN_ID);
             }
@@ -123,8 +127,8 @@ public final class ShitBotVelocity {
         final ConsoleSettings consoleSettings;
         try {
             consoleSettings = configLoader.loadConsoleSettings();
-            newRuntime = new ShitBotRuntime(
-                    configLoader.load(), consoleSettings, platformBridge);
+            Settings settings = configLoader.load();
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -143,6 +147,7 @@ public final class ShitBotVelocity {
                 oldRuntime.close();
             }
             platformBridge.configureConsole(consoleSettings);
+            ShitBotVelocity.this.translations = newRuntime.getSettings().getTranslations();
             newRuntime.activate();
             configureStartupNotification(newRuntime, false);
             startupUnavailable = false;
@@ -202,6 +207,10 @@ public final class ShitBotVelocity {
         return runtimeReference.get();
     }
 
+    public Translations getTranslations() {
+        return translations;
+    }
+
     public VelocityPlatformBridge getPlatformBridge() {
         return platformBridge;
     }
@@ -218,12 +227,20 @@ public final class ShitBotVelocity {
         if (sender == null || info == null || updateChecker == null) {
             return;
         }
+        ShitBotRuntime runtime = runtimeReference.get();
+        if (runtime == null) {
+            return;
+        }
+        Translations translations = runtime.getSettings().getTranslations();
         LegacyComponentSerializer serializer = LegacyComponentSerializer.legacySection();
-        sender.sendMessage(serializer.deserialize("§e[ShitBot] 发现新版本: §f"
-                + updateChecker.getCurrentVersion() + " §7-> §a" + info.getLatestVersion()));
+        sender.sendMessage(serializer.deserialize(TextUtil.color(translations.format(
+                "admin.update.notification",
+                "%current%", updateChecker.getCurrentVersion(),
+                "%latest%", info.getLatestVersion()))));
         Component link = serializer.deserialize("§b§n" + info.getReleaseUrl())
                 .clickEvent(ClickEvent.openUrl(info.getReleaseUrl()))
-                .hoverEvent(HoverEvent.showText(Component.text("点击打开 Release 页面")));
+                .hoverEvent(HoverEvent.showText(serializer.deserialize(TextUtil.color(
+                        translations.get("admin.update.notification-hover")))));
         sender.sendMessage(link);
     }
 

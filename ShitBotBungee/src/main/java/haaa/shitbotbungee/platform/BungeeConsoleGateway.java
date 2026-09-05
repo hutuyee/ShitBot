@@ -1,5 +1,6 @@
 package haaa.shitbotbungee.platform;
 
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -13,6 +14,7 @@ import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
+import haaa.shitbotbungee.ShitBotBungee;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +29,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class BungeeConsoleGateway implements AutoCloseable {
-    private final Plugin plugin;
+    private final ShitBotBungee plugin;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
     private volatile CompletableFuture<ConsoleResult> activeLocalFuture;
     private volatile ConsoleRequest activeLocalRequest;
@@ -40,7 +42,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             new ConcurrentHashMap<String, EndpointCircuit>();
     private volatile ConsoleSettings.BackendTransport backendTransport;
 
-    public BungeeConsoleGateway(Plugin plugin) {
+    public BungeeConsoleGateway(ShitBotBungee plugin) {
         this.plugin = plugin;
     }
 
@@ -63,22 +65,25 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                     java.util.Collections.<ConsoleResult>emptyList());
         }
         if (release == null) {
-            return FutureUtil.failedFuture(new IllegalArgumentException("Release metadata is missing"));
+            return FutureUtil.failedFuture(new IllegalArgumentException(
+                    text("admin.update.release-metadata-missing")));
         }
         ReleaseAsset jarAsset = release.findJarAsset(UpdatePlatform.SPIGOT);
         if (jarAsset == null) {
             return FutureUtil.failedFuture(new java.io.IOException(
-                    "Release does not contain exactly one ShitBotSpigot-*.jar asset"));
+                    text("admin.update.backend-jar-missing")));
         }
         ReleaseAsset checksumAsset = release.findAsset(jarAsset.getName() + ".sha256");
         if (checksumAsset == null) {
             return FutureUtil.failedFuture(new java.io.IOException(
-                    "Release is missing checksum asset " + jarAsset.getName() + ".sha256"));
+                    format("admin.update.checksum-missing", "%asset%",
+                            jarAsset.getName() + ".sha256")));
         }
         ReleaseAsset signatureAsset = release.findAsset(jarAsset.getName() + ".sig");
         if (signatureAsset == null) {
             return FutureUtil.failedFuture(new java.io.IOException(
-                    "Release is missing detached signature asset " + jarAsset.getName() + ".sig"));
+                    format("admin.update.signature-missing", "%asset%",
+                            jarAsset.getName() + ".sig")));
         }
 
         final java.util.List<CompletableFuture<ConsoleResult>> requests =
@@ -109,7 +114,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             return sendToSocket(request, endpoint);
         }
         return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                request, "目标子服未配置已认证的 Console Socket，已拒绝不安全的 Plugin Message 回退。",
+                request, text("console.result.insecure-fallback-refused"),
                 "BungeeCord"));
     }
 
@@ -126,13 +131,13 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                 public void run() {
                     if (System.nanoTime() >= deadlineNanos) {
                         result.complete(ConsoleResult.unavailable(
-                                request, "请求在等待后端连接前已过期。", endpoint.getName()));
+                                request, text("console.result.expired-before-connect"), endpoint.getName()));
                         return;
                     }
                     EndpointCircuit circuit = endpointCircuit(endpoint);
                     if (circuit.isOpen(System.nanoTime())) {
                         result.complete(ConsoleResult.unavailable(
-                                request, "目标子服连接连续失败，短暂熔断中。", endpoint.getName()));
+                                request, text("console.result.circuit-open"), endpoint.getName()));
                         return;
                     }
                     try {
@@ -143,13 +148,14 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                     } catch (Exception exception) {
                         circuit.recordFailure(System.nanoTime());
                         result.complete(ConsoleResult.unavailable(request,
-                                "无法连接目标子服：" + safeMessage(exception), endpoint.getName()));
+                                format("console.result.connect-failed",
+                                        "%error%", safeMessage(exception)), endpoint.getName()));
                     }
                 }
             });
         } catch (RejectedExecutionException exception) {
             result.complete(ConsoleResult.unavailable(
-                    request, "后端请求繁忙，等待队列已满。", endpoint.getName()));
+                    request, text("console.result.queue-full"), endpoint.getName()));
         }
         return result;
     }
@@ -234,7 +240,8 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                     if (throwable != null || !Boolean.TRUE.equals(allowed)) {
                         result.complete(new ConsoleResult(
                                 request.getRequestId(), ConsoleResult.Status.NO_PERMISSION,
-                                "绑定角色没有代理权限 " + request.getPermission(), "BungeeCord"));
+                                format("console.result.permission-denied",
+                                        "%permission%", request.getPermission()), "BungeeCord"));
                         return;
                     }
                     execution = executeAuthorizedLocal(request, commandDispatched);
@@ -259,11 +266,11 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                     if (commandDispatched.get()) {
                         result.complete(new ConsoleResult(request.getRequestId(),
                                 ConsoleResult.Status.RESULT_TIMEOUT,
-                                "命令已提交执行，但结果捕获超时；请确认执行结果后再决定是否重试。",
+                                text("console.result.result-timeout"),
                                 "BungeeCord"));
                     } else {
                         result.complete(ConsoleResult.unavailable(
-                                request, "代理控制台请求在命令提交前超时。", "BungeeCord"));
+                                request, text("console.result.request-timeout"), "BungeeCord"));
                     }
                 }
             }
@@ -275,7 +282,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                                                                      AtomicBoolean commandDispatched) {
         if (!localCommandRunning.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "已有代理控制台命令正在执行。", "BungeeCord"));
+                    request, text("console.result.command-running"), "BungeeCord"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<ConsoleResult>();
         final LatestLogCapture capture = LatestLogCapture.begin(privacyPlayerNames(request));
@@ -301,12 +308,13 @@ public final class BungeeConsoleGateway implements AutoCloseable {
                 try {
                     output = capture.readNewContent();
                 } catch (IOException exception) {
-                    output = "无法读取 logs/latest.log：" + safeMessage(exception);
+                    output = format("console.result.log-read-failed",
+                            "%error%", safeMessage(exception));
                 }
                 if (output.isEmpty()) {
                     output = accepted
-                            ? "命令已执行，latest.log 中没有新增日志。"
-                            : "命令不存在或执行器拒绝执行。";
+                            ? text("console.result.no-new-log")
+                            : text("console.result.command-rejected");
                 }
                 future.complete(new ConsoleResult(request.getRequestId(),
                         accepted ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
@@ -348,7 +356,8 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         CompletableFuture<ConsoleResult> future = activeLocalFuture;
         ConsoleRequest request = activeLocalRequest;
         if (future != null && request != null) {
-            future.complete(ConsoleResult.unavailable(request, "插件已关闭", "BungeeCord"));
+            future.complete(ConsoleResult.unavailable(
+                    request, text("console.result.plugin-disabled"), "BungeeCord"));
         }
         activeLocalFuture = null;
         activeLocalRequest = null;
@@ -362,5 +371,18 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             activeLocalFuture = null;
             activeLocalRequest = null;
         }
+    }
+
+    private String text(String key) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.get(key);
+    }
+
+    private String format(String key, String... replacements) {
+        Translations translations = plugin.getTranslations();
+        if (translations == null) {
+            return key;
+        }
+        return translations.format(key, replacements);
     }
 }

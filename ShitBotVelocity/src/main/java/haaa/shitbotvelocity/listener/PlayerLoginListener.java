@@ -5,6 +5,8 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.config.Translations;
+import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbotvelocity.ShitBotVelocity;
@@ -28,8 +30,8 @@ public final class PlayerLoginListener {
             // `runtime` also goes null while the plugin is disabling/reloading; previously that
             // window silently allowed logins because only the startup-failure case was denied.
             String message = plugin.isStartupUnavailable()
-                    ? "§c绑定系统配置加载失败，请联系管理员。"
-                    : "§cShitBot 正在重载，请稍后重试。";
+                    ? message("messages.initialization-failed", "§cThe binding service is unavailable.")
+                    : message("messages.reload-in-progress", "§cShitBot is reloading.");
             event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
                     LegacyComponentSerializer.legacySection().deserialize(message)));
             return null;
@@ -45,7 +47,8 @@ public final class PlayerLoginListener {
                                     ? runtime.getSettings().getMessages().getKickDatabaseUnavailable()
                                     : decision.getMessage();
                             event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
-                                    LegacyComponentSerializer.legacySection().deserialize(message)));
+                                    LegacyComponentSerializer.legacySection().deserialize(
+                                            TextUtil.color(message))));
                         }
                         continuation.resume();
                     } catch (Throwable callbackError) {
@@ -78,5 +81,10 @@ public final class PlayerLoginListener {
                 }
             });
         });
+    }
+
+    private String message(String key, String fallback) {
+        Translations translations = plugin.getTranslations();
+        return TextUtil.color(translations == null ? fallback : translations.get(key, fallback));
     }
 }

@@ -5,6 +5,7 @@ import cn.nukkit.utils.ConfigSection;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import haaa.shitbotnukkit.ShitBotNukkit;
@@ -30,7 +31,8 @@ public final class NukkitConfigLoader {
         if (!configuration.isCorrect()) {
             throw new IllegalStateException("config.yml is not a valid YAML configuration");
         }
-        return SettingsFactory.create(new Source(configuration));
+        Source source = new Source(configuration);
+        return SettingsFactory.create(source, loadTranslations(source));
     }
 
     public ConsoleSettings loadConsoleSettings() {
@@ -44,7 +46,47 @@ public final class NukkitConfigLoader {
         if (!configuration.isCorrect()) {
             throw new IllegalStateException("commands.yml is not a valid YAML configuration");
         }
-        return ConsoleSettingsFactory.create(new Source(configuration));
+        return ConsoleSettingsFactory.create(
+                new Source(configuration),
+                loadTranslations(new Source(plugin.getConfig())));
+    }
+
+    private Translations loadTranslations(Source config) {
+        File fallbackFile = ensureLanguageFile(Translations.DEFAULT_LANGUAGE);
+        ensureLanguageFile("en_US");
+        String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
+        File selectedFile = languageFile(language);
+        if (!selectedFile.isFile()) {
+            selectedFile = ensureLanguageFile(language);
+        }
+        return new Translations(
+                language,
+                loadLanguageSource(selectedFile),
+                loadLanguageSource(fallbackFile));
+    }
+
+    private Source loadLanguageSource(File file) {
+        Config configuration = new Config(file, Config.YAML);
+        if (!configuration.isCorrect()) {
+            throw new IllegalStateException(file.getName() + " is not a valid YAML configuration");
+        }
+        return new Source(configuration);
+    }
+
+    private File ensureLanguageFile(String language) {
+        File file = languageFile(language);
+        if (file.isFile()) {
+            return file;
+        }
+        String resourcePath = Translations.resourcePath(language);
+        if (!plugin.saveResource(resourcePath, false) || !file.isFile()) {
+            throw new IllegalStateException("Language file does not exist: " + file);
+        }
+        return file;
+    }
+
+    private File languageFile(String language) {
+        return new File(plugin.getDataFolder(), Translations.resourcePath(language));
     }
 
     private static final class Source implements ConfigSource {

@@ -3,6 +3,7 @@ package haaa.shitbotspigot.config;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -27,7 +28,8 @@ public final class SpigotConfigLoader {
     public Settings load() {
         plugin.saveDefaultConfig();
         plugin.reloadConfig();
-        return SettingsFactory.create(new Source(plugin.getConfig()));
+        Source source = new Source(plugin.getConfig());
+        return SettingsFactory.create(source, loadTranslations(source));
     }
 
     public boolean isBStatsEnabled() {
@@ -41,11 +43,45 @@ public final class SpigotConfigLoader {
         if (!file.isFile()) {
             plugin.saveResource("commands.yml", false);
         }
-        return ConsoleSettingsFactory.create(new Source(YamlConfiguration.loadConfiguration(file)));
+        Source config = new Source(plugin.getConfig());
+        return ConsoleSettingsFactory.create(
+                new Source(YamlConfiguration.loadConfiguration(file)),
+                loadTranslations(config));
     }
 
     public boolean isBackendMode() {
         return "backend".equalsIgnoreCase(plugin.getConfig().getString("deployment.role", "standalone"));
+    }
+
+    private Translations loadTranslations(Source config) {
+        ensureLanguageFile(Translations.DEFAULT_LANGUAGE);
+        ensureLanguageFile("en_US");
+        String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
+        File selectedFile = languageFile(language);
+        if (!selectedFile.isFile()) {
+            ensureLanguageFile(language);
+        }
+        Source selected = new Source(YamlConfiguration.loadConfiguration(selectedFile));
+        Source fallback = new Source(YamlConfiguration.loadConfiguration(
+                languageFile(Translations.DEFAULT_LANGUAGE)));
+        return new Translations(language, selected, fallback);
+    }
+
+    private void ensureLanguageFile(String language) {
+        File file = languageFile(language);
+        if (file.isFile()) {
+            return;
+        }
+        String resourcePath = Translations.resourcePath(language);
+        try {
+            plugin.saveResource(resourcePath, false);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("Language file does not exist: " + file, exception);
+        }
+    }
+
+    private File languageFile(String language) {
+        return new File(plugin.getDataFolder(), Translations.resourcePath(language));
     }
 
     private static final class Source implements ConfigSource {

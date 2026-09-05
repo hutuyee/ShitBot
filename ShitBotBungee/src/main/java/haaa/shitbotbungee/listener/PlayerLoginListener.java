@@ -1,6 +1,8 @@
 package haaa.shitbotbungee.listener;
 
 import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbot.core.config.Translations;
+import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbot.core.service.LoginDecision;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
@@ -31,8 +33,8 @@ public final class PlayerLoginListener implements Listener {
             // `runtime` also goes null while the plugin is disabling/reloading; previously that
             // window silently allowed logins because only the startup-failure case was cancelled.
             String message = plugin.isStartupUnavailable()
-                    ? "§c绑定系统配置加载失败，请联系管理员。"
-                    : "§cShitBot 正在重载，请稍后重试。";
+                    ? message("messages.initialization-failed", "§cThe binding service is unavailable.")
+                    : message("messages.reload-in-progress", "§cShitBot is reloading.");
             event.setCancelled(true);
             event.setCancelReason(TextComponent.fromLegacyText(message));
             return;
@@ -51,7 +53,7 @@ public final class PlayerLoginListener implements Listener {
                                         ? runtime.getSettings().getMessages().getKickDatabaseUnavailable()
                                         : decision.getMessage();
                                 event.setCancelled(true);
-                                event.setCancelReason(TextComponent.fromLegacyText(message));
+                                event.setCancelReason(TextComponent.fromLegacyText(TextUtil.color(message)));
                             }
                         } finally {
                             event.completeIntent(plugin);
@@ -91,5 +93,10 @@ public final class PlayerLoginListener implements Listener {
                         });
                     }
                 });
+    }
+
+    private String message(String key, String fallback) {
+        Translations translations = plugin.getTranslations();
+        return TextUtil.color(translations == null ? fallback : translations.get(key, fallback));
     }
 }

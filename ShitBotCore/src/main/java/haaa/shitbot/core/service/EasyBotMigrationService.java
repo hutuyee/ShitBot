@@ -1,5 +1,6 @@
 package haaa.shitbot.core.service;
 
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.EasyBotMigrationResult;
 import haaa.shitbot.core.platform.PlatformBridge;
@@ -18,11 +19,15 @@ public final class EasyBotMigrationService {
 
     private final PlatformBridge platform;
     private final BindingRepository repository;
+    private final Translations translations;
     private final AtomicBoolean running = new AtomicBoolean();
 
-    public EasyBotMigrationService(PlatformBridge platform, BindingRepository repository) {
+    public EasyBotMigrationService(PlatformBridge platform,
+                                   BindingRepository repository,
+                                   Translations translations) {
         this.platform = platform;
         this.repository = repository;
+        this.translations = translations;
     }
 
     public CompletableFuture<EasyBotMigrationResult> migrate(String requestedFileName) {
@@ -35,10 +40,12 @@ public final class EasyBotMigrationService {
 
         if (!Files.isRegularFile(sourcePath)) {
             return FutureUtil.failedFuture(new IllegalArgumentException(
-                    "找不到 EasyBot 数据库文件: " + sourcePath.toAbsolutePath()));
+                    translations.format("migration.file-not-found",
+                            "%path%", sourcePath.toAbsolutePath().toString())));
         }
         if (!running.compareAndSet(false, true)) {
-            return FutureUtil.failedFuture(new IllegalStateException("已有 EasyBot 迁移任务正在执行"));
+            return FutureUtil.failedFuture(new IllegalStateException(
+                    translations.get("migration.already-running")));
         }
 
         final CompletableFuture<EasyBotMigrationResult> future;
@@ -62,24 +69,24 @@ public final class EasyBotMigrationService {
                 ? DEFAULT_FILE_NAME
                 : requestedFileName.trim();
         if (!fileName.toLowerCase(Locale.ROOT).endsWith(".db")) {
-            throw new IllegalArgumentException("迁移文件必须是 .db 文件");
+            throw new IllegalArgumentException(translations.get("migration.db-extension-required"));
         }
 
         Path relative;
         try {
             relative = Paths.get(fileName);
         } catch (RuntimeException exception) {
-            throw new IllegalArgumentException("无效的数据库文件名", exception);
+            throw new IllegalArgumentException(translations.get("migration.invalid-file-name"), exception);
         }
         if (relative.isAbsolute() || relative.getNameCount() != 1
                 || ".".equals(fileName) || "..".equals(fileName)) {
-            throw new IllegalArgumentException("数据库文件必须直接放在插件目录中，只能填写文件名");
+            throw new IllegalArgumentException(translations.get("migration.direct-child-required"));
         }
 
         Path dataDirectory = platform.getDataDirectory().toAbsolutePath().normalize();
         Path sourcePath = dataDirectory.resolve(relative).normalize();
         if (!dataDirectory.equals(sourcePath.getParent())) {
-            throw new IllegalArgumentException("数据库文件必须位于插件目录中");
+            throw new IllegalArgumentException(translations.get("migration.outside-data-directory"));
         }
         return sourcePath;
     }

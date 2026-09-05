@@ -1,6 +1,7 @@
 package haaa.shitbot.core.service;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.HashUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
@@ -77,6 +78,7 @@ public final class OnlineImageService implements AutoCloseable {
     };
 
     private final Settings.Image settings;
+    private final Translations translations;
     private final PlatformBridge platform;
     private final ExecutorService imageExecutor;
     private final ExecutorService avatarExecutor;
@@ -87,8 +89,9 @@ public final class OnlineImageService implements AutoCloseable {
     private volatile byte[] cachedBytes;
     private volatile long cacheExpiresAt;
 
-    public OnlineImageService(Settings.Image settings, PlatformBridge platform) {
+    public OnlineImageService(Settings.Image settings, Translations translations, PlatformBridge platform) {
         this.settings = settings;
+        this.translations = translations;
         this.platform = platform;
         this.imageExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("shitbot-image", true));
         this.avatarExecutor = Executors.newFixedThreadPool(
@@ -244,7 +247,9 @@ public final class OnlineImageService implements AutoCloseable {
     }
 
     private String fitPlayerName(FontMetrics metrics, String value, int innerWidth) {
-        String clean = value == null || value.trim().isEmpty() ? "未知玩家" : value.trim();
+        String clean = value == null || value.trim().isEmpty()
+                ? translations.get("image.unknown-player")
+                : value.trim();
         int maximumTextWidth = Math.max(80, innerWidth - settings.getAvatarSize() - 32);
         if (metrics.stringWidth(clean) <= maximumTextWidth) {
             return clean;
@@ -285,7 +290,7 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.fillOval(cardX + 22, cardY + 22, 10, 10);
         graphics.setFont(font(Font.BOLD, 13));
         graphics.setColor(new Color(208, 255, 237));
-        graphics.drawString("ONLINE", cardX + 40, cardY + 32);
+        graphics.drawString(translations.get("image.online-status"), cardX + 40, cardY + 32);
 
         graphics.setFont(font(Font.BOLD, 32));
         graphics.setColor(Color.WHITE);
@@ -295,7 +300,7 @@ public final class OnlineImageService implements AutoCloseable {
 
         graphics.setFont(font(Font.PLAIN, 14));
         graphics.setColor(new Color(214, 235, 248));
-        String label = "当前在线玩家";
+        String label = translations.get("image.current-players");
         FontMetrics labelMetrics = graphics.getFontMetrics();
         graphics.drawString(label, cardX + cardWidth - 24 - labelMetrics.stringWidth(label), cardY + 64);
     }
@@ -307,10 +312,10 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.fillOval(x + 30, y + 34, 12, 12);
         graphics.setFont(font(Font.BOLD, 23));
         graphics.setColor(Color.WHITE);
-        graphics.drawString("当前没有玩家在线", x + 58, y + 53);
+        graphics.drawString(translations.get("image.no-players"), x + 58, y + 53);
         graphics.setFont(font(Font.PLAIN, 15));
         graphics.setColor(new Color(198, 221, 238));
-        graphics.drawString("服务器正在等待玩家加入", x + 58, y + 80);
+        graphics.drawString(translations.get("image.waiting-for-players"), x + 58, y + 80);
     }
 
     private void paintServerPanel(Graphics2D graphics,
@@ -334,7 +339,8 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.setColor(Color.WHITE);
         graphics.drawString(TextUtil.singleLine(server.name, 48), x + 72, y + 46);
 
-        String countText = server.playerCount + " 人在线";
+        String countText = translations.format(
+                "image.online-count", "%count%", String.valueOf(server.playerCount));
         graphics.setFont(font(Font.PLAIN, 14));
         FontMetrics countMetrics = graphics.getFontMetrics();
         int countWidth = countMetrics.stringWidth(countText) + 26;
@@ -422,7 +428,8 @@ public final class OnlineImageService implements AutoCloseable {
         int y = height - 30;
         graphics.setFont(font(Font.PLAIN, 14));
         graphics.setColor(new Color(185, 215, 235));
-        graphics.drawString("生成时间  " + LocalDateTime.now().format(TIME_FORMAT), OUTER_MARGIN, y);
+        graphics.drawString(translations.format("image.generated-at", "%time%",
+                LocalDateTime.now().format(TIME_FORMAT)), OUTER_MARGIN, y);
 
         String footer = "ShitBot  ·  OneBot 11";
         FontMetrics metrics = graphics.getFontMetrics();
@@ -535,7 +542,9 @@ public final class OnlineImageService implements AutoCloseable {
     }
 
     private String normalizedServerName(String value) {
-        return value == null || value.trim().isEmpty() ? "未知服务器" : value.trim();
+        return value == null || value.trim().isEmpty()
+                ? translations.get("image.unknown-server")
+                : value.trim();
     }
 
     private Map<String, BufferedImage> loadAvatars(Map<String, List<String>> snapshot) {

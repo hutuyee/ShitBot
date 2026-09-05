@@ -6,6 +6,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.JsonUtil;
@@ -51,6 +52,7 @@ public final class OneBotClient implements AutoCloseable {
 
     private final Settings.OneBot settings;
     private final Settings.MediaMode mediaMode;
+    private final Translations translations;
     private final PlatformBridge platform;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-onebot", true));
@@ -65,13 +67,17 @@ public final class OneBotClient implements AutoCloseable {
     private volatile Runnable connectedListener;
     private volatile Client client;
 
-    public OneBotClient(Settings.OneBot settings, PlatformBridge platform) {
-        this(settings, Settings.MediaMode.BROWSER, platform);
+    public OneBotClient(Settings.OneBot settings, Translations translations, PlatformBridge platform) {
+        this(settings, Settings.MediaMode.BROWSER, translations, platform);
     }
 
-    public OneBotClient(Settings.OneBot settings, Settings.MediaMode mediaMode, PlatformBridge platform) {
+    public OneBotClient(Settings.OneBot settings,
+                        Settings.MediaMode mediaMode,
+                        Translations translations,
+                        PlatformBridge platform) {
         this.settings = settings;
         this.mediaMode = mediaMode == null ? Settings.MediaMode.BROWSER : mediaMode;
+        this.translations = translations;
         this.platform = platform;
         this.pendingCapacity = new Semaphore(settings.getMaximumPendingActions());
         this.reconnectDelaySeconds = new AtomicInteger(settings.getReconnectInitialSeconds());
@@ -510,7 +516,7 @@ public final class OneBotClient implements AutoCloseable {
             }
             String name = firstNonBlank(data, "name", "text");
             if ("all".equalsIgnoreCase(qq)) {
-                name = "全体成员";
+                name = translations.get("media.all-members");
             }
             appendToken(parts, "@" + (name.isEmpty() ? qq : name), null, null);
             return;
@@ -518,9 +524,10 @@ public final class OneBotClient implements AutoCloseable {
         if ("image".equals(type)) {
             String summary = cleanSummary(firstNonBlank(data, "summary", "text"));
             String label = mediaMode == Settings.MediaMode.BROWSER
-                    ? "[图片]"
-                    : (summary.isEmpty() ? "[图片]" : summary);
-            appendToken(parts, label, firstUrl(data, "url", "file"), mediaHover("图片"));
+                    ? translations.get("media.image")
+                    : (summary.isEmpty() ? translations.get("media.image") : summary);
+            appendToken(parts, label, firstUrl(data, "url", "file"),
+                    mediaHover(translations.get("media.image-kind")));
             return;
         }
         if ("face".equals(type)) {
@@ -530,72 +537,86 @@ public final class OneBotClient implements AutoCloseable {
             if ((url == null || url.isEmpty()) && id.matches("\\d{1,5}")) {
                 url = "https://koishi.js.org/QFace/gif/s" + id + ".gif";
             }
-            appendToken(parts, summary.isEmpty() ? "[表情" + (id.isEmpty() ? "" : ":" + id) + "]" : summary,
-                    url, url == null || url.isEmpty() ? null : mediaHover("表情"));
+            appendToken(parts, summary.isEmpty()
+                            ? translations.format("media.emoji", "%id%", id.isEmpty() ? "" : ":" + id)
+                            : summary,
+                    url, url == null || url.isEmpty()
+                            ? null
+                            : mediaHover(translations.get("media.emoji-kind")));
             return;
         }
         if ("mface".equals(type)) {
             String summary = cleanSummary(firstNonBlank(data, "summary", "text", "name"));
-            appendToken(parts, summary.isEmpty() ? "[动画表情]" : summary,
-                    firstUrl(data, "url"), mediaHover("表情"));
+            appendToken(parts, summary.isEmpty() ? translations.get("media.animated-emoji") : summary,
+                    firstUrl(data, "url"), mediaHover(translations.get("media.emoji-kind")));
             return;
         }
         if ("record".equals(type)) {
-            appendToken(parts, "[语音]", firstUrl(data, "url", "file"), "点击打开 QQ 语音");
+            appendToken(parts, translations.get("media.voice"), firstUrl(data, "url", "file"),
+                    translations.get("media.voice-hover"));
             return;
         }
         if ("video".equals(type)) {
-            appendToken(parts, "[视频]", firstUrl(data, "url", "file"), "点击打开 QQ 视频");
+            appendToken(parts, translations.get("media.video"), firstUrl(data, "url", "file"),
+                    translations.get("media.video-hover"));
             return;
         }
         if ("file".equals(type)) {
             String name = firstNonBlank(data, "name", "file");
-            appendToken(parts, name.isEmpty() ? "[文件]" : "[文件:" + singleLine(name, 48) + "]",
-                    firstUrl(data, "url"), "点击打开 QQ 文件");
+            appendToken(parts, name.isEmpty()
+                            ? translations.get("media.file")
+                            : translations.format("media.named-file", "%name%", singleLine(name, 48)),
+                    firstUrl(data, "url"), translations.get("media.file-hover"));
             return;
         }
         if ("share".equals(type)) {
             String title = firstNonBlank(data, "title", "content");
-            appendToken(parts, title.isEmpty() ? "[分享]" : "[分享:" + singleLine(title, 48) + "]",
-                    firstUrl(data, "url"), "点击打开 QQ 分享");
+            appendToken(parts, title.isEmpty()
+                            ? translations.get("media.share")
+                            : translations.format("media.named-share", "%title%", singleLine(title, 48)),
+                    firstUrl(data, "url"), translations.get("media.share-hover"));
             return;
         }
         if ("location".equals(type)) {
             String title = firstNonBlank(data, "title", "content");
-            appendToken(parts, title.isEmpty() ? "[位置]" : "[位置:" + singleLine(title, 48) + "]",
+            appendToken(parts, title.isEmpty()
+                            ? translations.get("media.location")
+                            : translations.format("media.named-location", "%title%", singleLine(title, 48)),
                     null, null);
             return;
         }
         if ("music".equals(type)) {
             String title = firstNonBlank(data, "title", "content");
-            appendToken(parts, title.isEmpty() ? "[音乐]" : "[音乐:" + singleLine(title, 48) + "]",
-                    firstUrl(data, "url", "jumpUrl"), "点击打开 QQ 音乐");
+            appendToken(parts, title.isEmpty()
+                            ? translations.get("media.music")
+                            : translations.format("media.named-music", "%title%", singleLine(title, 48)),
+                    firstUrl(data, "url", "jumpUrl"), translations.get("media.music-hover"));
             return;
         }
         if ("reply".equals(type)) {
-            appendToken(parts, "[回复]", null, null);
+            appendToken(parts, translations.get("media.reply"), null, null);
             return;
         }
         if ("forward".equals(type) || "node".equals(type)) {
-            appendToken(parts, "[合并转发]", null, null);
+            appendToken(parts, translations.get("media.forward"), null, null);
             return;
         }
         if ("json".equals(type) || "xml".equals(type)) {
-            appendToken(parts, "[卡片消息]", null, null);
+            appendToken(parts, translations.get("media.card"), null, null);
             return;
         }
         if ("dice".equals(type)) {
-            appendToken(parts, "[骰子:" + JsonUtil.string(data, "result",
-                    JsonUtil.string(data, "id", "?")) + "]", null, null);
+            appendToken(parts, translations.format("media.dice", "%result%",
+                    JsonUtil.string(data, "result", JsonUtil.string(data, "id", "?"))), null, null);
             return;
         }
         if ("rps".equals(type)) {
-            appendToken(parts, "[猜拳:" + JsonUtil.string(data, "result",
-                    JsonUtil.string(data, "id", "?")) + "]", null, null);
+            appendToken(parts, translations.format("media.rock-paper-scissors", "%result%",
+                    JsonUtil.string(data, "result", JsonUtil.string(data, "id", "?"))), null, null);
             return;
         }
         if ("poke".equals(type) || "shake".equals(type)) {
-            appendToken(parts, "[戳一戳]", null, null);
+            appendToken(parts, translations.get("media.poke"), null, null);
             return;
         }
         if (!type.isEmpty()) {
@@ -715,7 +736,7 @@ public final class OneBotClient implements AutoCloseable {
         if (mediaMode == Settings.MediaMode.PICTUREBRIDGE) {
             return "PictureBridge · QQ " + kind;
         }
-        return "点击在浏览器查看" + kind;
+        return translations.format("media.browser-hover", "%kind%", kind);
     }
 
     private String singleLine(String value, int maximumLength) {

@@ -1,0 +1,222 @@
+# ShitBot 简体中文语言文件。
+# 复制本文件并改名（例如 zh_TW.yml），翻译后在 config.yml 的 language 中填写文件名。
+# 请保留所有 %变量% 与颜色代码（&0-&f、&k-&r）。
+
+commands:
+  bind:
+    aliases: ["绑定", "/bind"]
+    usage: "用法: 绑定 <游戏ID> <验证码>"
+  online-image:
+    aliases: ["服务器状态", "在线人数"]
+    usage: "服务器状态"
+  inventory:
+    aliases: ["背包", "我的背包"]
+    usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
+
+notices:
+  group-join-welcome: |
+    欢迎 %at% 加入群聊！
+    你的QQ：%qq%
+  server-startup: "服务器 %server% 已启动。"
+
+forwarding:
+  group-to-game: "&b[QQ] &f%sender%&7: &f"
+  game-to-group: "[MC] %player%: %message%"
+
+messages:
+  kick-unbound: |
+    &7欢迎 &a%player% &7加入服务器
+    &7请在QQ群发送 &6绑定 %player% %code%
+    &7验证码将在 &c%expire_minutes% 分钟 &7后失效
+  kick-after-unbind: "&c你的账号绑定已解除，请重新进入服务器获取验证码并完成绑定。"
+  kick-database-unavailable: "&c绑定系统暂时不可用，请稍后重试。"
+  initialization-failed: "&c绑定系统配置加载失败，请联系管理员。"
+  reload-in-progress: "&cShitBot 正在重载，请稍后重试。"
+  bind-usage: "用法: 绑定 <游戏ID> <验证码>"
+  bind-success: "%at% 绑定成功：%player% -> %qq%"
+  bind-invalid: "%at% 验证码错误。"
+  bind-expired: "%at% 验证码不存在、尝试次数过多或已经过期，请重新进入服务器获取。"
+  bind-qq-already-used: "%at% 该QQ已经绑定其他游戏ID。"
+  bind-qq-limit-reached: "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"
+  bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
+  bind-database-error: "%at% 数据库操作失败，请联系管理员。"
+  online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
+  inventory-not-bound: "%at% 你还没有绑定游戏ID。"
+  inventory-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
+  inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
+  inventory-disabled: "%at% 背包查询当前未启用。"
+  inventory-failed: "%at% 背包查询失败，请稍后重试。"
+  no-permission: "&c你没有权限使用此命令。"
+  reload-started: "&7正在重载 ShitBot..."
+  reload-success: "&aShitBot 已完成热重载。"
+  reload-failed: "&cShitBot 重载失败，旧配置仍在运行。"
+
+image:
+  title: "服务器在线状态"
+  online-status: "在线"
+  unknown-player: "未知玩家"
+  current-players: "当前在线玩家"
+  no-players: "当前没有玩家在线"
+  waiting-for-players: "服务器正在等待玩家加入"
+  online-count: "%count% 人在线"
+  generated-at: "生成时间  %time%"
+  unknown-server: "未知服务器"
+  no-backend: "未连接子服"
+
+inventory:
+  title: "%player% 的背包"
+  equipment-labels: ["头", "胸", "腿", "靴", "副"]
+  live: "实时"
+  snapshot: "离线快照"
+  equipment-title: "装备 / 副手"
+  data-time: "数据时间 %time%"
+  summary: "占用 %occupied%/%slots%  ·  物品 %items%  ·  %server%"
+
+media:
+  all-members: "全体成员"
+  image: "[图片]"
+  emoji: "[表情%id%]"
+  animated-emoji: "[动画表情]"
+  voice: "[语音]"
+  video: "[视频]"
+  file: "[文件]"
+  named-file: "[文件:%name%]"
+  share: "[分享]"
+  named-share: "[分享:%title%]"
+  location: "[位置]"
+  named-location: "[位置:%title%]"
+  music: "[音乐]"
+  named-music: "[音乐:%title%]"
+  reply: "[回复]"
+  forward: "[合并转发]"
+  card: "[卡片消息]"
+  dice: "[骰子:%result%]"
+  rock-paper-scissors: "[猜拳:%result%]"
+  poke: "[戳一戳]"
+  browser-hover: "点击在浏览器查看%kind%"
+  open-hover: "点击打开"
+  image-kind: "图片"
+  emoji-kind: "表情"
+  voice-hover: "点击打开 QQ 语音"
+  video-hover: "点击打开 QQ 视频"
+  file-hover: "点击打开 QQ 文件"
+  share-hover: "点击打开 QQ 分享"
+  music-hover: "点击打开 QQ 音乐"
+
+admin:
+  not-initialized: "&cShitBot 尚未初始化。"
+  status: "&aShitBot &7%status%"
+  help: "&e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]"
+  migration:
+    usage: "&e用法: /shitbot migrate easybot [EasyBot.db]"
+    started: "&e正在异步迁移 EasyBot 绑定数据: &f%file%"
+    failed: "&cEasyBot 迁移失败: &f%error%"
+    complete: "&aEasyBot 迁移完成: &f%result%"
+  image:
+    failed: "&c生成失败: &f%error%"
+    created: "&a在线图片已生成: &f%path%"
+  update:
+    not-initialized: "&c更新检查器尚未初始化。"
+    checking: "&e正在后台检查并安装 GitHub Release..."
+    coordinated-checking: "&e正在后台检查 Release，并联动所有已配置后端..."
+    failed: "&c更新失败，现有 JAR 未替换: &f%error%"
+    check-failed: "&c检查 Release 失败，未替换任何 JAR: &f%error%"
+    proxy-failed: "&c代理更新失败，现有 JAR 未替换: &f%error%"
+    backends-failed: "&c后端联动失败: &f%error%"
+    no-backends: "&e未配置 backend-transport endpoint，未联动任何后端。"
+    coordinated-complete: "&e联动处理完成；凡提示已替换的实例，请手动重启生效。"
+    up-to-date: "&a当前已是最新版本: &f%version%"
+    already-installed-server: "&e新版本 &f%version% &e已经替换到磁盘，请手动重启服务器生效。"
+    already-installed-proxy: "&e新版本 &f%version% &e已经替换到磁盘，请手动重启代理生效。"
+    installed-server: "&a更新包已校验并替换: &f%version%"
+    installed-proxy: "&a代理更新包已校验并替换: &f%version%"
+    current-jar: "&7当前 JAR: &f%path%"
+    backup-jar: "&7备份 JAR: &f%path%"
+    restart-server: "&e请手动重启服务器生效；不要执行插件热重载。"
+    restart-proxy: "&e请手动重启代理生效；不要执行插件热重载。"
+    notification: "&e[ShitBot] 发现新版本: &f%current% &7-> &a%latest%"
+    notification-hover: "&7点击打开 Release 页面"
+    release-metadata-missing: "缺少 Release 元数据"
+    backend-jar-missing: "Release 中必须恰好包含一个 ShitBotSpigot-*.jar 资源"
+    checksum-missing: "Release 缺少校验文件 %asset%"
+    signature-missing: "Release 缺少独立签名文件 %asset%"
+
+status:
+  template: "ready=%ready%, database=%database%, db-workers=%active_workers%/%workers%, db-queue=%queued%/%queue_limit%, onebot=%onebot%"
+  ready: "就绪"
+  not-ready: "未就绪"
+  connected: "已连接"
+  disconnected: "未连接"
+  disabled: "已禁用"
+
+console:
+  messages:
+    not-bound: "%at% 请先绑定游戏 ID。"
+    no-permission: "%at% 你绑定的角色没有权限执行该操作。"
+    unavailable: "%at% 没有可用的子服，或请求执行超时。"
+    result-timeout: "%at% %result%"
+    invalid-target: "%at% 用法：%command% [目标子服]"
+    request-failed: "请求执行失败"
+    unknown-source: "未知"
+    empty-result: "未返回日志"
+  tps:
+    aliases: ["TPS", "tps", "服务器TPS"]
+    message: "%at% 服务器 TPS（%source%）：%result%"
+    failed: "%at% TPS 获取失败：%result%"
+    single: "%value%（%source%）"
+    three: "%one% / %five% / %fifteen%（%source% 1/5/15 分钟）"
+    native-source: "服务端原生"
+    sampled-source: "自采样"
+    warming-up: "20.00（自采样，正在预热）"
+    nukkit: "当前 %current%，平均 %average%，负载 %load%%"
+  shortcuts:
+    luckperms-editor:
+      aliases: ["lp编辑"]
+      message: "%at% 执行成功（%source%）：\n%result%"
+      failed: "%at% 执行失败（%source%）：\n%result%"
+  result:
+    platform-unsupported: "当前平台不支持控制台请求。"
+    insecure-fallback-refused: "目标子服未配置已认证的 Console Socket，已拒绝不安全的 Plugin Message 回退。"
+    expired-before-connect: "请求在等待后端连接前已过期。"
+    circuit-open: "目标子服连接连续失败，短暂熔断中。"
+    connect-failed: "无法连接目标子服：%error%"
+    queue-full: "后端请求繁忙，等待队列已满。"
+    permission-denied: "绑定角色没有权限 %permission%"
+    result-timeout: "命令已提交执行，但结果捕获超时；请确认执行结果后再决定是否重试。"
+    request-timeout: "控制台请求在命令提交前超时。"
+    command-running: "已有控制台命令正在执行。"
+    log-read-failed: "无法读取日志：%error%"
+    no-new-log: "命令已执行，日志中没有新增内容。"
+    command-rejected: "命令不存在或执行器拒绝执行。"
+    plugin-disabled: "插件已关闭"
+    request-cancelled: "请求已超时取消。"
+    execution-timeout: "请求执行超时。"
+    console-queue-full: "控制台命令队列已满。"
+    command-error: "命令执行异常：%error%"
+    backend-updater-unavailable: "后端更新器尚未初始化。"
+    update-start-failed: "更新启动失败：%error%"
+    null-request: "请求为空。"
+    console-disabled: "QQ 控制台命令当前未启用。"
+    proxy-target-unsupported: "当前平台不支持代理端执行目标。"
+    server-target-unsupported: "当前平台为单服平台，不能指定目标子服。"
+    permission-check-failed: "权限检查失败：%error%"
+    remote-update-unsupported: "当前平台不接受代理下发的更新请求。"
+    update-request-invalid: "更新请求缺少必要数据。"
+    update-version-invalid: "更新版本号无效。"
+    update-path-invalid: "更新文件路径无效。"
+    update-failed: "更新失败：%error%"
+    update-up-to-date: "当前已是最新版本 %version%。"
+    update-already-installed: "版本 %version% 已替换到磁盘，等待重启生效。"
+    update-installed: "版本 %version% 已校验并替换；备份：%backup%"
+
+migration:
+  file-not-found: "找不到 EasyBot 数据库文件: %path%"
+  already-running: "已有 EasyBot 迁移任务正在执行"
+  db-extension-required: "迁移文件必须是 .db 文件"
+  invalid-file-name: "无效的数据库文件名"
+  direct-child-required: "数据库文件必须直接放在插件目录中，只能填写文件名"
+  outside-data-directory: "数据库文件必须位于插件目录中"
+  limit-exceeded: "EasyBot 迁移已取消：QQ %qq% 在 EasyBot 中绑定了 %source_count% 个游戏ID，但 ShitBot 当前最多允许 %limit% 个。请修改 binding.maximum-ids-per-qq%allow_multiple%，执行 /shitbot reload 后重新迁移。"
+  enable-multiple: " 并开启 binding.allow-multiple-ids-per-qq"
+  merge-limit-exceeded: "EasyBot 迁移已取消：QQ %qq% 与 ShitBot 现有数据合并后至少需要 %required% 个绑定名额，但当前最多允许 %limit% 个。请修改 binding.maximum-ids-per-qq，执行 /shitbot reload 后重试。"
+  summary: "账号=%accounts%, QQ账号=%qq_accounts%, 关联玩家=%linked_players%, 名称回退=%fallback_names%, 导入=%imported%, 已存在=%existing%, 玩家冲突=%player_conflicts%, QQ冲突=%qq_conflicts%, 无效=%invalid%, 非QQ账号=%non_qq%"

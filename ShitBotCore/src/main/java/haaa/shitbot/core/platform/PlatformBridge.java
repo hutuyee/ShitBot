@@ -33,7 +33,7 @@ public interface PlatformBridge {
 
     default CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
         return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                request, "当前平台不支持控制台请求。", getPlatformName()));
+                request, "Console requests are unsupported on this platform.", getPlatformName()));
     }
 
     /** Polls a proxy-configured backend until it accepts a status ping. */

@@ -3,6 +3,7 @@ package haaa.shitbotvelocity.platform;
 import com.velocitypowered.api.plugin.PluginContainer;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -10,6 +11,7 @@ import haaa.shitbot.core.console.ConsoleSocketProtocol;
 import haaa.shitbot.core.console.LatestLogCapture;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import haaa.shitbotvelocity.ShitBotVelocity;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -26,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public final class VelocityConsoleGateway implements AutoCloseable {
-    private final Object plugin;
+    private final ShitBotVelocity plugin;
     private final ProxyServer server;
     private final Path dataDirectory;
     private final AtomicBoolean localCommandRunning = new AtomicBoolean();
@@ -41,7 +43,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             new ConcurrentHashMap<String, EndpointCircuit>();
     private volatile ConsoleSettings.BackendTransport backendTransport;
 
-    public VelocityConsoleGateway(Object plugin, ProxyServer server, Path dataDirectory) {
+    public VelocityConsoleGateway(ShitBotVelocity plugin, ProxyServer server, Path dataDirectory) {
         this.plugin = plugin;
         this.server = server;
         this.dataDirectory = dataDirectory;
@@ -65,7 +67,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             return sendToSocket(request, endpoint);
         }
         return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                request, "目标子服未配置已认证的 Console Socket，已拒绝不安全的 Plugin Message 回退。",
+                request, text("console.result.insecure-fallback-refused"),
                 "Velocity"));
     }
 
@@ -80,13 +82,13 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             socketExecutor.execute(() -> {
                 if (System.nanoTime() >= deadlineNanos) {
                     result.complete(ConsoleResult.unavailable(
-                            request, "请求在等待后端连接前已过期。", endpoint.getName()));
+                            request, text("console.result.expired-before-connect"), endpoint.getName()));
                     return;
                 }
                 EndpointCircuit circuit = endpointCircuit(endpoint);
                 if (circuit.isOpen(System.nanoTime())) {
                     result.complete(ConsoleResult.unavailable(
-                            request, "目标子服连接连续失败，短暂熔断中。", endpoint.getName()));
+                            request, text("console.result.circuit-open"), endpoint.getName()));
                     return;
                 }
                 try {
@@ -97,12 +99,13 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                 } catch (Exception exception) {
                     circuit.recordFailure(System.nanoTime());
                     result.complete(ConsoleResult.unavailable(request,
-                            "无法连接目标子服：" + safeMessage(exception), endpoint.getName()));
+                            format("console.result.connect-failed",
+                                    "%error%", safeMessage(exception)), endpoint.getName()));
                 }
             });
         } catch (RejectedExecutionException exception) {
             result.complete(ConsoleResult.unavailable(
-                    request, "后端请求繁忙，等待队列已满。", endpoint.getName()));
+                    request, text("console.result.queue-full"), endpoint.getName()));
         }
         return result;
     }
@@ -185,7 +188,8 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                 if (throwable != null || !Boolean.TRUE.equals(allowed)) {
                     result.complete(new ConsoleResult(
                             request.getRequestId(), ConsoleResult.Status.NO_PERMISSION,
-                            "绑定角色没有代理权限 " + request.getPermission(), "Velocity"));
+                            format("console.result.permission-denied",
+                                    "%permission%", request.getPermission()), "Velocity"));
                     return;
                 }
                 execution = executeAuthorizedLocal(request, commandDispatched);
@@ -204,11 +208,11 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                 if (commandDispatched.get()) {
                     result.complete(new ConsoleResult(request.getRequestId(),
                             ConsoleResult.Status.RESULT_TIMEOUT,
-                            "命令已提交执行，但结果捕获超时；请确认执行结果后再决定是否重试。",
+                            text("console.result.result-timeout"),
                             "Velocity"));
                 } else {
                     result.complete(ConsoleResult.unavailable(
-                            request, "代理控制台请求在命令提交前超时。", "Velocity"));
+                            request, text("console.result.request-timeout"), "Velocity"));
                 }
             }
         }).delay(timeout, TimeUnit.SECONDS).schedule();
@@ -219,7 +223,7 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                                                                      AtomicBoolean commandDispatched) {
         if (!localCommandRunning.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(ConsoleResult.unavailable(
-                    request, "已有代理控制台命令正在执行。", "Velocity"));
+                    request, text("console.result.command-running"), "Velocity"));
         }
         final CompletableFuture<ConsoleResult> future = new CompletableFuture<>();
         final LatestLogCapture capture = LatestLogCapture.begin(privacyPlayerNames(request));
@@ -241,12 +245,13 @@ public final class VelocityConsoleGateway implements AutoCloseable {
                         try {
                             output = capture.readNewContent();
                         } catch (IOException exception) {
-                            output = "无法读取 logs/latest.log：" + safeMessage(exception);
+                            output = format("console.result.log-read-failed",
+                                    "%error%", safeMessage(exception));
                         }
                         if (output.isEmpty()) {
                             output = success
-                                    ? "命令已执行，latest.log 中没有新增日志。"
-                                    : "命令不存在或执行器拒绝执行。";
+                                    ? text("console.result.no-new-log")
+                                    : text("console.result.command-rejected");
                         }
                         future.complete(new ConsoleResult(request.getRequestId(),
                                 success ? ConsoleResult.Status.SUCCESS : ConsoleResult.Status.FAILED,
@@ -294,7 +299,8 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         CompletableFuture<ConsoleResult> future = activeLocalFuture;
         ConsoleRequest request = activeLocalRequest;
         if (future != null && request != null) {
-            future.complete(ConsoleResult.unavailable(request, "插件已关闭", "Velocity"));
+            future.complete(ConsoleResult.unavailable(
+                    request, text("console.result.plugin-disabled"), "Velocity"));
         }
         activeLocalFuture = null;
         activeLocalRequest = null;
@@ -308,5 +314,15 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             activeLocalFuture = null;
             activeLocalRequest = null;
         }
+    }
+
+    private String text(String key) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.get(key);
+    }
+
+    private String format(String key, String... replacements) {
+        Translations translations = plugin.getTranslations();
+        return translations == null ? key : translations.format(key, replacements);
     }
 }

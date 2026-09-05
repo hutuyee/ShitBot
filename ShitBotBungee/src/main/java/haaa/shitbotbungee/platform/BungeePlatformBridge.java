@@ -1,6 +1,7 @@
 package haaa.shitbotbungee.platform;
 
 import haaa.shitbot.core.chat.ChatPart;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -16,6 +17,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
+import haaa.shitbotbungee.ShitBotBungee;
 import net.md_5.bungee.api.scheduler.ScheduledTask;
 
 import java.nio.file.Path;
@@ -31,10 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class BungeePlatformBridge implements PlatformBridge {
-    private final Plugin plugin;
+    private final ShitBotBungee plugin;
     private final BungeeConsoleGateway consoleGateway;
 
-    public BungeePlatformBridge(Plugin plugin) {
+    public BungeePlatformBridge(ShitBotBungee plugin) {
         this.plugin = plugin;
         this.consoleGateway = new BungeeConsoleGateway(plugin);
     }
@@ -203,7 +205,10 @@ public final class BungeePlatformBridge implements PlatformBridge {
                 for (BaseComponent component : parsed) {
                     if (part.hasClickUrl()) {
                         component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, part.getClickUrl()));
-                        String hover = part.getHoverText().isEmpty() ? "点击打开" : part.getHoverText();
+                        Translations translations = plugin.getTranslations();
+                        String hover = part.getHoverText().isEmpty()
+                                ? (translations == null ? "Click to open" : translations.get("media.open-hover"))
+                                : part.getHoverText();
                         component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                                 TextComponent.fromLegacyText("§7" + hover)));
                     }

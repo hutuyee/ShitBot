@@ -58,19 +58,23 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.settings = settings;
         this.platform = platform;
         this.database = new DatabaseManager(settings.getDatabase(), platform);
-        this.repository = new BindingRepository(database, settings.getBinding());
+        this.repository = new BindingRepository(database, settings.getBinding(), settings.getTranslations());
         this.inventorySnapshotRepository = new InventorySnapshotRepository(database);
         this.bindingService = new BindingService(settings, repository, platform);
-        this.easyBotMigrationService = new EasyBotMigrationService(platform, repository);
-        this.imageService = new OnlineImageService(settings.getImage(), platform);
+        this.easyBotMigrationService = new EasyBotMigrationService(
+                platform, repository, settings.getTranslations());
+        this.imageService = new OnlineImageService(
+                settings.getImage(), settings.getTranslations(), platform);
         this.inventoryService = new InventoryService(
-                settings.getInventory(), platform, repository, inventorySnapshotRepository);
+                settings.getInventory(), settings.getTranslations(), platform,
+                repository, inventorySnapshotRepository);
         this.oneBotClient = new OneBotClient(
-                settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(), platform);
+                settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(),
+                settings.getTranslations(), platform);
         this.commandHandler = new OneBotCommandHandler(
                 settings, platform, bindingService, imageService, inventoryService, oneBotClient);
         this.easyConsoleService = new EasyConsoleService(
-                consoleSettings, platform, repository, oneBotClient);
+                consoleSettings, settings.getTranslations(), platform, repository, oneBotClient);
         this.noticeHandler = new OneBotNoticeHandler(
                 settings, platform, bindingService, oneBotClient);
         this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
@@ -217,13 +221,18 @@ public final class ShitBotRuntime implements AutoCloseable {
     }
 
     public String describeStatus() {
-        return "ready=" + isReady()
-                + ", database=" + settings.getDatabase().getType().name().toLowerCase(java.util.Locale.ROOT)
-                + ", db-workers=" + database.getActiveTaskCount() + '/' + database.getWorkerCount()
-                + ", db-queue=" + database.getQueuedTaskCount() + '/' + database.getMaximumQueuedTaskCount()
-                + ", onebot=" + (settings.getOneBot().isEnabled()
-                ? (oneBotClient.isConnected() ? "connected" : "disconnected")
-                : "disabled");
+        return settings.getTranslations().format("status.template",
+                "%ready%", settings.getTranslations().get(isReady()
+                        ? "status.ready"
+                        : "status.not-ready"),
+                "%database%", settings.getDatabase().getType().name().toLowerCase(java.util.Locale.ROOT),
+                "%active_workers%", String.valueOf(database.getActiveTaskCount()),
+                "%workers%", String.valueOf(database.getWorkerCount()),
+                "%queued%", String.valueOf(database.getQueuedTaskCount()),
+                "%queue_limit%", String.valueOf(database.getMaximumQueuedTaskCount()),
+                "%onebot%", settings.getTranslations().get(!settings.getOneBot().isEnabled()
+                        ? "status.disabled"
+                        : oneBotClient.isConnected() ? "status.connected" : "status.disconnected"));
     }
 
     @Override

@@ -1,6 +1,7 @@
 package haaa.shitbotspigot;
 
 import haaa.shitbot.core.config.Settings;
+import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.update.BackendUpdatePayload;
@@ -9,6 +10,7 @@ import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.update.UpdateInstallResult;
 import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
+import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotspigot.command.ShitBotCommand;
 import haaa.shitbotspigot.config.SpigotConfigLoader;
 import haaa.shitbotspigot.listener.PlayerChatListener;
@@ -33,6 +35,7 @@ public final class ShitBotSpigot extends JavaPlugin {
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private final AtomicBoolean updateCheckStarted = new AtomicBoolean();
     private volatile boolean startupUnavailable = true;
+    private volatile Translations translations;
     private volatile boolean backendMode;
     private volatile boolean stopping;
     private CompletableFuture<Boolean> reloadFuture;
@@ -69,6 +72,7 @@ public final class ShitBotSpigot extends JavaPlugin {
 
         try {
             Settings settings = configLoader.load();
+            translations = settings.getTranslations();
             if (configLoader.isBStatsEnabled()) {
                 new Metrics(this, BSTATS_PLUGIN_ID);
             }
@@ -165,6 +169,7 @@ public final class ShitBotSpigot extends JavaPlugin {
                     oldRuntime.close();
                 }
                 ShitBotSpigot.this.backendMode = configuredBackendMode;
+                ShitBotSpigot.this.translations = newRuntime.getSettings().getTranslations();
                 if (!configuredBackendMode) {
                     startUpdateCheck();
                     newRuntime.activate();
@@ -207,6 +212,10 @@ public final class ShitBotSpigot extends JavaPlugin {
         return runtimeReference.get();
     }
 
+    public Translations getTranslations() {
+        return translations;
+    }
+
     public SpigotPlatformBridge getPlatformBridge() {
         return platformBridge;
     }
@@ -223,13 +232,20 @@ public final class ShitBotSpigot extends JavaPlugin {
         if (sender == null || info == null || updateChecker == null) {
             return;
         }
-        sender.sendMessage("§e[ShitBot] 发现新版本: §f" + updateChecker.getCurrentVersion()
-                + " §7-> §a" + info.getLatestVersion());
+        ShitBotRuntime runtime = runtimeReference.get();
+        if (runtime == null) {
+            return;
+        }
+        Translations translations = runtime.getSettings().getTranslations();
+        sender.sendMessage(TextUtil.color(translations.format("admin.update.notification",
+                "%current%", updateChecker.getCurrentVersion(),
+                "%latest%", info.getLatestVersion())));
         BaseComponent[] link = TextComponent.fromLegacyText("§b§n" + info.getReleaseUrl());
         for (BaseComponent component : link) {
             component.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, info.getReleaseUrl()));
             component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                    TextComponent.fromLegacyText("§7点击打开 Release 页面")));
+                    TextComponent.fromLegacyText(TextUtil.color(
+                            translations.get("admin.update.notification-hover")))));
         }
         sender.spigot().sendMessage(link);
     }
