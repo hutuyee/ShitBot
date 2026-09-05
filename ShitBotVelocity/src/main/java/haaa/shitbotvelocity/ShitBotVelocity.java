@@ -62,7 +62,6 @@ public final class ShitBotVelocity {
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
         stopping = false;
-        metricsFactory.make(this, BSTATS_PLUGIN_ID);
         startupNoticeTriggered = false;
         this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader());
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
@@ -78,6 +77,9 @@ public final class ShitBotVelocity {
 
         try {
             Settings settings = configLoader.load();
+            if (configLoader.isBStatsEnabled()) {
+                metricsFactory.make(this, BSTATS_PLUGIN_ID);
+            }
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             platformBridge.configureConsole(consoleSettings);
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);

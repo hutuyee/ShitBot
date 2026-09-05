@@ -43,7 +43,6 @@ public final class ShitBotSpigot extends JavaPlugin {
     @Override
     public void onEnable() {
         stopping = false;
-        new Metrics(this, BSTATS_PLUGIN_ID);
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
         this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
@@ -70,6 +69,9 @@ public final class ShitBotSpigot extends JavaPlugin {
 
         try {
             Settings settings = configLoader.load();
+            if (configLoader.isBStatsEnabled()) {
+                new Metrics(this, BSTATS_PLUGIN_ID);
+            }
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             final boolean backendMode = configLoader.isBackendMode();
             platformBridge.configureConsole(consoleSettings, backendMode);

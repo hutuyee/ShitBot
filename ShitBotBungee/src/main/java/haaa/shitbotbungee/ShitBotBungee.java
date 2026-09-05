@@ -39,7 +39,6 @@ public final class ShitBotBungee extends Plugin {
     @Override
     public void onEnable() {
         stopping = false;
-        new Metrics(this, BSTATS_PLUGIN_ID);
         startupNoticeTriggered = false;
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);
@@ -51,6 +50,9 @@ public final class ShitBotBungee extends Plugin {
 
         try {
             Settings settings = configLoader.load();
+            if (configLoader.isBStatsEnabled()) {
+                new Metrics(this, BSTATS_PLUGIN_ID);
+            }
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             platformBridge.configureConsole(consoleSettings);
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
