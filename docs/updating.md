@@ -23,6 +23,8 @@
 
 不要通过插件管理器热卸载旧 JAR 再加载新 JAR。
 
+从 `config-version: 1` 升级时，首次加载会把旧 `config.yml` 的回复、通知、内置别名/用法和图片标题自动导入 `lang/zh_CN.yml`，但不会改写旧配置。确认导入结果后，再自行清理旧配置中的废弃文本项。迁移完成状态记录在 `zh_CN.yml` 的 `_migration.legacy-config-v1`，因此后续 reload 不会重复覆盖。
+
 ## `/shitbot update`
 
 有 `shitbot.admin` 权限的管理员可以执行：

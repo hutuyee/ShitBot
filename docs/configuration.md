@@ -21,6 +21,24 @@ language: "zh_CN"
 
 语言文件缺少某个键时会回退到 `zh_CN.yml`，因此自定义语言可以在后续版本新增文本时继续工作；建议仍然定期与最新内置文件比较并补齐键。必须保留 `%player%`、`%result%` 等占位符。Minecraft 文本支持 `&` 颜色代码。
 
+### 从旧配置迁移文本
+
+加载 `config-version: 1` 的旧 `config.yml` 时，ShitBot 会自动把以下内容写入数据目录中的 `lang/zh_CN.yml`：
+
+- `messages` 下的全部旧回复和踢出文本；
+- 入群欢迎与服务器启动通知文本；
+- 绑定、在线图片和背包指令的别名与用法；
+- 在线图片标题与背包图片标题。
+
+旧 `config.yml` 不会被改写或删除。迁移成功后，`zh_CN.yml` 会增加以下内部标记，避免每次 reload 都用旧配置覆盖语言文件：
+
+```yaml
+_migration:
+  legacy-config-v1: true
+```
+
+确认语言文件内容正确后，可以自行删除旧配置中已经废弃的 `messages`、`message`、`aliases`、`usage` 和图片 `title`。此后请直接修改语言文件；如果确实需要重新导入旧配置，先删除上述迁移标记，再执行 `/shitbot reload`。
+
 ## OneBot 连接
 
 ```yaml

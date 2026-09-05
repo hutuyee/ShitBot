@@ -71,6 +71,8 @@ forwarding:
     media-mode: "browser"
 ```
 
+从 `config-version: 1` 升级时，ShitBot 会在首次加载时自动把旧 `config.yml` 中的 `messages`、通知文本、内置指令别名/用法和图片标题写入 `lang/zh_CN.yml`。旧配置文件不会被重写；确认迁移结果后，可以自行删除其中已经废弃的文本项。
+
 在线列表和背包图片的外观由 `templates/*.yml` 控制。复制 `templates/default.yml` 为新文件（例如 `ocean.yml`），修改布局、字号、圆角和颜色后，在 `config.yml` 中分别选择：
 
 ```yaml
