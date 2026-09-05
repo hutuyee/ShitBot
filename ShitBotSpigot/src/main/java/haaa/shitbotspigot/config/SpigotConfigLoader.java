@@ -30,6 +30,12 @@ public final class SpigotConfigLoader {
         return SettingsFactory.create(new Source(plugin.getConfig()));
     }
 
+    public boolean isBStatsEnabled() {
+        plugin.saveDefaultConfig();
+        plugin.reloadConfig();
+        return plugin.getConfig().getBoolean("bstats.enabled", true);
+    }
+
     public ConsoleSettings loadConsoleSettings() {
         File file = new File(plugin.getDataFolder(), "commands.yml");
         if (!file.isFile()) {

@@ -36,6 +36,10 @@ public final class VelocityConfigLoader {
         return SettingsFactory.create(loadSource("config.yml"));
     }
 
+    public boolean isBStatsEnabled() throws IOException {
+        return loadSource("config.yml").getBoolean("bstats.enabled", true);
+    }
+
     public ConsoleSettings loadConsoleSettings() throws IOException {
         return ConsoleSettingsFactory.create(loadSource("commands.yml"));
     }

@@ -1,5 +1,9 @@
 config-version: 1
 
+bstats:
+  # 是否启用匿名使用统计。修改后需要重启代理端。
+  enabled: true
+
 onebot:
   enabled: true
   # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。

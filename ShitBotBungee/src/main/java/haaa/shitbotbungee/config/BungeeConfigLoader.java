@@ -35,6 +35,12 @@ public final class BungeeConfigLoader {
         return SettingsFactory.create(new Source(configuration));
     }
 
+    public boolean isBStatsEnabled() throws IOException {
+        File file = ensureConfigFile();
+        Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
+        return configuration.getBoolean("bstats.enabled", true);
+    }
+
     public ConsoleSettings loadConsoleSettings() throws IOException {
         File file = ensureFile("commands.yml");
         Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
