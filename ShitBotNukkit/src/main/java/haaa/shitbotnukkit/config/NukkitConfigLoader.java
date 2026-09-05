@@ -4,6 +4,7 @@ import cn.nukkit.utils.Config;
 import cn.nukkit.utils.ConfigSection;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
+import haaa.shitbot.core.config.LegacyLanguageMigration;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public final class NukkitConfigLoader {
@@ -59,6 +61,7 @@ public final class NukkitConfigLoader {
     private Translations loadTranslations(Source config) {
         File fallbackFile = ensureLanguageFile(Translations.DEFAULT_LANGUAGE);
         ensureLanguageFile("en_US");
+        migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
         File selectedFile = languageFile(language);
         if (!selectedFile.isFile()) {
@@ -68,6 +71,23 @@ public final class NukkitConfigLoader {
                 language,
                 loadLanguageSource(selectedFile),
                 loadLanguageSource(fallbackFile));
+    }
+
+    private void migrateLegacyLanguage(Source config, File fallbackFile) {
+        Config language = new Config(fallbackFile, Config.YAML);
+        if (!language.isCorrect()) {
+            throw new IllegalStateException(fallbackFile.getName() + " is not a valid YAML configuration");
+        }
+        if (!LegacyLanguageMigration.isRequired(config, new Source(language))) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : LegacyLanguageMigration.collect(config).entrySet()) {
+            language.set(entry.getKey(), entry.getValue());
+        }
+        language.set(LegacyLanguageMigration.MARKER_PATH, true);
+        if (!language.save()) {
+            throw new IllegalStateException("Unable to migrate legacy messages to " + fallbackFile);
+        }
     }
 
     private ImageTemplate loadImageTemplate(String configuredName) {

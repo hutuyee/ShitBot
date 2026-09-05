@@ -2,11 +2,13 @@ package haaa.shitbotvelocity.config;
 
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
+import haaa.shitbot.core.config.LegacyLanguageMigration;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSettingsFactory;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
@@ -14,6 +16,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -88,12 +92,61 @@ public final class VelocityConfigLoader {
     private Translations loadTranslations(Source config) throws IOException {
         Path fallbackFile = ensureFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE));
         ensureFile(Translations.resourcePath("en_US"));
+        migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
         Path selectedFile = dataDirectory.resolve(Translations.resourcePath(language));
         if (!Files.isRegularFile(selectedFile)) {
             selectedFile = ensureFile(Translations.resourcePath(language));
         }
         return new Translations(language, loadSource(selectedFile), loadSource(fallbackFile));
+    }
+
+    private void migrateLegacyLanguage(Source config, Path fallbackFile) throws IOException {
+        Source language = loadSource(fallbackFile);
+        if (!LegacyLanguageMigration.isRequired(config, language)) {
+            return;
+        }
+        Map<Object, Object> root = new LinkedHashMap<Object, Object>();
+        root.putAll(language.root);
+        for (Map.Entry<String, Object> entry : LegacyLanguageMigration.collect(config).entrySet()) {
+            putPath(root, entry.getKey(), entry.getValue());
+        }
+        putPath(root, LegacyLanguageMigration.MARKER_PATH, Boolean.TRUE);
+        saveYamlAtomically(fallbackFile, root);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void putPath(Map<Object, Object> root, String path, Object value) {
+        Map<Object, Object> current = root;
+        String[] parts = path.split("\\.");
+        for (int index = 0; index < parts.length - 1; index++) {
+            Object child = current.get(parts[index]);
+            if (!(child instanceof Map)) {
+                child = new LinkedHashMap<Object, Object>();
+                current.put(parts[index], child);
+            }
+            current = (Map<Object, Object>) child;
+        }
+        current.put(parts[parts.length - 1], value);
+    }
+
+    private void saveYamlAtomically(Path file, Map<Object, Object> root) throws IOException {
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        options.setIndent(2);
+        options.setWidth(160);
+        options.setSplitLines(false);
+        Yaml yaml = new Yaml(options);
+        Path temporary = file.resolveSibling(file.getFileName().toString() + ".tmp");
+        try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
+            yaml.dump(root, writer);
+        }
+        try {
+            Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+            Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private ImageTemplate loadImageTemplate(String configuredName) throws IOException {

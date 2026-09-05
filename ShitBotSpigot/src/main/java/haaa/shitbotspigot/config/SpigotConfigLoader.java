@@ -2,6 +2,7 @@ package haaa.shitbotspigot.config;
 
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
+import haaa.shitbot.core.config.LegacyLanguageMigration;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -13,10 +14,12 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public final class SpigotConfigLoader {
@@ -61,15 +64,32 @@ public final class SpigotConfigLoader {
     private Translations loadTranslations(Source config) {
         ensureLanguageFile(Translations.DEFAULT_LANGUAGE);
         ensureLanguageFile("en_US");
+        File fallbackFile = languageFile(Translations.DEFAULT_LANGUAGE);
+        migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
         File selectedFile = languageFile(language);
         if (!selectedFile.isFile()) {
             ensureLanguageFile(language);
         }
         Source selected = new Source(YamlConfiguration.loadConfiguration(selectedFile));
-        Source fallback = new Source(YamlConfiguration.loadConfiguration(
-                languageFile(Translations.DEFAULT_LANGUAGE)));
+        Source fallback = new Source(YamlConfiguration.loadConfiguration(fallbackFile));
         return new Translations(language, selected, fallback);
+    }
+
+    private void migrateLegacyLanguage(Source config, File fallbackFile) {
+        YamlConfiguration language = YamlConfiguration.loadConfiguration(fallbackFile);
+        if (!LegacyLanguageMigration.isRequired(config, new Source(language))) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : LegacyLanguageMigration.collect(config).entrySet()) {
+            language.set(entry.getKey(), entry.getValue());
+        }
+        language.set(LegacyLanguageMigration.MARKER_PATH, true);
+        try {
+            language.save(fallbackFile);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to migrate legacy messages to " + fallbackFile, exception);
+        }
     }
 
     private ImageTemplate loadImageTemplate(String configuredName) {

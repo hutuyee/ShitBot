@@ -2,6 +2,7 @@ package haaa.shitbotbungee.config;
 
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
+import haaa.shitbot.core.config.LegacyLanguageMigration;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.SettingsFactory;
 import haaa.shitbot.core.config.Translations;
@@ -22,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 public final class BungeeConfigLoader {
@@ -86,6 +88,7 @@ public final class BungeeConfigLoader {
     private Translations loadTranslations(Source config) throws IOException {
         File fallbackFile = ensureFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE));
         ensureFile(Translations.resourcePath("en_US"));
+        migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
         File selectedFile = languageFile(language);
         if (!selectedFile.isFile()) {
@@ -96,6 +99,19 @@ public final class BungeeConfigLoader {
                 language,
                 new Source(provider.load(selectedFile)),
                 new Source(provider.load(fallbackFile)));
+    }
+
+    private void migrateLegacyLanguage(Source config, File fallbackFile) throws IOException {
+        ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
+        Configuration language = provider.load(fallbackFile);
+        if (!LegacyLanguageMigration.isRequired(config, new Source(language))) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : LegacyLanguageMigration.collect(config).entrySet()) {
+            language.set(entry.getKey(), entry.getValue());
+        }
+        language.set(LegacyLanguageMigration.MARKER_PATH, true);
+        provider.save(language, fallbackFile);
     }
 
     private ImageTemplate loadImageTemplate(String configuredName) throws IOException {
