@@ -5,6 +5,7 @@ import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.console.PlaceholderResultCodec;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.update.UpdateInfo;
 import net.md_5.bungee.api.Callback;
@@ -49,6 +50,33 @@ public final class BungeePlatformBridge implements PlatformBridge {
     @Override
     public String getPlatformName() {
         return "BungeeCord";
+    }
+
+    @Override
+    public String getPluginVersion() {
+        return plugin.getDescription().getVersion();
+    }
+
+    @Override
+    public CompletableFuture<Map<String, String>> resolvePlaceholders(String playerName,
+                                                                      List<String> placeholders,
+                                                                      String targetServer) {
+        return executeConsoleRequest(ConsoleRequest.placeholders(
+                playerName, placeholders, targetServer, 15)).thenApply(
+                new java.util.function.Function<ConsoleResult, Map<String, String>>() {
+                    @Override
+                    public Map<String, String> apply(ConsoleResult result) {
+                        if (result == null || !result.isSuccess()) {
+                            throw new java.util.concurrent.CompletionException(new IllegalStateException(
+                                    result == null ? "Placeholder backend returned no result" : result.getOutput()));
+                        }
+                        try {
+                            return PlaceholderResultCodec.decode(result.getOutput());
+                        } catch (java.io.IOException exception) {
+                            throw new java.util.concurrent.CompletionException(exception);
+                        }
+                    }
+                });
     }
 
     @Override

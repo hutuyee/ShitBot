@@ -112,6 +112,16 @@ public final class ShitBotCommand implements SimpleCommand {
             });
             return;
         }
+        if ("editor".equalsIgnoreCase(args[0])) {
+            send(invocation, translations.get("admin.editor.opening"));
+            runtime.getApi().createImageEditorLoginUrl().whenComplete((url, throwable) ->
+                    plugin.getPlatformBridge().executeOnPlatformThread(() -> send(invocation,
+                            throwable == null
+                                    ? translations.format("admin.editor.url", "%url%", url)
+                                    : translations.format("admin.editor.failed", "%error%",
+                                            errorMessage(throwable)))));
+            return;
+        }
         send(invocation, translations.get("admin.help"));
     }
 
@@ -119,7 +129,7 @@ public final class ShitBotCommand implements SimpleCommand {
     public List<String> suggest(Invocation invocation) {
         String[] args = invocation.arguments();
         if (args.length <= 1) {
-            return Arrays.asList("status", "reload", "update", "image", "migrate");
+            return Arrays.asList("status", "reload", "update", "image", "editor", "migrate");
         }
         if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
             return Collections.singletonList("easybot");

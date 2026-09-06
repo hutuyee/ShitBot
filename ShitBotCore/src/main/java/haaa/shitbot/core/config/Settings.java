@@ -18,6 +18,7 @@ public final class Settings {
     private final Binding binding;
     private final Database database;
     private final Image image;
+    private final CustomImages customImages;
     private final Inventory inventory;
     private final Messages messages;
 
@@ -28,6 +29,7 @@ public final class Settings {
                     Binding binding,
                     Database database,
                     Image image,
+                    CustomImages customImages,
                     Inventory inventory,
                     Messages messages) {
         this.configVersion = configVersion;
@@ -37,6 +39,7 @@ public final class Settings {
         this.binding = require(binding, "binding");
         this.database = require(database, "database");
         this.image = require(image, "image");
+        this.customImages = require(customImages, "customImages");
         this.inventory = require(inventory, "inventory");
         this.messages = require(messages, "messages");
     }
@@ -67,6 +70,10 @@ public final class Settings {
 
     public Image getImage() {
         return image;
+    }
+
+    public CustomImages getCustomImages() {
+        return customImages;
     }
 
     public Inventory getInventory() {
@@ -689,7 +696,18 @@ public final class Settings {
     }
 
     public static final class Image {
+        public enum Renderer {
+            JAVA,
+            CUSTOM;
+
+            public static Renderer from(String value) {
+                return value != null && "custom".equalsIgnoreCase(value.trim()) ? CUSTOM : JAVA;
+            }
+        }
+
         private final ImageTemplate template;
+        private final Renderer renderer;
+        private final String customTemplateId;
         private final String title;
         private final String serverName;
         private final String fontName;
@@ -709,6 +727,8 @@ public final class Settings {
         private final int avatarWaitTimeoutMs;
 
         public Image(ImageTemplate template,
+                     Renderer renderer,
+                     String customTemplateId,
                      String title,
                      String serverName,
                      String fontName,
@@ -727,6 +747,8 @@ public final class Settings {
                      int avatarReadTimeoutMs,
                      int avatarWaitTimeoutMs) {
             this.template = require(template, "imageTemplate");
+            this.renderer = require(renderer, "imageRenderer");
+            this.customTemplateId = templateId(customTemplateId, "online-status");
             this.title = text(title, "ShitBot");
             this.serverName = text(serverName, "Minecraft Server");
             this.fontName = text(fontName, "Microsoft YaHei");
@@ -748,6 +770,14 @@ public final class Settings {
 
         public ImageTemplate getTemplate() {
             return template;
+        }
+
+        public Renderer getRenderer() {
+            return renderer;
+        }
+
+        public String getCustomTemplateId() {
+            return customTemplateId;
         }
 
         public String getTitle() {
@@ -816,6 +846,145 @@ public final class Settings {
 
         public int getAvatarWaitTimeoutMs() {
             return avatarWaitTimeoutMs;
+        }
+
+        private static String templateId(String value, String fallback) {
+            String id = text(value, fallback);
+            if (!id.matches("[a-z0-9][a-z0-9_-]{0,63}")) {
+                throw new IllegalArgumentException("Invalid custom image template ID: " + value);
+            }
+            return id;
+        }
+    }
+
+    public static final class CustomImages {
+        private final boolean enabled;
+        private final String componentVersion;
+        private final String componentDownloadUrl;
+        private final long maximumDownloadBytes;
+        private final int downloadConnectTimeoutMs;
+        private final int downloadReadTimeoutMs;
+        private final String templatesDirectory;
+        private final int maximumWidth;
+        private final int maximumHeight;
+        private final long maximumPixels;
+        private final int maximumLayers;
+        private final int maximumLoopItems;
+        private final long maximumAssetBytes;
+        private final long maximumTemplateAssetBytes;
+        private final int renderTimeoutMs;
+        private final int renderThreads;
+        private final int maximumQueuedRenders;
+        private final boolean remoteImagesEnabled;
+        private final int maximumProviderQueries;
+        private final int providerTimeoutMs;
+        private final int providerCacheSeconds;
+        private final boolean editorEnabled;
+        private final String editorBindAddress;
+        private final int editorPort;
+        private final int editorLoginSeconds;
+        private final long editorMaximumUploadBytes;
+
+        public CustomImages(boolean enabled,
+                            String componentVersion,
+                            String componentDownloadUrl,
+                            long maximumDownloadBytes,
+                            int downloadConnectTimeoutMs,
+                            int downloadReadTimeoutMs,
+                            String templatesDirectory,
+                            int maximumWidth,
+                            int maximumHeight,
+                            long maximumPixels,
+                            int maximumLayers,
+                            int maximumLoopItems,
+                            long maximumAssetBytes,
+                            long maximumTemplateAssetBytes,
+                            int renderTimeoutMs,
+                            int renderThreads,
+                            int maximumQueuedRenders,
+                            boolean remoteImagesEnabled,
+                            int maximumProviderQueries,
+                            int providerTimeoutMs,
+                            int providerCacheSeconds,
+                            boolean editorEnabled,
+                            String editorBindAddress,
+                            int editorPort,
+                            int editorLoginSeconds,
+                            long editorMaximumUploadBytes) {
+            this.enabled = enabled;
+            this.componentVersion = componentVersion == null ? "" : componentVersion.trim();
+            this.componentDownloadUrl = text(componentDownloadUrl,
+                    "https://github.com/hutuyee/ShitBot/releases/download/%version%/ShitBotRenderer-%version%.jar");
+            this.maximumDownloadBytes = clampLong(maximumDownloadBytes,
+                    256L * 1024L, 32L * 1024L * 1024L, 4L * 1024L * 1024L);
+            this.downloadConnectTimeoutMs = clamp(downloadConnectTimeoutMs, 500, 30000, 5000);
+            this.downloadReadTimeoutMs = clamp(downloadReadTimeoutMs, 1000, 120000, 30000);
+            this.templatesDirectory = safeRelativeDirectory(templatesDirectory, "image-templates");
+            this.maximumWidth = clamp(maximumWidth, 64, 8192, 2400);
+            this.maximumHeight = clamp(maximumHeight, 64, 8192, 2400);
+            this.maximumPixels = clampLong(maximumPixels, 4096L, 32L * 1024L * 1024L, 8L * 1024L * 1024L);
+            this.maximumLayers = clamp(maximumLayers, 1, 4096, 256);
+            this.maximumLoopItems = clamp(maximumLoopItems, 1, 2048, 200);
+            this.maximumAssetBytes = clampLong(maximumAssetBytes,
+                    1024L, 32L * 1024L * 1024L, 2L * 1024L * 1024L);
+            this.maximumTemplateAssetBytes = Math.max(this.maximumAssetBytes,
+                    clampLong(maximumTemplateAssetBytes, 1024L,
+                            128L * 1024L * 1024L, 16L * 1024L * 1024L));
+            this.renderTimeoutMs = clamp(renderTimeoutMs, 100, 60000, 5000);
+            this.renderThreads = clamp(renderThreads, 1, 16, 2);
+            this.maximumQueuedRenders = clamp(maximumQueuedRenders, 1, 512, 16);
+            this.remoteImagesEnabled = remoteImagesEnabled;
+            this.maximumProviderQueries = clamp(maximumProviderQueries, 1, 256, 32);
+            this.providerTimeoutMs = clamp(providerTimeoutMs, 100, 30000, 3000);
+            this.providerCacheSeconds = clamp(providerCacheSeconds, 0, 3600, 10);
+            this.editorEnabled = editorEnabled;
+            this.editorBindAddress = text(editorBindAddress, "127.0.0.1");
+            this.editorPort = clamp(editorPort, 0, 65535, 0);
+            this.editorLoginSeconds = clamp(editorLoginSeconds, 10, 600, 60);
+            this.editorMaximumUploadBytes = clampLong(editorMaximumUploadBytes,
+                    1024L, 16L * 1024L * 1024L, 2L * 1024L * 1024L);
+        }
+
+        public boolean isEnabled() { return enabled; }
+        public String getComponentVersion() { return componentVersion; }
+        public String getComponentDownloadUrl() { return componentDownloadUrl; }
+        public long getMaximumDownloadBytes() { return maximumDownloadBytes; }
+        public int getDownloadConnectTimeoutMs() { return downloadConnectTimeoutMs; }
+        public int getDownloadReadTimeoutMs() { return downloadReadTimeoutMs; }
+        public String getTemplatesDirectory() { return templatesDirectory; }
+        public int getMaximumWidth() { return maximumWidth; }
+        public int getMaximumHeight() { return maximumHeight; }
+        public long getMaximumPixels() { return maximumPixels; }
+        public int getMaximumLayers() { return maximumLayers; }
+        public int getMaximumLoopItems() { return maximumLoopItems; }
+        public long getMaximumAssetBytes() { return maximumAssetBytes; }
+        public long getMaximumTemplateAssetBytes() { return maximumTemplateAssetBytes; }
+        public int getRenderTimeoutMs() { return renderTimeoutMs; }
+        public int getRenderThreads() { return renderThreads; }
+        public int getMaximumQueuedRenders() { return maximumQueuedRenders; }
+        public boolean isRemoteImagesEnabled() { return remoteImagesEnabled; }
+        public int getMaximumProviderQueries() { return maximumProviderQueries; }
+        public int getProviderTimeoutMs() { return providerTimeoutMs; }
+        public int getProviderCacheSeconds() { return providerCacheSeconds; }
+        public boolean isEditorEnabled() { return editorEnabled; }
+        public String getEditorBindAddress() { return editorBindAddress; }
+        public int getEditorPort() { return editorPort; }
+        public int getEditorLoginSeconds() { return editorLoginSeconds; }
+        public long getEditorMaximumUploadBytes() { return editorMaximumUploadBytes; }
+
+        private static String safeRelativeDirectory(String value, String fallback) {
+            String path = text(value, fallback).replace('\\', '/');
+            if (path.startsWith("/") || path.matches("^[A-Za-z]:.*")
+                    || path.equals("..") || path.startsWith("../") || path.contains("/../")) {
+                throw new IllegalArgumentException("Custom image templates directory must stay inside the plugin directory");
+            }
+            for (String segment : path.split("/")) {
+                if (".".equals(segment) || "..".equals(segment)) {
+                    throw new IllegalArgumentException(
+                            "Custom image templates directory must not contain dot segments");
+                }
+            }
+            return path;
         }
     }
 

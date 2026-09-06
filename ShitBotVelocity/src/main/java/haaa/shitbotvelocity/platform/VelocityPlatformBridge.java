@@ -9,6 +9,7 @@ import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.console.PlaceholderResultCodec;
 import haaa.shitbot.core.platform.PlatformBridge;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -55,6 +56,29 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     @Override
     public String getPlatformName() {
         return "Velocity";
+    }
+
+    @Override
+    public String getPluginVersion() {
+        return plugin.getPluginVersion();
+    }
+
+    @Override
+    public CompletableFuture<Map<String, String>> resolvePlaceholders(String playerName,
+                                                                      List<String> placeholders,
+                                                                      String targetServer) {
+        return executeConsoleRequest(ConsoleRequest.placeholders(
+                playerName, placeholders, targetServer, 15)).thenApply(result -> {
+            if (result == null || !result.isSuccess()) {
+                throw new java.util.concurrent.CompletionException(new IllegalStateException(
+                        result == null ? "Placeholder backend returned no result" : result.getOutput()));
+            }
+            try {
+                return PlaceholderResultCodec.decode(result.getOutput());
+            } catch (java.io.IOException exception) {
+                throw new java.util.concurrent.CompletionException(exception);
+            }
+        });
     }
 
     @Override

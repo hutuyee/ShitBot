@@ -1,5 +1,7 @@
 package haaa.shitbotbungee;
 
+import haaa.shitbot.api.ShitBotApi;
+import haaa.shitbot.api.ShitBotApiProvider;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -26,7 +28,7 @@ import org.bstats.bungeecord.Metrics;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class ShitBotBungee extends Plugin {
+public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
     private static final int BSTATS_PLUGIN_ID = 33866;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
@@ -192,6 +194,12 @@ public final class ShitBotBungee extends Plugin {
 
     public ShitBotRuntime getRuntime() {
         return runtimeReference.get();
+    }
+
+    @Override
+    public ShitBotApi getShitBotApi() {
+        ShitBotRuntime runtime = runtimeReference.get();
+        return runtime == null ? null : runtime.getApi();
     }
 
     public Translations getTranslations() {

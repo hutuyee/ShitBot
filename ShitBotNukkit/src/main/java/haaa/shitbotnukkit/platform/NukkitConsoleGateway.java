@@ -110,6 +110,10 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     operation = queryTps(request);
                 } else if (request.getOperation() == ConsoleRequest.Operation.COMMAND) {
                     operation = executeCommand(request);
+                } else if (request.getOperation() == ConsoleRequest.Operation.PERMISSION) {
+                    operation = CompletableFuture.completedFuture(new ConsoleResult(
+                            request.getRequestId(), ConsoleResult.Status.SUCCESS,
+                            "permission granted", platform.serverName()));
                 } else {
                     operation = CompletableFuture.completedFuture(ConsoleResult.unavailable(
                             request, text("console.result.remote-update-unsupported"), platform.serverName()));

@@ -5,6 +5,23 @@ enabled: true
 request-timeout-seconds: 15
 command-cooldown-seconds: 5
 
+# 自定义图片模板的群命令。只有 config.yml 中 custom-image-templates.enabled=true 时可用。
+image-templates:
+  commands:
+    online-status:
+      enabled: false
+      aliases:
+        - "自定义在线"
+      template: "online-status"
+      # bound：使用该 QQ 最新绑定；argument：命令后必须跟该 QQ 已绑定的角色名；none：不读取绑定。
+      player-source: "bound"
+      # 代理部署可指定处理权限/PAPI 的 Spigot 子服；留空时按绑定角色或默认 endpoint 选择。
+      target-server: ""
+      permission: ""
+      cooldown-seconds: 10
+      usage: "%at% 用法：自定义在线 [已绑定角色名]"
+      failed: "%at% 图片生成失败：%result%"
+
 backend-transport:
   # 代理连接子服时使用；配置后不依赖任何在线玩家。
   connect-timeout-ms: 3000

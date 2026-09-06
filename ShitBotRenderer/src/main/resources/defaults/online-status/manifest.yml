@@ -1,0 +1,7 @@
+schema-version: template-v1
+id: online-status
+name: Online status
+suggested-file-name: online.png
+providers:
+  - id: shitbot
+  - id: online-players

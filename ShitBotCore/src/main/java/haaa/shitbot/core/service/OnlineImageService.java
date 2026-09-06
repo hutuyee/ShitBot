@@ -3,6 +3,7 @@ package haaa.shitbot.core.service;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
+import haaa.shitbot.core.image.CustomImageService;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.HashUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
@@ -69,6 +70,7 @@ public final class OnlineImageService implements AutoCloseable {
     private final Translations translations;
     private final OnlineStyle style;
     private final PlatformBridge platform;
+    private final CustomImageService customImages;
     private final ExecutorService imageExecutor;
     private final ExecutorService avatarExecutor;
     private final ConcurrentHashMap<String, AvatarEntry> avatarMemory = new ConcurrentHashMap<String, AvatarEntry>();
@@ -79,13 +81,23 @@ public final class OnlineImageService implements AutoCloseable {
     private volatile long cacheExpiresAt;
 
     public OnlineImageService(Settings.Image settings, Translations translations, PlatformBridge platform) {
+        this(settings, translations, platform, null);
+    }
+
+    public OnlineImageService(Settings.Image settings,
+                              Translations translations,
+                              PlatformBridge platform,
+                              CustomImageService customImages) {
         this.settings = settings;
         this.translations = translations;
         this.style = new OnlineStyle(settings.getTemplate());
         this.platform = platform;
+        this.customImages = customImages;
         this.imageExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("shitbot-image", true));
-        this.avatarExecutor = Executors.newFixedThreadPool(
-                settings.getAvatarDownloadThreads(), new NamedThreadFactory("shitbot-avatar", true));
+        this.avatarExecutor = settings.getRenderer() == Settings.Image.Renderer.JAVA
+                ? Executors.newFixedThreadPool(settings.getAvatarDownloadThreads(),
+                        new NamedThreadFactory("shitbot-avatar", true))
+                : null;
     }
 
     public synchronized CompletableFuture<byte[]> renderOnlineImageAsync() {
@@ -105,7 +117,9 @@ public final class OnlineImageService implements AutoCloseable {
             });
         }
 
-        final CompletableFuture<byte[]> created = platform.captureOnlinePlayers().thenApplyAsync(
+        final CompletableFuture<byte[]> created = settings.getRenderer() == Settings.Image.Renderer.CUSTOM
+                ? renderCustomImage()
+                : platform.captureOnlinePlayers().thenApplyAsync(
                 new java.util.function.Function<Map<String, List<String>>, byte[]>() {
                     @Override
                     public byte[] apply(Map<String, List<String>> snapshot) {
@@ -144,6 +158,34 @@ public final class OnlineImageService implements AutoCloseable {
 
     public Path getOutputPath() {
         return platform.getDataDirectory().resolve("images").resolve(settings.getOutputFile());
+    }
+
+    private CompletableFuture<byte[]> renderCustomImage() {
+        if (customImages == null) {
+            CompletableFuture<byte[]> failed = new CompletableFuture<byte[]>();
+            failed.completeExceptionally(new IllegalStateException("Custom image renderer is unavailable"));
+            return failed;
+        }
+        Map<String, Object> context = new LinkedHashMap<String, Object>();
+        context.put("title", settings.getTitle());
+        context.put("server-name", settings.getServerName());
+        context.put("platform", platform.getPlatformName());
+        return customImages.renderImage(settings.getCustomTemplateId(),
+                        haaa.shitbot.api.ImageRenderRequest.of(context))
+                .thenApplyAsync(new java.util.function.Function<haaa.shitbot.api.ImageRenderResult, byte[]>() {
+                    @Override
+                    public byte[] apply(haaa.shitbot.api.ImageRenderResult result) {
+                        byte[] bytes = result.getBytes();
+                        try {
+                            cachedBytes = bytes;
+                            cacheExpiresAt = System.currentTimeMillis() + settings.getCacheSeconds() * 1000L;
+                            writeAtomically(bytes);
+                            return bytes;
+                        } catch (IOException exception) {
+                            throw new java.util.concurrent.CompletionException(exception);
+                        }
+                    }
+                }, imageExecutor);
     }
 
     private byte[] render(Map<String, List<String>> originalSnapshot) throws IOException {
@@ -838,7 +880,9 @@ public final class OnlineImageService implements AutoCloseable {
     @Override
     public void close() {
         imageExecutor.shutdown();
-        avatarExecutor.shutdownNow();
+        if (avatarExecutor != null) {
+            avatarExecutor.shutdownNow();
+        }
         try {
             if (!imageExecutor.awaitTermination(5L, TimeUnit.SECONDS)) {
                 imageExecutor.shutdownNow();

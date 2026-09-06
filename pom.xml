@@ -11,7 +11,9 @@
     <name>ShitBot</name>
 
     <modules>
+        <module>ShitBotApi</module>
         <module>ShitBotCore</module>
+        <module>ShitBotRenderer</module>
         <module>ShitBotBungee</module>
         <module>ShitBotSpigot</module>
         <module>ShitBotVelocity</module>

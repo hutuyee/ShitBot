@@ -144,6 +144,11 @@ database:
   maximum-queued-tasks: 256
 
 image:
+  # java：直接使用插件内置 Java2D 在线图，不加载自定义模板组件，也不会下载任何内核。
+  # custom：使用 image-templates 中已发布的场景；适合愿意为复杂模板分配更多资源的服务器。
+  renderer: "java"
+  # renderer 为 custom 时使用的模板 ID。
+  custom-template: "online-status"
   # 图片主题位于 templates/*.yml；复制 default.yml 后改名即可扩展。
   template: "default"
   server-name: "Server-Status"
@@ -169,6 +174,46 @@ image:
     read-timeout-ms: 2500
     # 单次生成最多等待头像的时间；超时先用默认头像，下载完成后下次生成自动使用。
     wait-timeout-ms: 2200
+
+# 高级自定义场景模板。关闭时不会创建渲染器、启动编辑器或访问组件下载地址。
+custom-image-templates:
+  enabled: false
+  directory: "image-templates"
+  component:
+    # 留空表示与当前 ShitBot 版本一致。组件独立发布，不会打进平台插件 JAR。
+    version: ""
+    download-url: "https://github.com/hutuyee/ShitBot/releases/download/%version%/ShitBotRenderer-%version%.jar"
+    # 下载后同时校验 .sha256 与 ShitBot Release 独立签名，校验失败不会加载。
+    maximum-download-bytes: 4194304
+    connect-timeout-ms: 5000
+    read-timeout-ms: 30000
+  limits:
+    maximum-width: 2400
+    maximum-height: 2400
+    maximum-pixels: 8388608
+    maximum-layers: 256
+    maximum-loop-items: 200
+    maximum-asset-bytes: 2097152
+    maximum-template-asset-bytes: 16777216
+    render-timeout-ms: 5000
+  render:
+    threads: 2
+    maximum-queued: 16
+  remote-images:
+    # 默认只读各模板 assets/；开启后 HTTPS 图片仍会经过地址、大小和像素限制。
+    enabled: false
+  data:
+    maximum-queries: 32
+    timeout-ms: 3000
+    cache-seconds: 10
+  editor:
+    enabled: false
+    # 编辑器只允许回环地址；远程访问请自行配置 HTTPS 反向代理。
+    bind-address: "127.0.0.1"
+    # 0 表示随机空闲端口。
+    port: 0
+    login-seconds: 60
+    maximum-upload-bytes: 2097152
 
 inventory:
   enabled: true

@@ -1,5 +1,7 @@
 package haaa.shitbotvelocity;
 
+import haaa.shitbot.api.ShitBotApi;
+import haaa.shitbot.api.ShitBotApiProvider;
 import com.google.inject.Inject;
 import com.velocitypowered.api.command.CommandMeta;
 import com.velocitypowered.api.command.CommandSource;
@@ -33,7 +35,7 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class ShitBotVelocity {
+public final class ShitBotVelocity implements ShitBotApiProvider {
     private static final int BSTATS_PLUGIN_ID = 33868;
     private final ProxyServer server;
     private final Logger logger;
@@ -207,6 +209,12 @@ public final class ShitBotVelocity {
         return runtimeReference.get();
     }
 
+    @Override
+    public ShitBotApi getShitBotApi() {
+        ShitBotRuntime runtime = runtimeReference.get();
+        return runtime == null ? null : runtime.getApi();
+    }
+
     public Translations getTranslations() {
         return translations;
     }
@@ -264,6 +272,10 @@ public final class ShitBotVelocity {
         return server.getPluginManager().getPlugin("shitbotvelocity")
                 .flatMap(container -> container.getDescription().getVersion())
                 .orElse("unknown");
+    }
+
+    public String getPluginVersion() {
+        return resolvePluginVersion();
     }
 
     private Path resolvePluginPath() {

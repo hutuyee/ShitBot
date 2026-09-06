@@ -1,0 +1,164 @@
+schema-version: scene-v1
+canvas:
+  width: 1200
+  height: 675
+  gradient-start: "#123B78"
+  gradient-end: "#168D83"
+layers:
+  - type: circle
+    x: 980
+    y: -90
+    width: 330
+    height: 330
+    fill: "#18FFFFFF"
+  - type: circle
+    x: -110
+    y: 480
+    width: 300
+    height: 300
+    fill: "#0FFFFFFF"
+  - type: text
+    x: 50
+    y: 42
+    width: 820
+    text: "${context.title}"
+    font-family: SansSerif
+    font-style: bold
+    font-size: 42
+    color: "#FFFFFFFF"
+  - type: text
+    x: 52
+    y: 103
+    width: 820
+    text: "${context.server-name} · ${data.online-players.total} online"
+    font-family: SansSerif
+    font-size: 19
+    color: "#D8EDFA"
+  - type: rectangle
+    x: 925
+    y: 48
+    width: 225
+    height: 76
+    radius: 24
+    fill: "#2BFFFFFF"
+    stroke-color: "#40FFFFFF"
+    stroke-width: 1
+  - type: text
+    x: 945
+    y: 65
+    width: 185
+    text: "${data.online-players.total}"
+    align: center
+    font-style: bold
+    font-size: 28
+    color: "#FFFFFFFF"
+  - type: text
+    x: 945
+    y: 99
+    width: 185
+    text: ONLINE
+    align: center
+    font-size: 12
+    color: "#CFFFEA"
+  - type: condition
+    condition: "${data.online-players.servers}"
+    then:
+      - type: stack
+        x: 50
+        y: 160
+        direction: vertical
+        gap: 12
+        children:
+          - type: loop
+            items: "${data.online-players.servers}"
+            as: server
+            maximum-items: 4
+            children:
+              - type: group
+                width: 1100
+                height: 98
+                children:
+                  - type: rectangle
+                    width: 1100
+                    height: 98
+                    radius: 24
+                    fill: "#25FFFFFF"
+                    stroke-color: "#36E5F6FF"
+                    stroke-width: 1
+                  - type: circle
+                    x: 24
+                    y: 22
+                    width: 12
+                    height: 12
+                    fill: "#78FFCB"
+                  - type: text
+                    x: 48
+                    y: 14
+                    width: 720
+                    text: "${server.name}"
+                    font-style: bold
+                    font-size: 21
+                    color: "#FFFFFFFF"
+                  - type: text
+                    x: 930
+                    y: 15
+                    width: 140
+                    text: "${server.count} players"
+                    align: right
+                    font-size: 14
+                    color: "#D6ECFA"
+                  - type: stack
+                    x: 24
+                    y: 55
+                    direction: horizontal
+                    gap: 8
+                    children:
+                      - type: loop
+                        items: "${server.players}"
+                        as: player
+                        maximum-items: 8
+                        children:
+                          - type: group
+                            width: 126
+                            height: 28
+                            children:
+                              - type: rectangle
+                                width: 126
+                                height: 28
+                                radius: 10
+                                fill: "#20FFFFFF"
+                              - type: text
+                                x: 9
+                                y: 4
+                                width: 108
+                                text: "${player.name}"
+                                align: center
+                                font-size: 14
+                                color: "#F3F9FF"
+    else:
+      - type: rectangle
+        x: 50
+        y: 180
+        width: 1100
+        height: 300
+        radius: 28
+        fill: "#24FFFFFF"
+        stroke-color: "#35FFFFFF"
+        stroke-width: 1
+      - type: text
+        x: 100
+        y: 280
+        width: 1000
+        text: No players are online
+        align: center
+        font-style: bold
+        font-size: 30
+        color: "#FFFFFFFF"
+  - type: text
+    x: 50
+    y: 632
+    width: 1100
+    text: "Rendered by ShitBot · ${data.shitbot.platform} ${data.shitbot.version}"
+    align: right
+    font-size: 13
+    color: "#BFDDEC"

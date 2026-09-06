@@ -20,6 +20,7 @@ public final class ConsoleSettings {
     private final BackendTransport backendTransport;
     private final Tps tps;
     private final List<Shortcut> shortcuts;
+    private final List<ImageTemplateCommand> imageTemplateCommands;
 
     public ConsoleSettings(boolean enabled,
                            int requestTimeoutSeconds,
@@ -31,7 +32,8 @@ public final class ConsoleSettings {
                            String invalidTargetMessage,
                            BackendTransport backendTransport,
                            Tps tps,
-                           List<Shortcut> shortcuts) {
+                           List<Shortcut> shortcuts,
+                           List<ImageTemplateCommand> imageTemplateCommands) {
         this.enabled = enabled;
         this.requestTimeoutSeconds = clamp(requestTimeoutSeconds, 2, 60, 15);
         this.commandCooldownSeconds = clamp(commandCooldownSeconds, 0, 300, 5);
@@ -45,6 +47,10 @@ public final class ConsoleSettings {
         this.shortcuts = shortcuts == null
                 ? Collections.<Shortcut>emptyList()
                 : Collections.unmodifiableList(new ArrayList<Shortcut>(shortcuts));
+        this.imageTemplateCommands = imageTemplateCommands == null
+                ? Collections.<ImageTemplateCommand>emptyList()
+                : Collections.unmodifiableList(
+                        new ArrayList<ImageTemplateCommand>(imageTemplateCommands));
     }
 
     public boolean isEnabled() { return enabled; }
@@ -58,6 +64,7 @@ public final class ConsoleSettings {
     public BackendTransport getBackendTransport() { return backendTransport; }
     public Tps getTps() { return tps; }
     public List<Shortcut> getShortcuts() { return shortcuts; }
+    public List<ImageTemplateCommand> getImageTemplateCommands() { return imageTemplateCommands; }
 
     public enum Target {
         BACKEND,
@@ -149,6 +156,67 @@ public final class ConsoleSettings {
         public String getPermission() { return permission; }
         public String getServer() { return server; }
         public String getSuccessMessage() { return successMessage; }
+        public String getFailedMessage() { return failedMessage; }
+    }
+
+    public enum PlayerSource {
+        BOUND,
+        ARGUMENT,
+        NONE;
+
+        public static PlayerSource from(String value) {
+            if (value == null) return BOUND;
+            String clean = value.trim().toLowerCase(Locale.ROOT);
+            if ("argument".equals(clean)) return ARGUMENT;
+            if ("none".equals(clean)) return NONE;
+            return BOUND;
+        }
+    }
+
+    /** One QQ group alias mapped to a published custom image template. */
+    public static final class ImageTemplateCommand {
+        private final String name;
+        private final boolean enabled;
+        private final List<String> aliases;
+        private final String templateId;
+        private final PlayerSource playerSource;
+        private final String targetServer;
+        private final String permission;
+        private final int cooldownSeconds;
+        private final String usageMessage;
+        private final String failedMessage;
+
+        public ImageTemplateCommand(String name,
+                                    boolean enabled,
+                                    List<String> aliases,
+                                    String templateId,
+                                    PlayerSource playerSource,
+                                    String targetServer,
+                                    String permission,
+                                    int cooldownSeconds,
+                                    String usageMessage,
+                                    String failedMessage) {
+            this.name = text(name, "image-template");
+            this.enabled = enabled;
+            this.aliases = cleanAliases(aliases);
+            this.templateId = templateId == null ? "" : templateId.trim();
+            this.playerSource = playerSource == null ? PlayerSource.BOUND : playerSource;
+            this.targetServer = targetServer == null ? "" : targetServer.trim();
+            this.permission = permission == null ? "" : permission.trim();
+            this.cooldownSeconds = clamp(cooldownSeconds, 0, 300, 10);
+            this.usageMessage = text(usageMessage, "%at% 参数不正确");
+            this.failedMessage = text(failedMessage, "%at% 图片生成失败");
+        }
+
+        public String getName() { return name; }
+        public boolean isEnabled() { return enabled; }
+        public List<String> getAliases() { return aliases; }
+        public String getTemplateId() { return templateId; }
+        public PlayerSource getPlayerSource() { return playerSource; }
+        public String getTargetServer() { return targetServer; }
+        public String getPermission() { return permission; }
+        public int getCooldownSeconds() { return cooldownSeconds; }
+        public String getUsageMessage() { return usageMessage; }
         public String getFailedMessage() { return failedMessage; }
     }
 

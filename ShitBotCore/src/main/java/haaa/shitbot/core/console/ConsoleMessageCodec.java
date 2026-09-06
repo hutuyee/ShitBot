@@ -13,11 +13,12 @@ import java.util.List;
 
 public final class ConsoleMessageCodec {
     private static final int MAGIC = 0x53424331;
-    private static final int VERSION = 5;
+    private static final int VERSION = 6;
     private static final int TYPE_REQUEST = 1;
     private static final int TYPE_RESPONSE = 2;
     private static final int MAX_PLAYERS = 32;
-    private static final int MAX_TEXT = 4000;
+    private static final int MAX_PLACEHOLDERS = 64;
+    private static final int MAX_TEXT = 16000;
 
     private ConsoleMessageCodec() {
     }
@@ -40,6 +41,11 @@ public final class ConsoleMessageCodec {
         output.writeInt(count);
         for (int index = 0; index < count; index++) {
             writeText(output, request.getPlayerNames().get(index));
+        }
+        int placeholderCount = Math.min(request.getPlaceholders().size(), MAX_PLACEHOLDERS);
+        output.writeInt(placeholderCount);
+        for (int index = 0; index < placeholderCount; index++) {
+            writeText(output, request.getPlaceholders().get(index));
         }
         BackendUpdatePayload updatePayload = request.getUpdatePayload();
         output.writeBoolean(updatePayload != null);
@@ -74,13 +80,21 @@ public final class ConsoleMessageCodec {
         for (int index = 0; index < playerCount; index++) {
             playerNames.add(readText(input));
         }
+        int placeholderCount = input.readInt();
+        if (placeholderCount < 0 || placeholderCount > MAX_PLACEHOLDERS) {
+            throw new IOException("Invalid placeholder count");
+        }
+        List<String> placeholders = new ArrayList<String>(placeholderCount);
+        for (int index = 0; index < placeholderCount; index++) {
+            placeholders.add(readText(input));
+        }
         BackendUpdatePayload updatePayload = null;
         if (input.readBoolean()) {
             updatePayload = new BackendUpdatePayload(readText(input), readText(input),
                     readAsset(input), readAsset(input), readAsset(input));
         }
         ConsoleRequest request = new ConsoleRequest(requestId, operation, target, command, permission,
-                playerNames, server, captureSeconds, timeoutSeconds, updatePayload);
+                playerNames, server, captureSeconds, timeoutSeconds, updatePayload, placeholders);
         requireFullyConsumed(input);
         return request;
     }

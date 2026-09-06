@@ -110,7 +110,7 @@ media:
 admin:
   not-initialized: "&cShitBot has not initialized yet."
   status: "&aShitBot &7%status%"
-  help: "&e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]"
+  help: "&e/shitbot status|reload|update|image|editor|migrate easybot [EasyBot.db]"
   migration:
     usage: "&eUsage: /shitbot migrate easybot [EasyBot.db]"
     started: "&eMigrating EasyBot binding data asynchronously: &f%file%"
@@ -119,6 +119,10 @@ admin:
   image:
     failed: "&cImage generation failed: &f%error%"
     created: "&aOnline-player image generated: &f%path%"
+  editor:
+    opening: "&eCreating a one-use image template editor URL..."
+    url: "&aImage template editor: &b%url%"
+    failed: "&cCould not open the image template editor: &f%error%"
   update:
     not-initialized: "&cThe update checker has not initialized yet."
     checking: "&eChecking and installing the GitHub Release in the background..."

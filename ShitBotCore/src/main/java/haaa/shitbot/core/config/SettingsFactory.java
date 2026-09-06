@@ -109,6 +109,8 @@ public final class SettingsFactory {
 
         Settings.Image image = new Settings.Image(
                 onlineImageTemplate,
+                Settings.Image.Renderer.from(source.getString("image.renderer", "java")),
+                source.getString("image.custom-template", "online-status"),
                 translations.get("image.title"),
                 source.getString("image.server-name", "Minecraft Server"),
                 source.getString("image.font-name", "Microsoft YaHei"),
@@ -126,6 +128,39 @@ public final class SettingsFactory {
                 source.getInt("image.avatar.connect-timeout-ms", 1500),
                 source.getInt("image.avatar.read-timeout-ms", 2500),
                 source.getInt("image.avatar.wait-timeout-ms", 2200));
+
+        Settings.CustomImages customImages = new Settings.CustomImages(
+                source.getBoolean("custom-image-templates.enabled", false),
+                source.getString("custom-image-templates.component.version", ""),
+                source.getString("custom-image-templates.component.download-url",
+                        "https://github.com/hutuyee/ShitBot/releases/download/%version%/ShitBotRenderer-%version%.jar"),
+                source.getLong("custom-image-templates.component.maximum-download-bytes", 4L * 1024L * 1024L),
+                source.getInt("custom-image-templates.component.connect-timeout-ms", 5000),
+                source.getInt("custom-image-templates.component.read-timeout-ms", 30000),
+                source.getString("custom-image-templates.directory", "image-templates"),
+                source.getInt("custom-image-templates.limits.maximum-width", 2400),
+                source.getInt("custom-image-templates.limits.maximum-height", 2400),
+                source.getLong("custom-image-templates.limits.maximum-pixels", 8L * 1024L * 1024L),
+                source.getInt("custom-image-templates.limits.maximum-layers", 256),
+                source.getInt("custom-image-templates.limits.maximum-loop-items", 200),
+                source.getLong("custom-image-templates.limits.maximum-asset-bytes", 2L * 1024L * 1024L),
+                source.getLong("custom-image-templates.limits.maximum-template-asset-bytes", 16L * 1024L * 1024L),
+                source.getInt("custom-image-templates.limits.render-timeout-ms", 5000),
+                source.getInt("custom-image-templates.render.threads", 2),
+                source.getInt("custom-image-templates.render.maximum-queued", 16),
+                source.getBoolean("custom-image-templates.remote-images.enabled", false),
+                source.getInt("custom-image-templates.data.maximum-queries", 32),
+                source.getInt("custom-image-templates.data.timeout-ms", 3000),
+                source.getInt("custom-image-templates.data.cache-seconds", 10),
+                source.getBoolean("custom-image-templates.editor.enabled", false),
+                source.getString("custom-image-templates.editor.bind-address", "127.0.0.1"),
+                source.getInt("custom-image-templates.editor.port", 0),
+                source.getInt("custom-image-templates.editor.login-seconds", 60),
+                source.getLong("custom-image-templates.editor.maximum-upload-bytes", 2L * 1024L * 1024L));
+        if (image.getRenderer() == Settings.Image.Renderer.CUSTOM && !customImages.isEnabled()) {
+            throw new IllegalArgumentException(
+                    "image.renderer is custom but custom-image-templates.enabled is false");
+        }
 
         Settings.Inventory inventory = new Settings.Inventory(
                 inventoryImageTemplate,
@@ -174,7 +209,7 @@ public final class SettingsFactory {
                 translations.get("messages.reload-failed"));
 
         return new Settings(source.getInt("config-version", 2), translations, oneBot, forwarding, binding,
-                database, image, inventory, messages);
+                database, image, customImages, inventory, messages);
     }
 
     private static List<String> listOrDefault(List<String> values, String... fallback) {

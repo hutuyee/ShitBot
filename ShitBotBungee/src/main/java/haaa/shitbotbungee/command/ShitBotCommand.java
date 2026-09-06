@@ -111,6 +111,25 @@ public final class ShitBotCommand extends Command {
                     });
             return;
         }
+        if ("editor".equalsIgnoreCase(args[0])) {
+            send(sender, translations.get("admin.editor.opening"));
+            runtime.getApi().createImageEditorLoginUrl().whenComplete(
+                    new java.util.function.BiConsumer<String, Throwable>() {
+                        @Override
+                        public void accept(final String url, final Throwable throwable) {
+                            runOnPlatform(new Runnable() {
+                                @Override
+                                public void run() {
+                                    send(sender, throwable == null
+                                            ? translations.format("admin.editor.url", "%url%", url)
+                                            : translations.format("admin.editor.failed", "%error%",
+                                                    errorMessage(throwable)));
+                                }
+                            });
+                        }
+                    });
+            return;
+        }
         send(sender, translations.get("admin.help"));
     }
 

@@ -110,7 +110,7 @@ media:
 admin:
   not-initialized: "&cShitBot 尚未初始化。"
   status: "&aShitBot &7%status%"
-  help: "&e/shitbot status|reload|update|image|migrate easybot [EasyBot.db]"
+  help: "&e/shitbot status|reload|update|image|editor|migrate easybot [EasyBot.db]"
   migration:
     usage: "&e用法: /shitbot migrate easybot [EasyBot.db]"
     started: "&e正在异步迁移 EasyBot 绑定数据: &f%file%"
@@ -119,6 +119,10 @@ admin:
   image:
     failed: "&c生成失败: &f%error%"
     created: "&a在线图片已生成: &f%path%"
+  editor:
+    opening: "&e正在生成一次性图片模板编辑器地址..."
+    url: "&a图片模板编辑器: &b%url%"
+    failed: "&c无法打开图片模板编辑器: &f%error%"
   update:
     not-initialized: "&c更新检查器尚未初始化。"
     checking: "&e正在后台检查并安装 GitHub Release..."

@@ -92,6 +92,29 @@ public final class ConsoleSettingsFactory {
                             source.getString(path + ".failed", "%result%"))));
         }
 
+        List<ConsoleSettings.ImageTemplateCommand> imageTemplateCommands =
+                new ArrayList<ConsoleSettings.ImageTemplateCommand>();
+        for (String name : source.getSectionKeys("image-templates.commands")) {
+            String path = "image-templates.commands." + name;
+            List<String> aliases = uniqueAliases(source.getStringList(path + ".aliases"), claimedAliases);
+            String templateId = source.getString(path + ".template", "").trim();
+            if (aliases.isEmpty() || !templateId.matches("[a-z0-9][a-z0-9_-]{0,63}")) {
+                continue;
+            }
+            imageTemplateCommands.add(new ConsoleSettings.ImageTemplateCommand(
+                    name,
+                    source.getBoolean(path + ".enabled", false),
+                    aliases,
+                    templateId,
+                    ConsoleSettings.PlayerSource.from(
+                            source.getString(path + ".player-source", "bound")),
+                    source.getString(path + ".target-server", ""),
+                    source.getString(path + ".permission", ""),
+                    source.getInt(path + ".cooldown-seconds", 10),
+                    source.getString(path + ".usage", "%at% 参数不正确"),
+                    source.getString(path + ".failed", "%at% 图片生成失败")));
+        }
+
         return new ConsoleSettings(
                 source.getBoolean("enabled", true),
                 source.getInt("request-timeout-seconds", 15),
@@ -108,7 +131,8 @@ public final class ConsoleSettingsFactory {
                         source.getString("messages.invalid-target", "%at% %command%")),
                 backendTransport,
                 tps,
-                shortcuts);
+                shortcuts,
+                imageTemplateCommands);
     }
 
     private static List<String> uniqueAliases(List<String> aliases, Set<String> claimed) {

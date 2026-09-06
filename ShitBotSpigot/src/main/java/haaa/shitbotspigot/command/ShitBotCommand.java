@@ -142,6 +142,25 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     });
             return true;
         }
+        if ("editor".equalsIgnoreCase(args[0])) {
+            send(sender, translations.get("admin.editor.opening"));
+            runtime.getApi().createImageEditorLoginUrl().whenComplete(
+                    new java.util.function.BiConsumer<String, Throwable>() {
+                        @Override
+                        public void accept(final String url, final Throwable throwable) {
+                            plugin.getPlatformBridge().executeOnSenderThread(sender, new Runnable() {
+                                @Override
+                                public void run() {
+                                    send(sender, throwable == null
+                                            ? translations.format("admin.editor.url", "%url%", url)
+                                            : translations.format("admin.editor.failed", "%error%",
+                                                    errorMessage(throwable)));
+                                }
+                            });
+                        }
+                    });
+            return true;
+        }
         send(sender, translations.get("admin.help"));
         return true;
     }
@@ -183,7 +202,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("status", "reload", "update", "image", "migrate");
+            return Arrays.asList("status", "reload", "update", "image", "editor", "migrate");
         }
         if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
             return Collections.singletonList("easybot");

@@ -1,12 +1,16 @@
 package haaa.shitbot.core.service;
 
 import com.google.gson.JsonElement;
+import haaa.shitbot.api.ImageRenderRequest;
+import haaa.shitbot.api.ImageRenderResult;
 import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
+import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.database.BindingRecord;
 import haaa.shitbot.core.database.BindingRepository;
+import haaa.shitbot.core.image.CustomImageService;
 import haaa.shitbot.core.onebot.GroupMessage;
 import haaa.shitbot.core.onebot.OneBotClient;
 import haaa.shitbot.core.platform.PlatformBridge;
@@ -14,28 +18,37 @@ import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class EasyConsoleService {
     private final ConsoleSettings settings;
+    private final Settings.Image imageSettings;
     private final Translations translations;
     private final PlatformBridge platform;
     private final BindingRepository repository;
+    private final CustomImageService customImageService;
     private final OneBotClient client;
     private final ConcurrentHashMap<String, Long> cooldowns = new ConcurrentHashMap<String, Long>();
 
     public EasyConsoleService(ConsoleSettings settings,
+                              Settings.Image imageSettings,
                               Translations translations,
                               PlatformBridge platform,
                               BindingRepository repository,
+                              CustomImageService customImageService,
                               OneBotClient client) {
         this.settings = settings;
+        this.imageSettings = imageSettings;
         this.translations = translations;
         this.platform = platform;
         this.repository = repository;
+        this.customImageService = customImageService;
         this.client = client;
         warnAboutUnboundShortcuts();
     }
@@ -71,7 +84,152 @@ public final class EasyConsoleService {
                 return true;
             }
         }
+        for (ConsoleSettings.ImageTemplateCommand command : settings.getImageTemplateCommands()) {
+            CommandMatch match = matchCommand(raw, command.getAliases());
+            if (command.isEnabled() && match != null) {
+                if (command.getPlayerSource() == ConsoleSettings.PlayerSource.ARGUMENT
+                        && !TextUtil.isValidPlayerName(match.arguments)) {
+                    reply(message, command.getUsageMessage(), "", platform.getPlatformName(),
+                            firstAlias(command.getAliases()), command.getTargetServer());
+                } else if (!isCoolingDown(message, "image-template:" + command.getName(),
+                        command.getCooldownSeconds())) {
+                    executeImageTemplate(message, command, match.arguments);
+                }
+                return true;
+            }
+        }
         return false;
+    }
+
+    private void executeImageTemplate(final GroupMessage message,
+                                      final ConsoleSettings.ImageTemplateCommand command,
+                                      final String arguments) {
+        resolveImagePlayers(message, command, arguments).thenCompose(
+                new java.util.function.Function<PlayerSelection, CompletableFuture<Void>>() {
+                    @Override
+                    public CompletableFuture<Void> apply(final PlayerSelection selection) {
+                        if (selection == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return authorizeImageCommand(command, selection).thenCompose(
+                                new java.util.function.Function<ConsoleResult, CompletableFuture<Void>>() {
+                                    @Override
+                                    public CompletableFuture<Void> apply(ConsoleResult permissionResult) {
+                                        if (permissionResult == null) {
+                                            reply(message, settings.getUnavailableMessage(), "",
+                                                    platform.getPlatformName(),
+                                                    firstAlias(command.getAliases()), command.getTargetServer());
+                                            return CompletableFuture.completedFuture(null);
+                                        }
+                                        if (permissionResult.getStatus() == ConsoleResult.Status.NO_PERMISSION) {
+                                            reply(message, settings.getNoPermissionMessage(),
+                                                    permissionResult.getOutput(), permissionResult.getSource(),
+                                                    firstAlias(command.getAliases()), command.getTargetServer());
+                                            return CompletableFuture.completedFuture(null);
+                                        }
+                                        if (!permissionResult.isSuccess()) {
+                                            reply(message, settings.getUnavailableMessage(),
+                                                    permissionResult.getOutput(), permissionResult.getSource(),
+                                                    firstAlias(command.getAliases()), command.getTargetServer());
+                                            return CompletableFuture.completedFuture(null);
+                                        }
+                                        Map<String, Object> context = new LinkedHashMap<String, Object>();
+                                        context.put("title", imageSettings.getTitle());
+                                        context.put("server-name", imageSettings.getServerName());
+                                        context.put("qq", String.valueOf(message.getUserId()));
+                                        context.put("group", Long.valueOf(message.getGroupId()));
+                                        context.put("sender", message.getSenderName());
+                                        context.put("player", selection.playerName);
+                                        context.put("players", selection.playerNames);
+                                        context.put("server", command.getTargetServer());
+                                        context.put("arguments", arguments == null ? "" : arguments);
+                                        context.put("command", command.getName());
+                                        context.put("platform", platform.getPlatformName());
+                                        return customImageService.renderImage(
+                                                command.getTemplateId(), ImageRenderRequest.of(context))
+                                                .thenCompose(new java.util.function.Function<ImageRenderResult,
+                                                        CompletableFuture<JsonElement>>() {
+                                                    @Override
+                                                    public CompletableFuture<JsonElement> apply(
+                                                            ImageRenderResult result) {
+                                                        return client.sendGroupImage(message.getGroupId(),
+                                                                result.getBytes(),
+                                                                result.getSuggestedFileName());
+                                                    }
+                                                }).thenApply(new java.util.function.Function<JsonElement, Void>() {
+                                                    @Override
+                                                    public Void apply(JsonElement ignored) {
+                                                        return null;
+                                                    }
+                                                });
+                                    }
+                                });
+                    }
+                }).whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
+                    @Override
+                    public void accept(Void ignored, Throwable throwable) {
+                        if (throwable == null) return;
+                        Throwable cause = FutureUtil.unwrap(throwable);
+                        platform.error("Custom image command failed: " + command.getName(), cause);
+                        reply(message, command.getFailedMessage(), safeMessage(cause),
+                                platform.getPlatformName(), firstAlias(command.getAliases()),
+                                command.getTargetServer());
+                    }
+                });
+    }
+
+    private CompletableFuture<PlayerSelection> resolveImagePlayers(
+            final GroupMessage message,
+            final ConsoleSettings.ImageTemplateCommand command,
+            final String arguments) {
+        if (command.getPlayerSource() == ConsoleSettings.PlayerSource.NONE) {
+            return CompletableFuture.completedFuture(new PlayerSelection(
+                    "", Collections.<String>emptyList()));
+        }
+        return repository.findAllByQqId(String.valueOf(message.getUserId())).thenApply(
+                new java.util.function.Function<List<BindingRecord>, PlayerSelection>() {
+                    @Override
+                    public PlayerSelection apply(List<BindingRecord> bindings) {
+                        if (bindings == null || bindings.isEmpty()) {
+                            reply(message, settings.getNotBoundMessage(), "", platform.getPlatformName(),
+                                    firstAlias(command.getAliases()), command.getTargetServer());
+                            return null;
+                        }
+                        BindingRecord selected = bindings.get(0);
+                        if (command.getPlayerSource() == ConsoleSettings.PlayerSource.ARGUMENT) {
+                            selected = null;
+                            for (BindingRecord binding : bindings) {
+                                if (binding != null && binding.getPlayerName() != null
+                                        && binding.getPlayerName().equals(arguments)) {
+                                    selected = binding;
+                                    break;
+                                }
+                            }
+                            if (selected == null) {
+                                reply(message, command.getUsageMessage(), "", platform.getPlatformName(),
+                                        firstAlias(command.getAliases()), command.getTargetServer());
+                                return null;
+                            }
+                        }
+                        String playerName = selected == null || selected.getPlayerName() == null
+                                ? "" : selected.getPlayerName();
+                        return new PlayerSelection(playerName,
+                                playerName.isEmpty() ? Collections.<String>emptyList()
+                                        : Collections.singletonList(playerName));
+                    }
+                });
+    }
+
+    private CompletableFuture<ConsoleResult> authorizeImageCommand(
+            ConsoleSettings.ImageTemplateCommand command,
+            PlayerSelection selection) {
+        if (command.getPermission().isEmpty()) {
+            return CompletableFuture.completedFuture(new ConsoleResult(
+                    "", ConsoleResult.Status.SUCCESS, "", platform.getPlatformName()));
+        }
+        return platform.executeConsoleRequest(ConsoleRequest.permission(
+                command.getPermission(), selection.playerNames,
+                command.getTargetServer(), settings.getRequestTimeoutSeconds()));
     }
 
     private void executeShortcut(final GroupMessage message,
@@ -267,7 +425,10 @@ public final class EasyConsoleService {
     }
 
     private boolean isCoolingDown(GroupMessage message, String commandKey) {
-        int seconds = settings.getCommandCooldownSeconds();
+        return isCoolingDown(message, commandKey, settings.getCommandCooldownSeconds());
+    }
+
+    private boolean isCoolingDown(GroupMessage message, String commandKey, int seconds) {
         if (seconds <= 0) {
             return false;
         }
@@ -296,6 +457,29 @@ public final class EasyConsoleService {
         }
     }
 
+    private CommandMatch matchCommand(String raw, List<String> aliases) {
+        if (raw == null || aliases == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        String selected = null;
+        for (String alias : aliases) {
+            if (alias == null || alias.trim().isEmpty()) continue;
+            String clean = alias.trim();
+            String lower = clean.toLowerCase(Locale.ROOT);
+            if ((normalized.equals(lower) || normalized.startsWith(lower + " "))
+                    && (selected == null || clean.length() > selected.length())) {
+                selected = clean;
+            }
+        }
+        return selected == null ? null : new CommandMatch(raw.trim().substring(selected.length()).trim());
+    }
+
+    private String safeMessage(Throwable throwable) {
+        if (throwable == null) return "";
+        String message = throwable.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? throwable.getClass().getSimpleName() : message.trim();
+    }
+
     private static final class TargetMatch {
         private final String targetServer;
         private final boolean valid;
@@ -315,6 +499,25 @@ public final class EasyConsoleService {
 
         private boolean isValid() {
             return valid;
+        }
+    }
+
+    private static final class CommandMatch {
+        private final String arguments;
+
+        private CommandMatch(String arguments) {
+            this.arguments = arguments == null ? "" : arguments;
+        }
+    }
+
+    private static final class PlayerSelection {
+        private final String playerName;
+        private final List<String> playerNames;
+
+        private PlayerSelection(String playerName, List<String> playerNames) {
+            this.playerName = playerName == null ? "" : playerName;
+            this.playerNames = playerNames == null
+                    ? Collections.<String>emptyList() : playerNames;
         }
     }
 }

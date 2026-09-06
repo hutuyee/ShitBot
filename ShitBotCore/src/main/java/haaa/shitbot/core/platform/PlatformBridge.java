@@ -17,6 +17,21 @@ public interface PlatformBridge {
 
     String getPlatformName();
 
+    /** Version of the active platform plugin, used to select matching optional components. */
+    default String getPluginVersion() {
+        return "";
+    }
+
+    /** Resolves an explicitly declared PlaceholderAPI batch on the correct platform thread. */
+    default CompletableFuture<Map<String, String>> resolvePlaceholders(String playerName,
+                                                                       List<String> placeholders,
+                                                                       String targetServer) {
+        CompletableFuture<Map<String, String>> future = new CompletableFuture<Map<String, String>>();
+        future.completeExceptionally(new UnsupportedOperationException(
+                "PlaceholderAPI is unsupported on " + getPlatformName()));
+        return future;
+    }
+
     CompletableFuture<Map<String, List<String>>> captureOnlinePlayers();
 
     /** Captures all online inventories in one platform-thread pass when supported. */

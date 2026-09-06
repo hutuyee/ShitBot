@@ -1,5 +1,7 @@
 package haaa.shitbotspigot;
 
+import haaa.shitbot.api.ShitBotApi;
+import haaa.shitbot.api.ShitBotApiProvider;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.console.ConsoleSettings;
@@ -30,7 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class ShitBotSpigot extends JavaPlugin {
+public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvider {
     private static final int BSTATS_PLUGIN_ID = 33865;
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private final AtomicBoolean updateCheckStarted = new AtomicBoolean();
@@ -210,6 +212,12 @@ public final class ShitBotSpigot extends JavaPlugin {
 
     public ShitBotRuntime getRuntime() {
         return runtimeReference.get();
+    }
+
+    @Override
+    public ShitBotApi getShitBotApi() {
+        ShitBotRuntime runtime = runtimeReference.get();
+        return runtime == null ? null : runtime.getApi();
     }
 
     public Translations getTranslations() {

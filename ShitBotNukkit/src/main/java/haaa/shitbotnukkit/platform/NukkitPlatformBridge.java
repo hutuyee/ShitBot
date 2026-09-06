@@ -47,6 +47,11 @@ public final class NukkitPlatformBridge implements PlatformBridge, AutoCloseable
     }
 
     @Override
+    public String getPluginVersion() {
+        return plugin.getDescription().getVersion();
+    }
+
+    @Override
     public CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
         return consoleGateway.execute(request);
     }

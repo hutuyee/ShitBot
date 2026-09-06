@@ -77,6 +77,81 @@ public final class SpigotPlatformBridge implements PlatformBridge {
     }
 
     @Override
+    public String getPluginVersion() {
+        return plugin.getDescription().getVersion();
+    }
+
+    @Override
+    public CompletableFuture<Map<String, String>> resolvePlaceholders(final String playerName,
+                                                                      final List<String> placeholders,
+                                                                      String targetServer) {
+        final CompletableFuture<Map<String, String>> result =
+                new CompletableFuture<Map<String, String>>();
+        scheduler.executeGlobal(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    org.bukkit.plugin.Plugin papi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI");
+                    if (papi == null || !papi.isEnabled()) {
+                        throw new IllegalStateException("PlaceholderAPI is not installed or enabled");
+                    }
+                    final Player player = playerName == null ? null : Bukkit.getPlayerExact(playerName.trim());
+                    if (player == null || !player.isOnline()) {
+                        throw new IllegalArgumentException("PlaceholderAPI player is not online: " + playerName);
+                    }
+                    final Method method = placeholderMethod(player);
+                    scheduler.executeForPlayer(player, new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Map<String, String> values = new LinkedHashMap<String, String>();
+                                for (String placeholder : placeholders) {
+                                    Object value = method.invoke(null, player, placeholder);
+                                    values.put(placeholder, value == null ? "" : String.valueOf(value));
+                                }
+                                result.complete(values);
+                            } catch (Throwable throwable) {
+                                result.completeExceptionally(reflectionCause(throwable));
+                            }
+                        }
+                    }, new Runnable() {
+                        @Override
+                        public void run() {
+                            result.completeExceptionally(new IllegalStateException(
+                                    "PlaceholderAPI player left before values were resolved"));
+                        }
+                    });
+                } catch (Throwable throwable) {
+                    result.completeExceptionally(throwable);
+                }
+            }
+        });
+        return result;
+    }
+
+    private Method placeholderMethod(Player player) throws Exception {
+        Class<?> api = Class.forName("me.clip.placeholderapi.PlaceholderAPI", true,
+                Bukkit.getPluginManager().getPlugin("PlaceholderAPI").getClass().getClassLoader());
+        for (Method method : api.getMethods()) {
+            Class<?>[] parameters = method.getParameterTypes();
+            if (method.getName().equals("setPlaceholders") && Modifier.isStatic(method.getModifiers())
+                    && parameters.length == 2 && parameters[1] == String.class
+                    && parameters[0].isAssignableFrom(player.getClass())) {
+                return method;
+            }
+        }
+        throw new NoSuchMethodException("PlaceholderAPI.setPlaceholders(player, String) is unavailable");
+    }
+
+    private Throwable reflectionCause(Throwable throwable) {
+        if (throwable instanceof java.lang.reflect.InvocationTargetException
+                && throwable.getCause() != null) {
+            return throwable.getCause();
+        }
+        return throwable;
+    }
+
+    @Override
     public CompletableFuture<ConsoleResult> executeConsoleRequest(ConsoleRequest request) {
         return consoleController.execute(request);
     }

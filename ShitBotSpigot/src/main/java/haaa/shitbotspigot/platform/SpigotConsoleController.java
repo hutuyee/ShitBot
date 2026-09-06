@@ -5,6 +5,7 @@ import haaa.shitbot.core.console.ConsoleRequest;
 import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.LatestLogCapture;
+import haaa.shitbot.core.console.PlaceholderResultCodec;
 import haaa.shitbot.core.update.BackendUpdatePayload;
 import haaa.shitbot.core.update.UpdateInstallResult;
 import haaa.shitbot.core.util.FutureUtil;
@@ -73,6 +74,14 @@ public final class SpigotConsoleController implements AutoCloseable {
                         }
                         if (request.getOperation() == ConsoleRequest.Operation.TPS) {
                             return queryTps(request);
+                        }
+                        if (request.getOperation() == ConsoleRequest.Operation.PLACEHOLDERS) {
+                            return queryPlaceholders(request);
+                        }
+                        if (request.getOperation() == ConsoleRequest.Operation.PERMISSION) {
+                            return CompletableFuture.completedFuture(new ConsoleResult(
+                                    request.getRequestId(), ConsoleResult.Status.SUCCESS,
+                                    "permission granted", serverName()));
                         }
                         return enqueueCommand(request);
                     }
@@ -183,6 +192,31 @@ public final class SpigotConsoleController implements AutoCloseable {
 
     private CompletableFuture<Boolean> hasPermission(ConsoleRequest request) {
         return permissionResolver.hasPermission(request.getPlayerNames(), request.getPermission());
+    }
+
+    private CompletableFuture<ConsoleResult> queryPlaceholders(final ConsoleRequest request) {
+        if (request.getPlayerNames().size() != 1 || request.getPlaceholders().isEmpty()) {
+            return CompletableFuture.completedFuture(ConsoleResult.unavailable(
+                    request, "Placeholder request is incomplete", serverName()));
+        }
+        return plugin.getPlatformBridge().resolvePlaceholders(
+                request.getPlayerNames().get(0), request.getPlaceholders(), "")
+                .handle(new java.util.function.BiFunction<java.util.Map<String, String>, Throwable, ConsoleResult>() {
+                    @Override
+                    public ConsoleResult apply(java.util.Map<String, String> values, Throwable throwable) {
+                        if (throwable != null) {
+                            return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
+                                    errorMessage(throwable), serverName());
+                        }
+                        try {
+                            return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.SUCCESS,
+                                    PlaceholderResultCodec.encode(values), serverName());
+                        } catch (IOException exception) {
+                            return new ConsoleResult(request.getRequestId(), ConsoleResult.Status.FAILED,
+                                    exception.getMessage(), serverName());
+                        }
+                    }
+                });
     }
 
     private CompletableFuture<ConsoleResult> installBackendUpdate(final ConsoleRequest request) {

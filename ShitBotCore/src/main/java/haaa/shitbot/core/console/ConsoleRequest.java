@@ -13,7 +13,9 @@ public final class ConsoleRequest {
     public enum Operation {
         COMMAND,
         TPS,
-        UPDATE
+        UPDATE,
+        PLACEHOLDERS,
+        PERMISSION
     }
 
     private final String requestId;
@@ -26,6 +28,7 @@ public final class ConsoleRequest {
     private final int captureSeconds;
     private final int timeoutSeconds;
     private final BackendUpdatePayload updatePayload;
+    private final List<String> placeholders;
 
     public ConsoleRequest(String requestId,
                           Operation operation,
@@ -37,7 +40,7 @@ public final class ConsoleRequest {
                           int captureSeconds,
                           int timeoutSeconds) {
         this(requestId, operation, target, command, permission, playerNames, server,
-                captureSeconds, timeoutSeconds, null);
+                captureSeconds, timeoutSeconds, null, null);
     }
 
     public ConsoleRequest(String requestId,
@@ -50,6 +53,21 @@ public final class ConsoleRequest {
                           int captureSeconds,
                           int timeoutSeconds,
                           BackendUpdatePayload updatePayload) {
+        this(requestId, operation, target, command, permission, playerNames, server,
+                captureSeconds, timeoutSeconds, updatePayload, null);
+    }
+
+    public ConsoleRequest(String requestId,
+                          Operation operation,
+                          ConsoleSettings.Target target,
+                          String command,
+                          String permission,
+                          List<String> playerNames,
+                          String server,
+                          int captureSeconds,
+                          int timeoutSeconds,
+                          BackendUpdatePayload updatePayload,
+                          List<String> placeholders) {
         this.requestId = requestId == null || requestId.trim().isEmpty()
                 ? UUID.randomUUID().toString() : requestId.trim();
         this.operation = operation == null ? Operation.COMMAND : operation;
@@ -63,6 +81,7 @@ public final class ConsoleRequest {
         this.captureSeconds = clamp(captureSeconds, 1, 30, 5);
         this.timeoutSeconds = clamp(timeoutSeconds, 2, 60, 15);
         this.updatePayload = updatePayload;
+        this.placeholders = immutableStrings(placeholders);
     }
 
     public static ConsoleRequest command(ConsoleSettings.Shortcut shortcut,
@@ -115,6 +134,25 @@ public final class ConsoleRequest {
                 "", "", Collections.<String>emptyList(), targetServer, 1, 60, payload);
     }
 
+    public static ConsoleRequest placeholders(String playerName,
+                                               List<String> placeholders,
+                                               String targetServer,
+                                               int timeoutSeconds) {
+        List<String> players = playerName == null || playerName.trim().isEmpty()
+                ? Collections.<String>emptyList()
+                : Collections.singletonList(playerName.trim());
+        return new ConsoleRequest(null, Operation.PLACEHOLDERS, ConsoleSettings.Target.BACKEND,
+                "", "", players, targetServer, 1, timeoutSeconds, null, placeholders);
+    }
+
+    public static ConsoleRequest permission(String permission,
+                                            List<String> playerNames,
+                                            String targetServer,
+                                            int timeoutSeconds) {
+        return new ConsoleRequest(null, Operation.PERMISSION, ConsoleSettings.Target.BACKEND,
+                "", permission, playerNames, targetServer, 1, timeoutSeconds);
+    }
+
     public String getRequestId() { return requestId; }
     public Operation getOperation() { return operation; }
     public ConsoleSettings.Target getTarget() { return target; }
@@ -125,6 +163,16 @@ public final class ConsoleRequest {
     public int getCaptureSeconds() { return captureSeconds; }
     public int getTimeoutSeconds() { return timeoutSeconds; }
     public BackendUpdatePayload getUpdatePayload() { return updatePayload; }
+    public List<String> getPlaceholders() { return placeholders; }
+
+    private static List<String> immutableStrings(List<String> values) {
+        if (values == null || values.isEmpty()) return Collections.emptyList();
+        List<String> result = new ArrayList<String>();
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) result.add(value.trim());
+        }
+        return Collections.unmodifiableList(result);
+    }
 
     private static int clamp(int value, int minimum, int maximum, int fallback) {
         return value < minimum || value > maximum ? fallback : value;

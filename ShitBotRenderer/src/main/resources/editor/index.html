@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ShitBot Image Templates</title>
+  <link rel="stylesheet" href="/editor.css">
+</head>
+<body>
+  <header>
+    <strong>ShitBot Image Templates</strong>
+    <span id="templateTitle">No template selected</span>
+    <span id="status" role="status"></span>
+    <button id="save">Save draft</button>
+    <button id="preview">Preview</button>
+    <button id="publish" class="primary">Publish</button>
+  </header>
+  <main>
+    <aside class="templates">
+      <div class="aside-title">Templates <button id="newTemplate" title="New template">＋</button></div>
+      <div id="templates"></div>
+      <div class="asset-box">
+        <label>Upload asset<input id="asset" type="file" accept="image/png,image/jpeg,image/gif"></label>
+        <input id="assetName" placeholder="images/example.png">
+        <button id="upload">Upload</button>
+      </div>
+    </aside>
+    <section class="workspace">
+      <nav>
+        <button data-tab="visual" class="active">Visual</button>
+        <button data-tab="source">YAML</button>
+        <button data-tab="data">Preview data</button>
+        <span class="spacer"></span>
+        <select id="newLayerType"></select><button id="addLayer">Add layer</button>
+      </nav>
+      <div id="visual" class="tab active">
+        <div class="stage-wrap"><div id="stage"></div></div>
+        <div class="layer-panel">
+          <div class="panel-title">Layers <button id="layerUp">↑</button><button id="layerDown">↓</button><button id="deleteLayer">Delete</button></div>
+          <div id="layers"></div>
+        </div>
+        <div class="properties">
+          <div class="panel-title">Properties</div>
+          <div id="fields"></div>
+          <label>Complete layer JSON<textarea id="layerJson" spellcheck="false"></textarea></label>
+          <button id="applyLayerJson">Apply JSON</button>
+        </div>
+      </div>
+      <div id="source" class="tab source-grid">
+        <label>manifest.yml<textarea id="manifestSource" spellcheck="false"></textarea></label>
+        <label>scene.yml<textarea id="sceneSource" spellcheck="false"></textarea></label>
+      </div>
+      <div id="data" class="tab data-grid">
+        <label>context (JSON)<textarea id="contextData" spellcheck="false">{"title":"Server status","server-name":"Minecraft Server"}</textarea></label>
+        <label>data overrides (JSON)<textarea id="overrideData" spellcheck="false">{}</textarea></label>
+        <div><button id="resolveData">Resolve declared providers</button><pre id="resolvedData"></pre></div>
+      </div>
+      <footer>
+        <label>Published history <select id="versions"></select></label>
+        <button id="rollback">Roll back to selected version</button>
+      </footer>
+    </section>
+    <dialog id="previewDialog"><button id="closePreview">Close</button><img id="previewImage" alt="Rendered template preview"></dialog>
+  </main>
+  <script src="/editor.js"></script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 package haaa.shitbotnukkit;
 
+import haaa.shitbot.api.ShitBotApi;
+import haaa.shitbot.api.ShitBotApiProvider;
 import cn.nukkit.Player;
 import cn.nukkit.command.Command;
 import cn.nukkit.command.CommandSender;
@@ -33,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class ShitBotNukkit extends PluginBase implements Listener {
+public final class ShitBotNukkit extends PluginBase implements Listener, ShitBotApiProvider {
     private final AtomicReference<ShitBotRuntime> runtimeReference =
             new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
@@ -306,6 +308,10 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
             renderImage(sender, runtime);
             return true;
         }
+        if ("editor".equalsIgnoreCase(args[0])) {
+            openImageEditor(sender, runtime);
+            return true;
+        }
         send(sender, translations.get("admin.help"));
         return true;
     }
@@ -464,6 +470,12 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
         return runtimeReference.get();
     }
 
+    @Override
+    public ShitBotApi getShitBotApi() {
+        ShitBotRuntime runtime = runtimeReference.get();
+        return runtime == null ? null : runtime.getApi();
+    }
+
     public Translations getTranslations() {
         return translations;
     }
@@ -493,5 +505,25 @@ public final class ShitBotNukkit extends PluginBase implements Listener {
         if (platformBridge != null) {
             platformBridge.close();
         }
+    }
+
+    private void openImageEditor(final CommandSender sender, final ShitBotRuntime runtime) {
+        final Translations translations = runtime.getSettings().getTranslations();
+        send(sender, translations.get("admin.editor.opening"));
+        runtime.getApi().createImageEditorLoginUrl().whenComplete(
+                new java.util.function.BiConsumer<String, Throwable>() {
+                    @Override
+                    public void accept(final String url, final Throwable throwable) {
+                        platformBridge.executeOnSenderThread(sender, new Runnable() {
+                            @Override
+                            public void run() {
+                                send(sender, throwable == null
+                                        ? translations.format("admin.editor.url", "%url%", url)
+                                        : translations.format("admin.editor.failed", "%error%",
+                                                errorMessage(throwable)));
+                            }
+                        });
+                    }
+                });
     }
 }

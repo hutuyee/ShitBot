@@ -5,6 +5,7 @@ import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.DatabaseManager;
 import haaa.shitbot.core.database.InventorySnapshotRepository;
+import haaa.shitbot.core.image.CustomImageService;
 import haaa.shitbot.core.onebot.OneBotClient;
 import haaa.shitbot.core.onebot.OneBotCommandHandler;
 import haaa.shitbot.core.onebot.OneBotNoticeHandler;
@@ -36,6 +37,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final InventorySnapshotRepository inventorySnapshotRepository;
     private final BindingService bindingService;
     private final EasyBotMigrationService easyBotMigrationService;
+    private final CustomImageService customImageService;
     private final OnlineImageService imageService;
     private final InventoryService inventoryService;
     private final OneBotClient oneBotClient;
@@ -51,7 +53,8 @@ public final class ShitBotRuntime implements AutoCloseable {
     private volatile CompletableFuture<Void> startFuture;
 
     public ShitBotRuntime(Settings settings, PlatformBridge platform) {
-        this(settings, new ConsoleSettings(false, 15, 5, "", "", "", "", "", null, null, null), platform);
+        this(settings, new ConsoleSettings(false, 15, 5, "", "", "", "", "",
+                null, null, null, null), platform);
     }
 
     public ShitBotRuntime(Settings settings, ConsoleSettings consoleSettings, PlatformBridge platform) {
@@ -63,8 +66,9 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.bindingService = new BindingService(settings, repository, platform);
         this.easyBotMigrationService = new EasyBotMigrationService(
                 platform, repository, settings.getTranslations());
+        this.customImageService = new CustomImageService(settings, platform);
         this.imageService = new OnlineImageService(
-                settings.getImage(), settings.getTranslations(), platform);
+                settings.getImage(), settings.getTranslations(), platform, customImageService);
         this.inventoryService = new InventoryService(
                 settings.getInventory(), settings.getTranslations(), platform,
                 repository, inventorySnapshotRepository);
@@ -74,7 +78,8 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.commandHandler = new OneBotCommandHandler(
                 settings, platform, bindingService, imageService, inventoryService, oneBotClient);
         this.easyConsoleService = new EasyConsoleService(
-                consoleSettings, settings.getTranslations(), platform, repository, oneBotClient);
+                consoleSettings, settings.getImage(), settings.getTranslations(), platform, repository,
+                customImageService, oneBotClient);
         this.noticeHandler = new OneBotNoticeHandler(
                 settings, platform, bindingService, oneBotClient);
         this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
@@ -109,7 +114,8 @@ public final class ShitBotRuntime implements AutoCloseable {
         if (closed.get()) {
             return FutureUtil.failedFuture(new IllegalStateException("Runtime is closed"));
         }
-        startFuture = database.initializeAsync().thenRun(new Runnable() {
+        startFuture = CompletableFuture.allOf(
+                database.initializeAsync(), customImageService.startAsync()).thenRun(new Runnable() {
             @Override
             public void run() {
                 if (closed.get()) {
@@ -194,6 +200,10 @@ public final class ShitBotRuntime implements AutoCloseable {
         return imageService;
     }
 
+    public haaa.shitbot.api.ShitBotApi getApi() {
+        return customImageService;
+    }
+
     public InventoryService getInventoryService() {
         return inventoryService;
     }
@@ -245,6 +255,7 @@ public final class ShitBotRuntime implements AutoCloseable {
         oneBotClient.close();
         inventoryService.close();
         imageService.close();
+        customImageService.close();
         database.close();
     }
 }
