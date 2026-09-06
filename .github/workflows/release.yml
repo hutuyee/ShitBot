@@ -102,6 +102,12 @@ jobs:
             jar_file="${jars[0]}"
             jar_name="$(basename "${jar_file}")"
 
+            jar_size="$(stat -c '%s' "${jar_file}")"
+            if [[ "${jar_size}" -gt 1048576 ]]; then
+              echo "::error title=Plugin size limit exceeded::${jar_name} is ${jar_size} bytes; platform plugins must stay within 1 MiB."
+              exit 1
+            fi
+
             echo "Copying ${jar_file} -> release/${jar_name}"
             cp "${jar_file}" "release/${jar_name}"
             (
@@ -109,6 +115,36 @@ jobs:
               sha256sum "${jar_name}" > "${jar_name}.sha256"
             )
           done
+
+          mapfile -t renderer_jars < <(
+            find ShitBotRenderer/target \
+              -maxdepth 1 \
+              -type f \
+              -name "ShitBotRenderer-*.jar" \
+              ! -name "original-*.jar" \
+              ! -name "*-sources.jar" \
+              ! -name "*-javadoc.jar" \
+              -print \
+            | sort
+          )
+
+          if [[ "${#renderer_jars[@]}" -ne 1 ]]; then
+            echo "::error title=Renderer artifact error::Expected one optional ShitBotRenderer JAR, found ${#renderer_jars[@]}."
+            exit 1
+          fi
+
+          renderer_file="${renderer_jars[0]}"
+          renderer_name="$(basename "${renderer_file}")"
+          renderer_size="$(stat -c '%s' "${renderer_file}")"
+          if [[ "${renderer_size}" -gt 1048576 ]]; then
+            echo "::error title=Renderer size limit exceeded::${renderer_name} is ${renderer_size} bytes; the optional renderer must stay within 1 MiB."
+            exit 1
+          fi
+          cp "${renderer_file}" "release/${renderer_name}"
+          (
+            cd release
+            sha256sum "${renderer_name}" > "${renderer_name}.sha256"
+          )
 
           echo
           echo "Generated plugin JAR files:"
@@ -123,8 +159,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#release_jars[@]}" -ne 4 ]]; then
-            echo "::error title=Unexpected artifact count::Expected exactly 4 plugin JAR files, found ${#release_jars[@]}."
+          if [[ "${#release_jars[@]}" -ne 5 ]]; then
+            echo "::error title=Unexpected artifact count::Expected 4 plugin JARs and 1 optional renderer JAR, found ${#release_jars[@]}."
             exit 1
           fi
 
@@ -201,8 +237,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#jars[@]}" -ne 4 ]]; then
-            echo "::error title=Unexpected release artifact count::Expected exactly 4 JAR files, found ${#jars[@]}."
+          if [[ "${#jars[@]}" -ne 5 ]]; then
+            echo "::error title=Unexpected release artifact count::Expected 4 plugin JARs and 1 optional renderer JAR, found ${#jars[@]}."
             exit 1
           fi
 
@@ -215,8 +251,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#checksums[@]}" -ne 4 ]]; then
-            echo "::error title=Unexpected checksum count::Expected exactly 4 SHA-256 files, found ${#checksums[@]}."
+          if [[ "${#checksums[@]}" -ne 5 ]]; then
+            echo "::error title=Unexpected checksum count::Expected exactly 5 SHA-256 files, found ${#checksums[@]}."
             exit 1
           fi
 
@@ -229,8 +265,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#signatures[@]}" -ne 4 ]]; then
-            echo "::error title=Unexpected signature count::Expected exactly 4 detached signatures, found ${#signatures[@]}."
+          if [[ "${#signatures[@]}" -ne 5 ]]; then
+            echo "::error title=Unexpected signature count::Expected exactly 5 detached signatures, found ${#signatures[@]}."
             exit 1
           fi
 
