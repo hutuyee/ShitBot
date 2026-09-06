@@ -5,6 +5,7 @@
 - [安装与部署](installation.md)：选择平台 JAR、首次启动和部署方式。
 - [配置说明](configuration.md)：`config.yml` 与 `commands.yml` 的主要配置。
 - [命令与权限](commands.md)：管理命令、QQ 群指令、快捷命令和权限检查。
+- [图片渲染与高级模板](image-templates.md)：内置/高级两种模式、按需组件、场景格式、编辑器和插件 API。
 - [常见问题](troubleshooting.md)：连接、转发、绑定、数据库和代理命令排错。
 
 ## 群组服与数据

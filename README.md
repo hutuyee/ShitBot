@@ -1,6 +1,6 @@
 # ShitBot
 
-连接 Minecraft 服务器与 QQ 群的 OneBot v11 插件，提供账号绑定、群服互通、在线状态图片、背包查询、TPS 查询和受控的 QQ 快捷命令。
+连接 Minecraft 服务器与 QQ 群的 OneBot v11 插件，提供账号绑定、群服互通、在线状态图片、背包查询、TPS 查询、受控的 QQ 快捷命令，以及可选的高级图片模板系统。
 
 支持 Spigot/Paper/Folia、BungeeCord、Velocity 和 Nukkit-MOT。OneBot 实现可以使用 [LuckyLilliaBot](https://github.com/LLOneBot/LuckyLilliaBot) 或其他兼容 OneBot v11 正向 WebSocket 的实现。
 
@@ -23,6 +23,8 @@
 | Nukkit-MOT | `ShitBotNukkit-*.jar` | `plugins/` | 17+ |
 
 只安装与你的平台匹配的 JAR，不要将多个平台版本放进同一个实例。某个 Release 没有对应平台 JAR 时，表示该版本没有发布该平台构建，不能用其他平台 JAR 代替。表中的 Java 是插件字节码要求，实际运行时还必须满足服务端核心自身的 Java 要求。
+
+默认图片模式不需要安装 `ShitBotRenderer`。只有明确开启 `custom-image-templates.enabled` 后，插件才会按当前版本从同一个官方 Release 下载、校验并缓存这个可选组件；不要把它手工放进 `plugins/`。
 
 ## 安装
 
@@ -84,6 +86,8 @@ inventory:
 
 模板名不带 `.yml`；未写出的字段会回退到 `default.yml`。
 
+需要自由图层、条件/循环、PAPI、可视化编辑器或第三方插件渲染 API 时，再启用独立的 `image-templates/` 高级系统。两种模式的选择和按需下载规则见[图片渲染与高级模板](docs/image-templates.md)。
+
 配置完成后执行：
 
 ```text
@@ -109,6 +113,7 @@ inventory:
 | `/shitbot reload` | 重载配置、语言文件、图片模板和运行实例 | `shitbot.admin` |
 | `/shitbot update` | 下载并校验当前平台的新版本，替换后等待手动重启 | `shitbot.admin` |
 | `/shitbot image` | 生成一次在线状态图片 | `shitbot.admin` |
+| `/shitbot editor` | 生成高级图片模板编辑器的一次性登录地址 | `shitbot.admin` |
 | `/shitbot migrate easybot [EasyBot.db]` | 导入 EasyBot 绑定数据 | `shitbot.admin` |
 
 Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Velocity 同样检查该权限。
@@ -137,6 +142,7 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 - [代理与后端子服](docs/proxy-backend.md)
 - [数据库与数据迁移](docs/database.md)
 - [背包查询与材质配置](docs/inventory.md)
+- [图片渲染与高级模板](docs/image-templates.md)
 - [常见问题](docs/troubleshooting.md)
 - [平台兼容性](docs/compatibility.md)
 - [升级与自动更新](docs/updating.md)

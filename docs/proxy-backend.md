@@ -1,6 +1,6 @@
 # 代理与后端子服
 
-本模式用于让 BungeeCord 或 Velocity 接收 QQ 指令，并在指定 Spigot 子服执行 TPS 查询或快捷命令。普通群聊转发不需要配置该通道。
+本模式用于让 BungeeCord 或 Velocity 接收 QQ 指令，并在指定 Spigot 子服执行 TPS 查询、权限校验、快捷命令或 PlaceholderAPI 数据查询。普通群聊转发不需要配置该通道。
 
 ## 部署要求
 
@@ -161,6 +161,8 @@ PKCS12 文件路径相对于各自的插件数据目录。使用公共 CA 证书
 6. 再执行一个权限受控的快捷命令。
 
 如果代理无法连接后端，检查地址、端口、Token、`server-name`、来源 IP、TLS 证书、系统时间和防火墙。
+
+高级图片模板在 manifest 中声明 `papi` 时，代理使用同一通道向目标 Spigot 后端批量查询。代理和后端必须使用相同 ShitBot 版本，后端必须安装并启用 PlaceholderAPI；模板或 `commands.yml` 中的 `target-server` 应与 endpoint 名称一致。PAPI 查询不会回退到代理本地解析。
 
 ## 命令目标选择
 

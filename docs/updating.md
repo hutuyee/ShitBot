@@ -4,11 +4,13 @@
 
 1. 阅读目标版本的 [Release Notes](https://github.com/hutuyee/ShitBot/releases)；
 2. 备份数据库；
-3. 备份 `config.yml`、`commands.yml`、`lang/`、`templates/` 和自定义图片资源；
+3. 备份 `config.yml`、`commands.yml`、`lang/`、`templates/`、`image-templates/` 和自定义图片资源；
 4. 群组服确认代理与后端是否需要同时升级；
 5. 不要在服务端运行期间直接复制 SQLite 数据库。
 
 代理—后端协议发生变化时，必须同时升级代理和全部 Spigot 后端。混用不同协议版本可能导致命令、TPS 查询或联动更新失败。
+
+启用高级图片模板的实例还要求官方 Release 存在同版本 `ShitBotRenderer`。平台插件更新后，下一次启动会按新版本检查组件缓存；只有高级模板总开关开启时才会下载新组件。
 
 ## 手动升级
 
@@ -72,6 +74,7 @@
 
 - 当前实例能够访问 `api.github.com` 和 GitHub Release 下载域名；
 - Release 包含当前平台 JAR；
+- 高级模板已启用时，Release 同时包含同版本 `ShitBotRenderer`；
 - 同时存在对应的 `.jar.sha256` 和 `.jar.sig`；
 - JAR、校验文件和签名来自同一个 Release；
 - 插件目录可写；

@@ -114,6 +114,23 @@ MySQL：
 
 确认运行环境安装了 `image.font-name` 和 `inventory.font-name` 指定的字体。Linux 服务器通常没有 `Microsoft YaHei`，需要安装字体或改为系统中已有的中文字体。
 
+## 高级图片模板启动失败
+
+先确认是否确实需要高级系统；不需要时保持 `custom-image-templates.enabled: false` 和 `image.renderer: "java"`。
+
+需要时检查：
+
+- `image.renderer: "custom"` 必须同时开启高级模板总开关；
+- 当前 Release 含同版本 `ShitBotRenderer-<版本>.jar`、`.sha256` 和 `.sig`；
+- 服务器能访问 GitHub Release 下载域名；
+- `components/image-renderer/<版本>/` 可写，缓存文件没有被人工替换；
+- 下载大小、模板资源、画布、像素、图层、循环、渲染时间和队列没有超过配置限制；
+- 模板已发布，`image.custom-template` 或群命令中的模板 ID 拼写正确；
+- 远程图片默认关闭，引用 HTTPS 头像或图片时已明确开启；
+- PAPI 模板在 Spigot 后端安装了 PlaceholderAPI，玩家在线，代理 endpoint 与 `target-server` 正确。
+
+编辑器打不开时，还要确认 `editor.enabled: true`，重新执行 `/shitbot editor` 获取未使用的新链接。反向代理必须使用 HTTPS、保留原始 `Host`，内部监听仍保持回环地址。
+
 ## 重载失败
 
 `/shitbot reload` 失败时，旧运行实例会继续保留。查看控制台中最早出现的配置或连接错误，修正后再次重载。

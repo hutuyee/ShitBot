@@ -39,6 +39,8 @@
 | 从共享数据库生成背包图 | 支持 | 支持 | 支持 | 支持 |
 | 代理—后端命令通道 | 可作为后端 | 监听代理请求 | 调度到后端 | 不使用 |
 | PictureBridge 媒体标记 | 支持 | 由代理消息入口决定 | 支持 | 不使用 |
+| 高级 Java2D 场景模板 | 支持 | 可提供后端数据 | 支持 | 支持，不支持 Bukkit PAPI |
+| PlaceholderAPI 模板数据 | 本服解析 | 解析代理请求 | 转发到指定 Spigot 后端 | 不支持 |
 
 后端模式的 Spigot 不连接 OneBot，避免代理与子服重复回复同一条 QQ 消息。
 
@@ -57,6 +59,7 @@ ShitBot 的基础运行不强制要求这些插件，但安装后可以扩展权
 | LuckPerms | Spigot、BungeeCord、Velocity、Nukkit-MOT | 查询离线角色权限 |
 | Vault | Spigot | LuckPerms 不可用时查询离线权限 |
 | Essentials / EssentialsX | Spigot | 优先读取服务端 TPS 数据 |
+| PlaceholderAPI | Spigot | 为明确声明 `papi` 提供器的高级图片模板批量解析变量 |
 
 没有可选权限插件时，在线玩家仍使用平台权限系统；离线角色的权限判断能力会受限。
 

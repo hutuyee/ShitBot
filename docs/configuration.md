@@ -3,7 +3,7 @@
 ShitBot 首次启动会在插件数据目录生成：
 
 - `config.yml`：语言选择、OneBot、转发、绑定、数据库、图片和背包配置；
-- `commands.yml`：TPS、QQ 快捷命令和代理—后端命令通道；
+- `commands.yml`：TPS、QQ 快捷命令、高级图片模板群命令和代理—后端命令通道；
 - `lang/zh_CN.yml` 与 `lang/en_US.yml`：所有主要用户文本、内置指令别名和图片文字；
 - `templates/default.yml`：在线列表与背包图片的默认布局和配色。
 
@@ -181,6 +181,7 @@ database:
 
 ```yaml
 image:
+  renderer: "java"
   template: "default"
   server-name: "Server-Status"
   font-name: "Microsoft YaHei"
@@ -193,7 +194,7 @@ image:
 
 Linux 环境中必须安装 `font-name` 指定的字体，否则中文可能回退或显示异常。Nukkit-MOT 有 Bedrock 玩家时，可将头像地址替换为支持 Xbox ID 的服务。
 
-### 自定义图片模板
+### 轻量主题文件
 
 首次启动生成的 `templates/default.yml` 同时包含 `online` 和 `inventory` 两段主题。不要直接依赖修改默认文件来区分多套外观；复制它并改名，例如 `templates/ocean.yml`，然后在 `config.yml` 中选择不带 `.yml` 的名称：
 
@@ -213,6 +214,25 @@ inventory:
 - `#AARRGGBB`：带透明度，前两位 `AA` 是透明度。
 
 图片中的可翻译文字和时间格式仍在 `lang/*.yml` 的 `image`、`inventory` 下管理；图片宽度、字体名称、头像请求、缓存和输出文件等运行参数仍在 `config.yml`。模板数值会限制在安全范围内，修改后执行 `/shitbot reload` 生效。
+
+### 高级场景模板
+
+高级系统与上述 `templates/*.yml` 轻量主题互相独立。默认关闭，也不会下载渲染组件：
+
+```yaml
+image:
+  # java 使用内置在线图；custom 让内置在线图改用已发布的高级模板。
+  renderer: "java"
+  custom-template: "online-status"
+
+custom-image-templates:
+  enabled: false
+  directory: "image-templates"
+```
+
+只有 `custom-image-templates.enabled: true` 时，插件才检查本地缓存并按需下载同版本 `ShitBotRenderer`、checksum 和签名。保持 `image.renderer: "java"` 时，默认在线图仍走内置路径，但高级编辑器、自定义群命令和插件 API 可以单独使用；设为 `custom` 时，`服务器状态` 和 `/shitbot image` 读取 `image.custom-template` 指定的发布版本。
+
+完整组件配置、场景 YAML、数据提供器、编辑器和 API 见[图片渲染与高级模板](image-templates.md)。
 
 ## 背包查询
 
@@ -242,6 +262,7 @@ YAML 多行消息应使用 `|`，并保持后续行缩进一致。不要删除�
 - QQ 快捷命令总开关和冷却；
 - TPS 指令的开关、权限和目标；
 - 自定义快捷命令、权限、执行位置和执行内容；
+- 高级图片模板的群聊别名、绑定玩家来源、目标子服、权限和独立冷却；
 - BungeeCord/Velocity 到 Spigot 后端的认证通道。
 
 内置 TPS 与 `luckperms-editor` 的别名和回复模板位于语言文件；新增自定义快捷命令时，可以暂时在 `commands.yml` 中填写 `aliases`、`message` 和 `failed`，也可以在语言文件的 `console.shortcuts.<名称>` 下提供同名文本。命令配置见[命令与权限](commands.md)，代理通道见[代理与后端子服](proxy-backend.md)。

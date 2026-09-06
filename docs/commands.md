@@ -10,6 +10,7 @@
 | `/shitbot reload` | 重载配置、数据库、OneBot、图片和命令服务 | `shitbot.admin` |
 | `/shitbot update` | 下载并安装当前平台的新版本 | `shitbot.admin` |
 | `/shitbot image` | 手动生成在线状态图片 | `shitbot.admin` |
+| `/shitbot editor` | 生成高级图片模板编辑器的短时一次性登录地址 | `shitbot.admin` |
 | `/shitbot migrate easybot [EasyBot.db]` | 导入 EasyBot 绑定数据 | `shitbot.admin` |
 
 Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Velocity 使用平台权限系统检查同名权限。
@@ -97,6 +98,38 @@ lp编辑 survival
 ```
 
 该参数会覆盖命令中的 `server`。
+
+## QQ 高级图片命令
+
+高级图片模板不自行注册命令。每个群入口必须在 `commands.yml` 的 `image-templates.commands` 中明确声明：
+
+```yaml
+image-templates:
+  commands:
+    player-card:
+      enabled: true
+      aliases:
+        - "我的名片"
+      template: "player-card"
+      player-source: "argument"
+      target-server: "survival"
+      permission: "shitbot.image.player-card"
+      cooldown-seconds: 10
+      usage: "%at% 用法：我的名片 <已绑定角色名>"
+      failed: "%at% 图片生成失败：%result%"
+```
+
+| 配置 | 说明 |
+| --- | --- |
+| `aliases` | 群内触发文本；应避免与内置指令、TPS 或快捷命令重复 |
+| `template` | 要渲染的已发布模板 ID |
+| `player-source` | `bound` 取最新绑定，`argument` 校验命令参数属于发送者，`none` 不读取绑定 |
+| `target-server` | 代理部署中处理权限与 PAPI 的 Spigot 后端 |
+| `permission` | 所选绑定角色必须拥有的游戏权限；留空跳过权限检查 |
+| `cooldown-seconds` | 该模板命令独立的群号＋QQ 冷却 |
+| `usage` / `failed` | 参数错误与生成失败回复；支持 `%at%`、`%result%`、`%command%` 和 `%server%` |
+
+权限请求只判断权限，不执行控制台命令。`player-source: none` 与非空 `permission` 不能组合成有效授权，因为没有游戏角色可供校验。该功能还要求 `config.yml` 中 `custom-image-templates.enabled: true`；完整说明见[图片渲染与高级模板](image-templates.md)。
 
 ## 权限检查顺序
 
