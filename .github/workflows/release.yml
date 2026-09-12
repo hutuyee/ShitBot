@@ -52,6 +52,7 @@ jobs:
           mkdir -p release
 
           modules=(
+            "ShitBotApi"
             "ShitBotSpigot"
             "ShitBotBungee"
             "ShitBotVelocity"
@@ -148,8 +149,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#release_jars[@]}" -ne 5 ]]; then
-            echo "::error title=Unexpected artifact count::Expected 4 plugin JARs and 1 optional renderer JAR, found ${#release_jars[@]}."
+          if [[ "${#release_jars[@]}" -ne 6 ]]; then
+            echo "::error title=Unexpected artifact count::Expected 4 plugin JARs, 1 public API JAR and 1 optional renderer JAR, found ${#release_jars[@]}."
             exit 1
           fi
 
@@ -226,8 +227,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#jars[@]}" -ne 5 ]]; then
-            echo "::error title=Unexpected release artifact count::Expected 4 plugin JARs and 1 optional renderer JAR, found ${#jars[@]}."
+          if [[ "${#jars[@]}" -ne 6 ]]; then
+            echo "::error title=Unexpected release artifact count::Expected 4 plugin JARs, 1 public API JAR and 1 optional renderer JAR, found ${#jars[@]}."
             exit 1
           fi
 
@@ -240,8 +241,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#checksums[@]}" -ne 5 ]]; then
-            echo "::error title=Unexpected checksum count::Expected exactly 5 SHA-256 files, found ${#checksums[@]}."
+          if [[ "${#checksums[@]}" -ne 6 ]]; then
+            echo "::error title=Unexpected checksum count::Expected exactly 6 SHA-256 files, found ${#checksums[@]}."
             exit 1
           fi
 
@@ -254,8 +255,8 @@ jobs:
             | sort
           )
 
-          if [[ "${#signatures[@]}" -ne 5 ]]; then
-            echo "::error title=Unexpected signature count::Expected exactly 5 detached signatures, found ${#signatures[@]}."
+          if [[ "${#signatures[@]}" -ne 6 ]]; then
+            echo "::error title=Unexpected signature count::Expected exactly 6 detached signatures, found ${#signatures[@]}."
             exit 1
           fi
 

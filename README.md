@@ -137,6 +137,8 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 
 ## 文档
 
+[在线文档中心](https://hutuyee.github.io/docs/)提供 ShitBot、BiliMusicBridge、AllMusic QQMusic 与 Kugou 的统一导航和搜索；[ShitBot 在线手册](https://hutuyee.github.io/docs/shitbot/)与本仓库文档同步维护。
+
 - [安装与部署](docs/installation.md)
 - [配置说明](docs/configuration.md)
 - [命令与权限](docs/commands.md)

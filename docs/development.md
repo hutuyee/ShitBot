@@ -51,7 +51,7 @@ mvn -pl ShitBotNukkit -am package
 
 ```text
 ShitBot/
-├─ ShitBotApi/        # 稳定、轻量、平台无关的图片 API 与渲染 SPI
+├─ ShitBotApi/        # 绑定、白名单、图片 API 与渲染 SPI，独立发布供开发者依赖
 ├─ ShitBotCore/       # OneBot、数据库、绑定、图片、更新和共享业务逻辑
 ├─ ShitBotRenderer/   # 单独发布并按需下载的高级 Java2D 场景渲染器与编辑器
 ├─ ShitBotSpigot/     # Bukkit、Paper、Folia 与后端命令监听
@@ -105,14 +105,14 @@ PictureBridge 的构建说明见其独立仓库文档。
 GitHub Actions 在 push、pull request 和手动触发时：
 
 1. 使用 JDK 21 执行 `mvn clean package`；
-2. 收集四个平台 JAR和一个独立 `ShitBotRenderer` JAR；
-3. 分别检查每个 JAR 不超过 1 MiB，并生成 SHA-256 文件；
+2. 收集四个平台 JAR、一个 `ShitBotApi` JAR 和一个独立 `ShitBotRenderer` JAR；
+3. 为各个 JAR 生成 SHA-256 文件；
 4. 上传工作流 Artifact。
 
 发布 GitHub Release 时，工作流还会：
 
-1. 使用仓库 Secret 中的 RSA 私钥签署四个平台 JAR和可选渲染器 JAR；
-2. 检查五个 JAR、五个 checksum 和五个签名；
+1. 使用仓库 Secret 中的 RSA 私钥签署四个平台 JAR、公开 API JAR 和可选渲染器 JAR；
+2. 检查六个 JAR、六个 checksum 和六个签名；
 3. 将 JAR、`.sha256` 和 `.sig` 上传到 Release。
 
 签名密钥管理见[升级与自动更新](updating.md)。

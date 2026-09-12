@@ -4,6 +4,8 @@
 
 ## 依赖与获取
 
+Release 会单独提供 `ShitBotApi-<版本>.jar` 及其校验与签名文件，供开发者使用；这个 JAR 不放入服务端的 `plugins/`。也可以从仓库执行 `mvn -pl ShitBotApi install` 安装当前版本的 API 到本机 Maven 仓库。
+
 先将相同版本的 `ShitBotApi` 安装到你的 Maven 仓库，第三方插件使用 `provided` 依赖，不要把 API 或 ShitBotCore 再打包进自己的插件：
 
 ```xml
