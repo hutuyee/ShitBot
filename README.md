@@ -156,7 +156,6 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 - [构建与开发](docs/development.md)
 - [插件 API 与白名单管理](docs/api.md)
 - [全部文档](docs/README.md)
-- [待办事项](TODO.md)
 
 ## 支持与反馈
 
