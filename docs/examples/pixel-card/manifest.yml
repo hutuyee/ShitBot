@@ -1,0 +1,5 @@
+schema-version: template-v1
+id: pixel-card
+name: 像素坐标名片
+suggested-file-name: player-card.png
+providers: []

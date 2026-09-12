@@ -82,6 +82,8 @@ onebot:
 - BungeeCord/Velocity：留空时通知代理启动；填写代理配置中的子服名时，代理会持续检查该子服，首次可连接后通知。
 - 通知发送到全部 `allowed-group-ids`。
 
+具体配置示例、状态 ping 的含义和重载时的补发规则见[服务器启动提醒](startup-notices.md)。
+
 ### 入群欢迎与退群解绑
 
 ```yaml

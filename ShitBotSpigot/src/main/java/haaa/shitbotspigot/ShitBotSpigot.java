@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvider {
     private static final int BSTATS_PLUGIN_ID = 33865;
+    private final haaa.shitbot.core.service.ServerStartupNotificationService.State startupNoticeState =
+            new haaa.shitbot.core.service.ServerStartupNotificationService.State();
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private final AtomicBoolean updateCheckStarted = new AtomicBoolean();
     private volatile boolean startupUnavailable = true;
@@ -44,6 +46,7 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
     private SpigotConfigLoader configLoader;
     private SpigotPlatformBridge platformBridge;
     private UpdateChecker updateChecker;
+    private AutoCloseable placeholderExpansion;
 
     @Override
     public void onEnable() {
@@ -63,6 +66,19 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
         getServer().getPluginManager().registerEvents(new PlayerLoginListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerInventorySnapshotListener(this), this);
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            try {
+                haaa.shitbotspigot.placeholder.ShitBotExpansion expansion =
+                        new haaa.shitbotspigot.placeholder.ShitBotExpansion(this);
+                if (expansion.register()) {
+                    placeholderExpansion = expansion;
+                } else {
+                    getLogger().warning("Unable to register ShitBot PlaceholderAPI expansion");
+                }
+            } catch (LinkageError | RuntimeException exception) {
+                getLogger().warning("PlaceholderAPI integration is unavailable: " + exception.getMessage());
+            }
+        }
         ShitBotCommand commandHandler = new ShitBotCommand(this);
         PluginCommand command = getCommand("shitbot");
         if (command != null) {
@@ -85,7 +101,7 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
             if (!backendMode) {
                 startUpdateCheck();
             }
-            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
                 @Override
@@ -139,7 +155,7 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
         try {
             Settings settings = configLoader.load();
             consoleSettings = configLoader.loadConsoleSettings();
-            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
             configuredBackendMode = configLoader.isBackendMode();
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
@@ -199,7 +215,12 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
                     + "by proxy platforms; Spigot will not send this startup notice.");
             return;
         }
-        runtime.notifyServerStarted(platformBridge.getPlatformName());
+        platformBridge.executeOnPlatformThread(() -> {
+            ShitBotRuntime current = runtimeReference.get();
+            if (!stopping && current != null && current.isReady()) {
+                current.notifyServerStarted(platformBridge.getPlatformName());
+            }
+        });
     }
 
     public boolean isStartupUnavailable() {
@@ -291,6 +312,14 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
     @Override
     public void onDisable() {
         stopping = true;
+        if (placeholderExpansion != null) {
+            try {
+                placeholderExpansion.close();
+            } catch (Exception exception) {
+                getLogger().warning("Unable to unregister PlaceholderAPI expansion: " + exception.getMessage());
+            }
+            placeholderExpansion = null;
+        }
         if (updateChecker != null) {
             updateChecker.close();
         }

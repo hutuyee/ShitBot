@@ -20,66 +20,83 @@ public final class ServerStartupNotificationService {
     private final PlatformBridge platform;
     private final OneBotClient client;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final AtomicBoolean flushing = new AtomicBoolean();
-    private final AtomicBoolean reconnectWhileFlushing = new AtomicBoolean();
-    private final Set<Long> deliveredGroups = Collections.synchronizedSet(new HashSet<Long>());
-    private volatile String pendingServerName;
+    private final State state;
+
+    /** Kept by the platform plugin so an unconfirmed notice survives runtime replacement. */
+    public static final class State {
+        private final AtomicBoolean flushing = new AtomicBoolean();
+        private final AtomicBoolean reconnectWhileFlushing = new AtomicBoolean();
+        private final Set<Long> deliveredGroups = Collections.synchronizedSet(new HashSet<Long>());
+        private volatile String pendingServerName;
+        private final java.util.concurrent.atomic.AtomicReference<ServerStartupNotificationService> activeService =
+                new java.util.concurrent.atomic.AtomicReference<ServerStartupNotificationService>();
+    }
 
     public ServerStartupNotificationService(Settings settings,
                                             PlatformBridge platform,
                                             OneBotClient client) {
+        this(settings, platform, client, new State());
+    }
+
+    public ServerStartupNotificationService(Settings settings, PlatformBridge platform,
+                                            OneBotClient client, State state) {
         this.oneBotSettings = settings.getOneBot();
         this.noticeSettings = settings.getOneBot().getServerStartupNotice();
         this.platform = platform;
         this.client = client;
+        this.state = state;
     }
 
     public void request(String serverName) {
         if (!noticeSettings.isEnabled() || closed.get()) {
             return;
         }
+        state.activeService.set(this);
+        state.pendingServerName = cleanServerName(serverName);
+        state.deliveredGroups.clear();
         List<Long> groups = targetGroups();
         if (groups.isEmpty()) {
             platform.warn("Server startup notice is enabled, but onebot.allowed-group-ids is empty; "
                     + "there is no explicit group to notify.");
             return;
         }
-        pendingServerName = cleanServerName(serverName);
-        deliveredGroups.clear();
         flushIfConnected();
     }
 
     public void onConnected() {
-        if (flushing.get()) {
-            reconnectWhileFlushing.set(true);
-            return;
-        }
+        if (closed.get() || !noticeSettings.isEnabled()) return;
+        state.activeService.set(this);
+        state.reconnectWhileFlushing.set(true);
         flushIfConnected();
     }
 
     public void close() {
         closed.set(true);
-        pendingServerName = null;
-        deliveredGroups.clear();
+        state.activeService.compareAndSet(this, null);
     }
 
     private void flushIfConnected() {
-        final String serverName = pendingServerName;
-        if (closed.get() || serverName == null || !client.isConnected()
-                || !flushing.compareAndSet(false, true)) {
+        final String serverName = state.pendingServerName;
+        if (closed.get() || !noticeSettings.isEnabled() || serverName == null || !client.isConnected()
+                || !state.flushing.compareAndSet(false, true)) {
             return;
         }
+        state.reconnectWhileFlushing.set(false);
         final List<Long> remaining = new ArrayList<Long>();
         final List<Long> targetGroups = targetGroups();
+        if (targetGroups.isEmpty()) {
+            state.flushing.set(false);
+            return;
+        }
         for (Long groupId : targetGroups) {
-            if (!deliveredGroups.contains(groupId)) {
+            if (!state.deliveredGroups.contains(groupId)) {
                 remaining.add(groupId);
             }
         }
         if (remaining.isEmpty()) {
-            pendingServerName = null;
-            flushing.set(false);
-            reconnectWhileFlushing.set(false);
+            state.pendingServerName = null;
+            state.flushing.set(false);
+            state.reconnectWhileFlushing.set(false);
             return;
         }
 
@@ -90,7 +107,7 @@ public final class ServerStartupNotificationService {
                     .thenRun(new Runnable() {
                         @Override
                         public void run() {
-                            deliveredGroups.add(groupId);
+                            state.deliveredGroups.add(groupId);
                         }
                     });
             sends.add(send);
@@ -103,14 +120,15 @@ public final class ServerStartupNotificationService {
                             platform.warn("Unable to send server startup notice to every configured group: "
                                     + errorMessage(throwable));
                         }
-                        if (deliveredGroups.containsAll(remaining)
-                                && deliveredGroups.containsAll(targetGroups)) {
-                            pendingServerName = null;
+                        if (state.deliveredGroups.containsAll(remaining)
+                                && state.deliveredGroups.containsAll(targetGroups)) {
+                            state.pendingServerName = null;
                             platform.info("Server startup notice sent for " + serverName + '.');
                         }
-                        flushing.set(false);
-                        if (reconnectWhileFlushing.getAndSet(false)) {
-                            flushIfConnected();
+                        state.flushing.set(false);
+                        if (state.reconnectWhileFlushing.getAndSet(false)) {
+                            ServerStartupNotificationService active = state.activeService.get();
+                            if (active != null) active.flushIfConnected();
                         }
                     }
                 });

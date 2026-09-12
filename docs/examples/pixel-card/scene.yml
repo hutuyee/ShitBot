@@ -1,0 +1,31 @@
+# 使用前将自己的 1000x600 底图上传为 assets/background.png，然后在编辑器中发布。
+schema-version: scene-v1
+canvas:
+  width: 1000
+  height: 600
+  background: "#102030"
+layers:
+  - type: image
+    source: assets/background.png
+    x: 0
+    y: 0
+    width: 1000
+    height: 600
+    fit: stretch
+  - type: text
+    x: 120
+    y: 160
+    width: 760
+    height: 60
+    text: "玩家：${context.player}"
+    font-size: 40
+    font-style: bold
+    color: "#FFFFFF"
+  - type: text
+    x: 120
+    y: 245
+    width: 760
+    height: 40
+    text: "服务器：${context.server}"
+    font-size: 24
+    color: "#B9E9DD"

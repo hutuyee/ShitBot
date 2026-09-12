@@ -5,6 +5,9 @@
 - [安装与部署](installation.md)：选择平台 JAR、首次启动和部署方式。
 - [配置说明](configuration.md)：`config.yml` 与 `commands.yml` 的主要配置。
 - [命令与权限](commands.md)：管理命令、QQ 群指令、快捷命令和权限检查。
+- [服务器启动提醒](startup-notices.md)：代理启动通知、等待指定子服、断线补发与重载。
+- [PlaceholderAPI 变量](placeholders.md)：状态与绑定扩展，以及图片里的 PAPI 数据。
+- [自己的底图与像素坐标文字](pixel-templates.md)：准备 PNG 底图并按坐标放置变量。
 - [图片渲染与高级模板](image-templates.md)：内置/高级两种模式、按需组件、场景格式、编辑器和插件 API。
 - [常见问题](troubleshooting.md)：连接、转发、绑定、数据库和代理命令排错。
 

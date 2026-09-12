@@ -41,6 +41,8 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
     private final Logger logger;
     private final Path dataDirectory;
     private final Metrics.Factory metricsFactory;
+    private final haaa.shitbot.core.service.ServerStartupNotificationService.State startupNoticeState =
+            new haaa.shitbot.core.service.ServerStartupNotificationService.State();
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
     private volatile Translations translations;
@@ -88,7 +90,7 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
             }
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             platformBridge.configureConsole(consoleSettings);
-            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete((ignored, throwable) -> {
                 if (throwable != null) {
@@ -130,7 +132,7 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
         try {
             consoleSettings = configLoader.loadConsoleSettings();
             Settings settings = configLoader.load();
-            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);

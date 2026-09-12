@@ -36,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotNukkit extends PluginBase implements Listener, ShitBotApiProvider {
+    private final haaa.shitbot.core.service.ServerStartupNotificationService.State startupNoticeState =
+            new haaa.shitbot.core.service.ServerStartupNotificationService.State();
     private final AtomicReference<ShitBotRuntime> runtimeReference =
             new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
@@ -60,7 +62,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
             translations = settings.getTranslations();
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             platformBridge.configureConsole(consoleSettings);
-            final ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            final ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
                 @Override
@@ -110,7 +112,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
         try {
             Settings settings = configLoader.load();
             consoleSettings = configLoader.loadConsoleSettings();
-            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -157,7 +159,12 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
                     + "by proxy platforms; Nukkit-MOT will not send this startup notice.");
             return;
         }
-        runtime.notifyServerStarted(platformBridge.getPlatformName());
+        platformBridge.executeOnPlatformThread(() -> {
+            ShitBotRuntime current = runtimeReference.get();
+            if (!stopping && current != null && current.isReady()) {
+                current.notifyServerStarted(platformBridge.getPlatformName());
+            }
+        });
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)

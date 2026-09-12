@@ -59,6 +59,11 @@ public final class ShitBotRuntime implements AutoCloseable {
     }
 
     public ShitBotRuntime(Settings settings, ConsoleSettings consoleSettings, PlatformBridge platform) {
+        this(settings, consoleSettings, platform, new ServerStartupNotificationService.State());
+    }
+
+    public ShitBotRuntime(Settings settings, ConsoleSettings consoleSettings, PlatformBridge platform,
+                         ServerStartupNotificationService.State startupNoticeState) {
         this.settings = settings;
         this.platform = platform;
         this.database = new DatabaseManager(settings.getDatabase(), platform);
@@ -86,7 +91,7 @@ public final class ShitBotRuntime implements AutoCloseable {
                 settings, platform, bindingService, oneBotClient);
         this.forwardingService = new MessageForwardingService(settings, platform, oneBotClient);
         this.startupNotificationService = new ServerStartupNotificationService(
-                settings, platform, oneBotClient);
+                settings, platform, oneBotClient, startupNoticeState);
         this.oneBotClient.setGroupMessageConsumer(new java.util.function.Consumer<haaa.shitbot.core.onebot.GroupMessage>() {
             @Override
             public void accept(haaa.shitbot.core.onebot.GroupMessage message) {

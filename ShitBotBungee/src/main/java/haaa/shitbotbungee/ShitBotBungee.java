@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
     private static final int BSTATS_PLUGIN_ID = 33866;
+    private final haaa.shitbot.core.service.ServerStartupNotificationService.State startupNoticeState =
+            new haaa.shitbot.core.service.ServerStartupNotificationService.State();
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
     private volatile boolean startupUnavailable = true;
     private volatile Translations translations;
@@ -61,7 +63,7 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
             }
             ConsoleSettings consoleSettings = configLoader.loadConsoleSettings();
             platformBridge.configureConsole(consoleSettings);
-            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
                 @Override
@@ -111,7 +113,7 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
         try {
             consoleSettings = configLoader.loadConsoleSettings();
             Settings settings = configLoader.load();
-            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge);
+            newRuntime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
         } catch (Throwable throwable) {
             platformBridge.error("Unable to reload config", throwable);
             return CompletableFuture.completedFuture(Boolean.FALSE);
