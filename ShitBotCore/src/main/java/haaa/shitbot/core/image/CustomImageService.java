@@ -6,7 +6,6 @@ import haaa.shitbot.api.ImageDataRequest;
 import haaa.shitbot.api.ImageRenderRequest;
 import haaa.shitbot.api.ImageRenderResult;
 import haaa.shitbot.api.ImageTemplateInfo;
-import haaa.shitbot.api.ShitBotApi;
 import haaa.shitbot.api.spi.ImageTemplateEngine;
 import haaa.shitbot.api.spi.ImageTemplateEngineHost;
 import haaa.shitbot.api.spi.ImageTemplateEngineSettings;
@@ -36,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Thin host for the optional renderer component and the public image API. */
-public final class CustomImageService implements ShitBotApi, ImageTemplateEngineHost, AutoCloseable {
+public final class CustomImageService implements ImageTemplateEngineHost, AutoCloseable {
     private static final int MAX_PROVIDER_CACHE_ENTRIES = 256;
 
     private final Settings settings;
@@ -114,12 +113,10 @@ public final class CustomImageService implements ShitBotApi, ImageTemplateEngine
         return startFuture;
     }
 
-    @Override
     public boolean isCustomImageTemplatesEnabled() {
         return customSettings.isEnabled();
     }
 
-    @Override
     public CompletableFuture<ImageRenderResult> renderImage(String templateId,
                                                              ImageRenderRequest request) {
         ImageTemplateEngine current = engine;
@@ -135,19 +132,16 @@ public final class CustomImageService implements ShitBotApi, ImageTemplateEngine
                 ? ImageRenderRequest.of(Collections.<String, Object>emptyMap()) : request);
     }
 
-    @Override
     public List<ImageTemplateInfo> getImageTemplates() {
         ImageTemplateEngine current = engine;
         return current == null ? Collections.<ImageTemplateInfo>emptyList() : current.getTemplates();
     }
 
-    @Override
     public Optional<ImageTemplateInfo> getImageTemplate(String templateId) {
         ImageTemplateEngine current = engine;
         return current == null ? Optional.<ImageTemplateInfo>empty() : current.getTemplate(templateId);
     }
 
-    @Override
     public void registerImageDataProvider(ImageDataProvider provider) {
         if (provider == null) {
             throw new IllegalArgumentException("image data provider cannot be null");
@@ -159,7 +153,6 @@ public final class CustomImageService implements ShitBotApi, ImageTemplateEngine
         }
     }
 
-    @Override
     public boolean unregisterImageDataProvider(String providerId, ImageDataProvider provider) {
         String id = normalizeProviderId(providerId);
         if (isBuiltInProvider(id) || provider == null) {
@@ -168,7 +161,6 @@ public final class CustomImageService implements ShitBotApi, ImageTemplateEngine
         return providers.remove(id, provider);
     }
 
-    @Override
     public CompletableFuture<String> createImageEditorLoginUrl() {
         ImageTemplateEngine current = engine;
         if (!customSettings.isEnabled()) {

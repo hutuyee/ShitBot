@@ -48,6 +48,11 @@ public final class ShitBotCommand implements SimpleCommand {
             send(invocation, TextUtil.color(runtime.getSettings().getMessages().getNoPermission()));
             return;
         }
+        if ("whitelist".equalsIgnoreCase(args[0])) {
+            haaa.shitbot.core.service.WhitelistCommand.execute(runtime.getApi(), translations, args)
+                    .thenAccept(message -> send(invocation, message));
+            return;
+        }
         if ("reload".equalsIgnoreCase(args[0])) {
             send(invocation, TextUtil.color(runtime.getSettings().getMessages().getReloadStarted()));
             plugin.reloadRuntime().whenComplete((success, throwable) -> {
@@ -129,7 +134,7 @@ public final class ShitBotCommand implements SimpleCommand {
     public List<String> suggest(Invocation invocation) {
         String[] args = invocation.arguments();
         if (args.length <= 1) {
-            return Arrays.asList("status", "reload", "update", "image", "editor", "migrate");
+            return Arrays.asList("status", "reload", "update", "image", "editor", "whitelist", "migrate");
         }
         if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
             return Collections.singletonList("easybot");

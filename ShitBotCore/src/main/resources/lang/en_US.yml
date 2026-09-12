@@ -38,7 +38,7 @@ messages:
   bind-expired: "%at% That verification code is missing, locked, or expired. Rejoin the server to get a new one."
   bind-qq-already-used: "%at% This QQ account is already bound to another Minecraft ID."
   bind-qq-limit-reached: "%at% This QQ account has reached its limit of %maximum_ids% Minecraft IDs."
-  bind-player-already-used: "%at% This Minecraft ID is already bound to another QQ account."
+  bind-player-already-used: "%at% This Minecraft ID has another QQ owner or a login-only whitelist entry."
   bind-database-error: "%at% The database operation failed. Please contact an administrator."
   online-failed: "%at% The online-player image could not be generated. Please try again later."
   inventory-not-bound: "%at% You have not bound a Minecraft ID yet."
@@ -108,9 +108,23 @@ media:
   music-hover: "Click to open the QQ music"
 
 admin:
+  whitelist:
+    usage: "&eUsage: /shitbot whitelist add <QQ or -> <player> | remove <player> | get <player> | qq <QQ> | remove-qq <QQ> | list [page]"
+    success: "&aWhitelist entry added."
+    already-bound-same: "&eThis whitelist entry already exists."
+    invalid-input: "&cInvalid player name or QQ number."
+    player-already-bound: "&cThis player already has a whitelist entry or owner. Remove the existing entry explicitly before changing ownership."
+    qq-binding-limit-reached: "&cThis QQ account has reached its configured binding limit."
+    removed: "&aWhitelist entry removed; player disconnection requested."
+    removed-qq: "&aRemoved %count% bindings for this QQ; player disconnections requested."
+    not-found: "&7No entries found."
+    no-qq: "No QQ (login only)"
+    entry: "&f%player% &7-> &b%qq%"
+    page: "&bWhitelist page %page% (20 entries per page)"
+    failed: "&cWhitelist operation failed: %error%"
   not-initialized: "&cShitBot has not initialized yet."
   status: "&aShitBot &7%status%"
-  help: "&e/shitbot status|reload|update|image|editor|migrate easybot [EasyBot.db]"
+  help: "&e/shitbot status|reload|update|image|editor|whitelist|migrate easybot [EasyBot.db]"
   migration:
     usage: "&eUsage: /shitbot migrate easybot [EasyBot.db]"
     started: "&eMigrating EasyBot binding data asynchronously: &f%file%"

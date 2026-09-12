@@ -38,7 +38,7 @@ messages:
   bind-expired: "%at% 验证码不存在、尝试次数过多或已经过期，请重新进入服务器获取。"
   bind-qq-already-used: "%at% 该QQ已经绑定其他游戏ID。"
   bind-qq-limit-reached: "%at% 该QQ绑定的游戏ID数量已达到上限（%maximum_ids%个）。"
-  bind-player-already-used: "%at% 该游戏ID已经绑定其他QQ。"
+  bind-player-already-used: "%at% 该游戏ID已绑定其他QQ或由管理员设置了无QQ白名单。"
   bind-database-error: "%at% 数据库操作失败，请联系管理员。"
   online-failed: "%at% 在线人数图片生成失败，请稍后重试。"
   inventory-not-bound: "%at% 你还没有绑定游戏ID。"
@@ -108,9 +108,23 @@ media:
   music-hover: "点击打开 QQ 音乐"
 
 admin:
+  whitelist:
+    usage: "&e用法: /shitbot whitelist add <QQ或-> <游戏ID> | remove <游戏ID> | get <游戏ID> | qq <QQ> | remove-qq <QQ> | list [页码]"
+    success: "&a已添加白名单。"
+    already-bound-same: "&e该白名单条目已存在。"
+    invalid-input: "&c游戏ID或QQ号格式无效。"
+    player-already-bound: "&c该游戏ID已有白名单或绑定；如需修改归属，请先明确删除原条目。"
+    qq-binding-limit-reached: "&c该QQ绑定的游戏ID数量已达到配置上限。"
+    removed: "&a已删除白名单，并请求断开该玩家的连接。"
+    removed-qq: "&a已删除该QQ的 %count% 个绑定，并请求断开对应玩家的连接。"
+    not-found: "&7没有找到条目。"
+    no-qq: "无QQ（仅允许登录）"
+    entry: "&f%player% &7-> &b%qq%"
+    page: "&b白名单第 %page% 页（每页20条）"
+    failed: "&c白名单操作失败：%error%"
   not-initialized: "&cShitBot 尚未初始化。"
   status: "&aShitBot &7%status%"
-  help: "&e/shitbot status|reload|update|image|editor|migrate easybot [EasyBot.db]"
+  help: "&e/shitbot status|reload|update|image|editor|whitelist|migrate easybot [EasyBot.db]"
   migration:
     usage: "&e用法: /shitbot migrate easybot [EasyBot.db]"
     started: "&e正在异步迁移 EasyBot 绑定数据: &f%file%"

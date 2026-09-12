@@ -78,6 +78,9 @@ public final class BindingRepository {
     }
 
     public CompletableFuture<Optional<BindingRecord>> findByQqId(final String qqId) {
+        if (!TextUtil.isValidQqId(qqId)) {
+            return CompletableFuture.completedFuture(Optional.<BindingRecord>empty());
+        }
         final String normalizedQq = qqId == null ? "" : qqId.trim();
         return database.supplyAsync(new DatabaseManager.SqlFunction<Optional<BindingRecord>>() {
             @Override
@@ -134,6 +137,96 @@ public final class BindingRepository {
                     }
                     return bindings;
                 }
+            }
+        });
+    }
+
+    /** Empty qq_id is an ownerless whitelist entry; QQ lookups never accept that value. */
+    public CompletableFuture<BindResult> addWhitelist(final String playerName, final String qqId) {
+        final String cleanQq = qqId == null ? "" : qqId.trim();
+        if (!TextUtil.isValidPlayerName(playerName)
+                || (!cleanQq.isEmpty() && !TextUtil.isValidQqId(cleanQq))) {
+            return CompletableFuture.completedFuture(BindResult.of(BindResult.Status.INVALID_INPUT));
+        }
+        final String cleanName = playerName.trim();
+        return database.transactionAsync(new DatabaseManager.SqlFunction<BindResult>() {
+            @Override
+            public BindResult apply(Connection connection) throws SQLException {
+                // Use the same lock order as verification-code binding.
+                readCode(connection, cleanName, database.getType() == Settings.Database.Type.MYSQL);
+                Optional<BindingRecord> existing = findByPlayerName(connection, cleanName);
+                if (existing.isPresent()) {
+                    return cleanQq.equals(existing.get().getQqId())
+                            ? BindResult.success(BindResult.Status.ALREADY_BOUND_SAME, existing.get())
+                            : BindResult.of(BindResult.Status.PLAYER_ALREADY_BOUND);
+                }
+                if (!cleanQq.isEmpty()
+                        && countBindingsByQq(connection, cleanQq, true) >= settings.getMaximumIdsPerQq()) {
+                    return BindResult.of(BindResult.Status.QQ_BINDING_LIMIT_REACHED);
+                }
+                long now = System.currentTimeMillis();
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO shitbot_bindings(player_name, player_uuid, qq_id, created_at, updated_at) "
+                                + "VALUES(?, NULL, ?, ?, ?)")) {
+                    statement.setString(1, cleanName);
+                    statement.setString(2, cleanQq);
+                    statement.setLong(3, now);
+                    statement.setLong(4, now);
+                    statement.executeUpdate();
+                } catch (SQLException conflict) {
+                    Optional<BindingRecord> winner = findByPlayerName(connection, cleanName, true);
+                    if (!winner.isPresent()) throw conflict;
+                    return cleanQq.equals(winner.get().getQqId())
+                            ? BindResult.success(BindResult.Status.ALREADY_BOUND_SAME, winner.get())
+                            : BindResult.of(BindResult.Status.PLAYER_ALREADY_BOUND);
+                }
+                deleteCode(connection, cleanName);
+                return BindResult.success(BindResult.Status.SUCCESS,
+                        new BindingRecord(cleanName, null, cleanQq, now, now));
+            }
+        });
+    }
+
+    public CompletableFuture<Optional<BindingRecord>> removeByPlayerName(final String playerName) {
+        if (!TextUtil.isValidPlayerName(playerName)) {
+            return CompletableFuture.completedFuture(Optional.<BindingRecord>empty());
+        }
+        final String cleanName = playerName.trim();
+        return database.transactionAsync(new DatabaseManager.SqlFunction<Optional<BindingRecord>>() {
+            @Override
+            public Optional<BindingRecord> apply(Connection connection) throws SQLException {
+                readCode(connection, cleanName, database.getType() == Settings.Database.Type.MYSQL);
+                Optional<BindingRecord> existing = findByPlayerName(connection, cleanName, true);
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM shitbot_bindings WHERE player_name=?")) {
+                    statement.setString(1, cleanName);
+                    statement.executeUpdate();
+                }
+                deleteCode(connection, cleanName);
+                return existing;
+            }
+        });
+    }
+
+    public CompletableFuture<List<BindingRecord>> listWhitelist(final int offset, final int limit) {
+        if (offset < 0 || limit < 1 || limit > 100) {
+            return haaa.shitbot.core.util.FutureUtil.failedFuture(
+                    new IllegalArgumentException("Whitelist offset must be >= 0 and limit must be 1..100"));
+        }
+        return database.supplyAsync(new DatabaseManager.SqlFunction<List<BindingRecord>>() {
+            @Override
+            public List<BindingRecord> apply(Connection connection) throws SQLException {
+                List<BindingRecord> records = new ArrayList<BindingRecord>();
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT player_name, player_uuid, qq_id, created_at, updated_at "
+                                + "FROM shitbot_bindings ORDER BY id LIMIT ? OFFSET ?")) {
+                    statement.setInt(1, limit);
+                    statement.setInt(2, offset);
+                    try (ResultSet rows = statement.executeQuery()) {
+                        while (rows.next()) records.add(readBinding(rows));
+                    }
+                }
+                return records;
             }
         });
     }
@@ -928,9 +1021,15 @@ public final class BindingRepository {
     }
 
     private Optional<BindingRecord> findByPlayerName(Connection connection, String playerName) throws SQLException {
+        return findByPlayerName(connection, playerName, false);
+    }
+
+    private Optional<BindingRecord> findByPlayerName(Connection connection, String playerName,
+                                                    boolean lock) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT player_name, player_uuid, qq_id, created_at, updated_at "
-                        + "FROM shitbot_bindings WHERE player_name=?")) {
+                        + "FROM shitbot_bindings WHERE player_name=?"
+                        + (lock && database.getType() == Settings.Database.Type.MYSQL ? " FOR UPDATE" : ""))) {
             statement.setString(1, playerName);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next() ? Optional.of(readBinding(resultSet)) : Optional.<BindingRecord>empty();

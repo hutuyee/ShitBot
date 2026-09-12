@@ -48,6 +48,11 @@ public final class ShitBotCommand extends Command {
             send(sender, TextUtil.color(runtime.getSettings().getMessages().getNoPermission()));
             return;
         }
+        if ("whitelist".equalsIgnoreCase(args[0])) {
+            haaa.shitbot.core.service.WhitelistCommand.execute(runtime.getApi(), translations, args)
+                    .thenAccept(message -> send(sender, message));
+            return;
+        }
         if ("reload".equalsIgnoreCase(args[0])) {
             send(sender, TextUtil.color(runtime.getSettings().getMessages().getReloadStarted()));
             plugin.reloadRuntime().whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {

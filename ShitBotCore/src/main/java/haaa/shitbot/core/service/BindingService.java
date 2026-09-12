@@ -80,6 +80,32 @@ public final class BindingService {
         return repository.findByQqId(qqId);
     }
 
+    public CompletableFuture<List<BindingRecord>> findAllByQqId(String qqId) {
+        return repository.findAllByQqId(qqId);
+    }
+
+    public CompletableFuture<List<BindingRecord>> listWhitelist(int offset, int limit) {
+        return repository.listWhitelist(offset, limit);
+    }
+
+    public CompletableFuture<BindResult> addWhitelist(String playerName, String qqId) {
+        return repository.addWhitelist(playerName, qqId);
+    }
+
+    public CompletableFuture<Optional<BindingRecord>> removeWhitelist(String playerName) {
+        return repository.removeByPlayerName(playerName).thenApply(removed -> {
+            if (removed.isPresent()) {
+                try {
+                    platform.disconnectPlayers(java.util.Collections.singletonList(removed.get().getPlayerName()),
+                            TextUtil.color(settings.getMessages().getKickAfterUnbind()));
+                } catch (Throwable throwable) {
+                    platform.error("Failed to disconnect player after removing whitelist entry", throwable);
+                }
+            }
+            return removed;
+        });
+    }
+
     public CompletableFuture<List<BindingRecord>> unbindByQqId(final String qqId) {
         return repository.removeByQqIdAndReturnBindings(qqId).thenApply(
                 new java.util.function.Function<List<BindingRecord>, List<BindingRecord>>() {

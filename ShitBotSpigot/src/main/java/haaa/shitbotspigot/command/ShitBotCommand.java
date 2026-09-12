@@ -47,6 +47,11 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(TextUtil.color(runtime.getSettings().getMessages().getNoPermission()));
             return true;
         }
+        if ("whitelist".equalsIgnoreCase(args[0])) {
+            haaa.shitbot.core.service.WhitelistCommand.execute(runtime.getApi(), translations, args)
+                    .thenAccept(message -> plugin.getPlatformBridge().executeOnSenderThread(sender, () -> send(sender, message)));
+            return true;
+        }
         if ("reload".equalsIgnoreCase(args[0])) {
             sender.sendMessage(TextUtil.color(runtime.getSettings().getMessages().getReloadStarted()));
             plugin.reloadRuntime().whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {
@@ -202,7 +207,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("status", "reload", "update", "image", "editor", "migrate");
+            return Arrays.asList("status", "reload", "update", "image", "editor", "whitelist", "migrate");
         }
         if (args.length == 2 && "migrate".equalsIgnoreCase(args[0])) {
             return Collections.singletonList("easybot");

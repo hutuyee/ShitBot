@@ -276,6 +276,11 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
             sender.sendMessage(TextUtil.color(runtime.getSettings().getMessages().getNoPermission()));
             return true;
         }
+        if ("whitelist".equalsIgnoreCase(args[0])) {
+            haaa.shitbot.core.service.WhitelistCommand.execute(runtime.getApi(), translations, args)
+                    .thenAccept(message -> platformBridge.executeOnSenderThread(sender, () -> send(sender, message)));
+            return true;
+        }
         if ("reload".equalsIgnoreCase(args[0])) {
             sender.sendMessage(TextUtil.color(runtime.getSettings().getMessages().getReloadStarted()));
             reloadRuntime().whenComplete(new java.util.function.BiConsumer<Boolean, Throwable>() {

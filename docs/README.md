@@ -16,6 +16,7 @@
 
 ## 维护和开发
 
+- [插件 API 与白名单管理](api.md)：异步绑定接口、管理命令和无 QQ 白名单。
 - [平台兼容性](compatibility.md)：已验证环境、各平台差异和可选依赖。
 - [升级与自动更新](updating.md)：手动升级、`/shitbot update` 和发布签名。
 - [生产环境安全清单](security.md)：OneBot、数据库、命令通道、权限和日志安全。

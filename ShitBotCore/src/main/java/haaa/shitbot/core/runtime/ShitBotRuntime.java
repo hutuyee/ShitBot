@@ -38,6 +38,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final BindingService bindingService;
     private final EasyBotMigrationService easyBotMigrationService;
     private final CustomImageService customImageService;
+    private final haaa.shitbot.api.ShitBotApi api;
     private final OnlineImageService imageService;
     private final InventoryService inventoryService;
     private final OneBotClient oneBotClient;
@@ -67,6 +68,7 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.easyBotMigrationService = new EasyBotMigrationService(
                 platform, repository, settings.getTranslations());
         this.customImageService = new CustomImageService(settings, platform);
+        this.api = new RuntimeApi(this, customImageService);
         this.imageService = new OnlineImageService(
                 settings.getImage(), settings.getTranslations(), platform, customImageService);
         this.inventoryService = new InventoryService(
@@ -201,7 +203,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     }
 
     public haaa.shitbot.api.ShitBotApi getApi() {
-        return customImageService;
+        return api;
     }
 
     public InventoryService getInventoryService() {

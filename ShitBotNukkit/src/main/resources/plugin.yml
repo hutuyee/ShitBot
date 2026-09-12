@@ -9,7 +9,7 @@ commands:
   shitbot:
     description: ShitBot management command
     aliases: [ sbot ]
-    usage: /shitbot status|reload|update|image|editor|migrate easybot [EasyBot.db]
+    usage: /shitbot status|reload|update|image|editor|whitelist|migrate easybot [EasyBot.db]
 permissions:
   shitbot.admin:
     description: Allows ShitBot administration

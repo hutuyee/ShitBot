@@ -114,6 +114,7 @@ inventory:
 | `/shitbot update` | 下载并校验当前平台的新版本，替换后等待手动重启 | `shitbot.admin` |
 | `/shitbot image` | 生成一次在线状态图片 | `shitbot.admin` |
 | `/shitbot editor` | 生成高级图片模板编辑器的一次性登录地址 | `shitbot.admin` |
+| `/shitbot whitelist` | 添加、删除、查询绑定和无 QQ 白名单 | `shitbot.admin` |
 | `/shitbot migrate easybot [EasyBot.db]` | 导入 EasyBot 绑定数据 | `shitbot.admin` |
 
 Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Velocity 同样检查该权限。
@@ -148,6 +149,7 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 - [升级与自动更新](docs/updating.md)
 - [生产环境安全清单](docs/security.md)
 - [构建与开发](docs/development.md)
+- [插件 API 与白名单管理](docs/api.md)
 - [全部文档](docs/README.md)
 - [待办事项](TODO.md)
 
