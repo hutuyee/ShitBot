@@ -117,7 +117,14 @@ public final class ShitBotRuntime implements AutoCloseable {
             return FutureUtil.failedFuture(new IllegalStateException("Runtime is closed"));
         }
         startFuture = CompletableFuture.allOf(
-                database.initializeAsync(), customImageService.startAsync()).thenRun(new Runnable() {
+                database.initializeAsync(), customImageService.startAsync(),
+                imageService.prepareBaseAsync().exceptionally(error -> {
+                    platform.warn("Unable to prepare online image base: " + FutureUtil.unwrap(error).getMessage());
+                    return null;
+                }), inventoryService.prepareBaseAsync().exceptionally(error -> {
+                    platform.warn("Unable to prepare inventory image base: " + FutureUtil.unwrap(error).getMessage());
+                    return null;
+                })).thenRun(new Runnable() {
             @Override
             public void run() {
                 if (closed.get()) {

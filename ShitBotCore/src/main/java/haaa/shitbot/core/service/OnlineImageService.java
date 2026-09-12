@@ -73,6 +73,8 @@ public final class OnlineImageService implements AutoCloseable {
     private final CustomImageService customImages;
     private final ExecutorService imageExecutor;
     private final ExecutorService avatarExecutor;
+    private final haaa.shitbot.core.image.ImageBaseCache baseCache =
+            new haaa.shitbot.core.image.ImageBaseCache();
     private final ConcurrentHashMap<String, AvatarEntry> avatarMemory = new ConcurrentHashMap<String, AvatarEntry>();
     private final ConcurrentHashMap<String, CompletableFuture<BufferedImage>> avatarRequests =
             new ConcurrentHashMap<String, CompletableFuture<BufferedImage>>();
@@ -98,6 +100,18 @@ public final class OnlineImageService implements AutoCloseable {
                 ? Executors.newFixedThreadPool(settings.getAvatarDownloadThreads(),
                         new NamedThreadFactory("shitbot-avatar", true))
                 : null;
+    }
+
+    public CompletableFuture<Void> prepareBaseAsync() {
+        if (settings.getRenderer() != Settings.Image.Renderer.JAVA) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return platform.captureOnlinePlayers().thenAcceptAsync(snapshot -> {
+            RenderLayout layout = measureLayout(normalizeSnapshot(snapshot == null
+                    ? Collections.<String, List<String>>emptyMap() : snapshot));
+            baseCache.prepare(baseKey(layout), settings.getWidth(), layout.height,
+                    graphics -> paintBase(graphics, layout));
+        }, imageExecutor);
     }
 
     public synchronized CompletableFuture<byte[]> renderOnlineImageAsync() {
@@ -193,19 +207,15 @@ public final class OnlineImageService implements AutoCloseable {
         Map<String, BufferedImage> avatars = loadAvatars(snapshot);
         RenderLayout layout = measureLayout(snapshot);
 
-        BufferedImage image = new BufferedImage(settings.getWidth(), layout.height, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage image = baseCache.copy(baseKey(layout), settings.getWidth(), layout.height,
+                graphics -> paintBase(graphics, layout));
         Graphics2D graphics = image.createGraphics();
         try {
             configureGraphics(graphics);
-            paintBackground(graphics, settings.getWidth(), layout.height);
-            paintHeader(graphics, layout.totalPlayers);
+            paintTotalPlayers(graphics, layout.totalPlayers);
 
             int y = style.headerHeight;
-            if (layout.servers.isEmpty()) {
-                paintEmptyPanel(graphics, y,
-                        settings.getWidth() - style.outerMargin * 2,
-                        style.emptyPanelHeight);
-            } else {
+            if (!layout.servers.isEmpty()) {
                 for (ServerLayout server : layout.servers) {
                     paintServerPanel(graphics, server, y, avatars);
                     y += server.height + style.serverGap;
@@ -221,6 +231,39 @@ public final class OnlineImageService implements AutoCloseable {
             throw new IOException("No PNG writer is available");
         }
         return output.toByteArray();
+    }
+
+    private String baseKey(RenderLayout layout) {
+        StringBuilder key = new StringBuilder();
+        for (ServerLayout server : layout.servers) {
+            key.append(server.name.length()).append(':').append(server.name).append(':')
+                    .append(server.height).append(';');
+            for (BadgeLayout badge : server.badges) {
+                key.append(badge.x).append(',').append(badge.y).append(',')
+                        .append(badge.width).append(',').append(badge.height).append(';');
+            }
+        }
+        return key.toString();
+    }
+
+    private void paintBase(Graphics2D graphics, RenderLayout layout) {
+        configureGraphics(graphics);
+        paintBackground(graphics, settings.getWidth(), layout.height);
+        paintHeader(graphics);
+        int y = style.headerHeight;
+        if (layout.servers.isEmpty()) {
+            paintEmptyPanel(graphics, y, settings.getWidth() - style.outerMargin * 2, style.emptyPanelHeight);
+        } else {
+            for (ServerLayout server : layout.servers) {
+                paintServerBase(graphics, server, y);
+                y += server.height + style.serverGap;
+            }
+        }
+        graphics.setFont(font(Font.PLAIN, style.footerFontSize));
+        graphics.setColor(style.footerColor);
+        String footer = translations.get("image.footer-brand");
+        graphics.drawString(footer, settings.getWidth() - style.outerMargin
+                - graphics.getFontMetrics().stringWidth(footer), layout.height - 30);
     }
 
     private RenderLayout measureLayout(Map<String, List<String>> snapshot) {
@@ -300,7 +343,7 @@ public final class OnlineImageService implements AutoCloseable {
         return clean.substring(0, end) + suffix;
     }
 
-    private void paintHeader(Graphics2D graphics, int totalPlayers) {
+    private void paintHeader(Graphics2D graphics) {
         int width = settings.getWidth();
         int x = style.outerMargin;
         int y = 34;
@@ -312,13 +355,14 @@ public final class OnlineImageService implements AutoCloseable {
 
         graphics.setFont(font(Font.BOLD, style.titleFontSize));
         graphics.setColor(style.titleColor);
-        graphics.drawString(settings.getTitle(), x + 22, y + 39);
+        int titleWidth = width - style.outerMargin - style.statusCardWidth - x - 44;
+        graphics.drawString(fitText(graphics.getFontMetrics(), settings.getTitle(), titleWidth), x + 22, y + 39);
 
         graphics.setFont(font(Font.PLAIN, style.subtitleFontSize));
         graphics.setColor(style.subtitleColor);
-        graphics.drawString(translations.format("image.subtitle",
+        graphics.drawString(fitText(graphics.getFontMetrics(), translations.format("image.subtitle",
                 "%server%", settings.getServerName(),
-                "%platform%", platform.getPlatformName()), x + 22, y + 72);
+                "%platform%", platform.getPlatformName()), titleWidth), x + 22, y + 72);
 
         int cardWidth = style.statusCardWidth;
         int cardHeight = style.statusCardHeight;
@@ -332,17 +376,28 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.setColor(style.statusTextColor);
         graphics.drawString(translations.get("image.online-status"), cardX + 40, cardY + 32);
 
-        graphics.setFont(font(Font.BOLD, style.totalCountFontSize));
-        graphics.setColor(style.totalCountColor);
-        String count = String.valueOf(totalPlayers);
-        FontMetrics countMetrics = graphics.getFontMetrics();
-        graphics.drawString(count, cardX + cardWidth - 24 - countMetrics.stringWidth(count), cardY + 38);
-
         graphics.setFont(font(Font.PLAIN, style.totalLabelFontSize));
         graphics.setColor(style.totalLabelColor);
         String label = translations.get("image.current-players");
         FontMetrics labelMetrics = graphics.getFontMetrics();
         graphics.drawString(label, cardX + cardWidth - 24 - labelMetrics.stringWidth(label), cardY + 64);
+    }
+
+    private void paintTotalPlayers(Graphics2D graphics, int totalPlayers) {
+        graphics.setFont(font(Font.BOLD, style.totalCountFontSize));
+        graphics.setColor(style.totalCountColor);
+        String count = String.valueOf(totalPlayers);
+        graphics.drawString(count, settings.getWidth() - style.outerMargin - 24
+                - graphics.getFontMetrics().stringWidth(count), 68);
+    }
+
+    private String fitText(FontMetrics metrics, String text, int width) {
+        String clean = text == null ? "" : text;
+        if (width <= 0) return "";
+        if (metrics.stringWidth(clean) <= width) return clean;
+        int end = clean.length();
+        while (end > 0 && metrics.stringWidth(clean.substring(0, end) + "…") > width) end--;
+        return end == 0 ? "" : clean.substring(0, end) + "…";
     }
 
     private void paintEmptyPanel(Graphics2D graphics, int y, int width, int height) {
@@ -358,10 +413,7 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.drawString(translations.get("image.waiting-for-players"), x + 58, y + 80);
     }
 
-    private void paintServerPanel(Graphics2D graphics,
-                                  ServerLayout server,
-                                  int y,
-                                  Map<String, BufferedImage> avatars) {
+    private void paintServerBase(Graphics2D graphics, ServerLayout server, int y) {
         int x = style.outerMargin;
         int width = settings.getWidth() - style.outerMargin * 2;
         drawPanel(graphics, x, y, width, server.height);
@@ -379,7 +431,28 @@ public final class OnlineImageService implements AutoCloseable {
 
         graphics.setFont(font(Font.BOLD, style.serverTitleFontSize));
         graphics.setColor(style.serverTitleColor);
-        graphics.drawString(TextUtil.singleLine(server.name, 48), x + 72, y + 46);
+        graphics.drawString(fitText(graphics.getFontMetrics(), TextUtil.singleLine(server.name, 48),
+                width - 260), x + 72, y + 46);
+
+        graphics.setColor(style.dividerColor);
+        graphics.drawLine(x + style.panelHorizontalPadding, y + 67,
+                x + width - style.panelHorizontalPadding, y + 67);
+        for (BadgeLayout badge : server.badges) {
+            int badgeX = x + style.panelHorizontalPadding + badge.x;
+            int badgeY = y + style.panelHeaderHeight + badge.y;
+            graphics.setColor(style.playerBackgroundColor);
+            graphics.fillRoundRect(badgeX, badgeY, badge.width, badge.height,
+                    style.playerBadgeRadius, style.playerBadgeRadius);
+            graphics.setColor(style.playerBorderColor);
+            graphics.drawRoundRect(badgeX, badgeY, badge.width, badge.height,
+                    style.playerBadgeRadius, style.playerBadgeRadius);
+        }
+    }
+
+    private void paintServerPanel(Graphics2D graphics, ServerLayout server, int y,
+                                  Map<String, BufferedImage> avatars) {
+        int x = style.outerMargin;
+        int width = settings.getWidth() - style.outerMargin * 2;
 
         String countText = translations.format(
                 "image.online-count", "%count%", String.valueOf(server.playerCount));
@@ -393,11 +466,8 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.setColor(style.serverCountTextColor);
         graphics.drawString(countText, countX + 13, y + 44);
 
-        graphics.setColor(style.dividerColor);
-        graphics.drawLine(x + 26, y + 67, x + width - 26, y + 67);
-
-        int baseX = x + 26;
-        int baseY = y + 82;
+        int baseX = x + style.panelHorizontalPadding;
+        int baseY = y + style.panelHeaderHeight;
         graphics.setFont(font(Font.PLAIN, style.playerFontSize));
         for (BadgeLayout badge : server.badges) {
             int badgeX = baseX + badge.x;
@@ -411,13 +481,6 @@ public final class OnlineImageService implements AutoCloseable {
                                   int x,
                                   int y,
                                   BufferedImage avatar) {
-        graphics.setColor(style.playerBackgroundColor);
-        graphics.fillRoundRect(x, y, badge.width, badge.height,
-                style.playerBadgeRadius, style.playerBadgeRadius);
-        graphics.setColor(style.playerBorderColor);
-        graphics.drawRoundRect(x, y, badge.width, badge.height,
-                style.playerBadgeRadius, style.playerBadgeRadius);
-
         int avatarSize = settings.getAvatarSize();
         int avatarX = x + 5;
         int avatarY = y + (badge.height - avatarSize) / 2;
@@ -470,10 +533,6 @@ public final class OnlineImageService implements AutoCloseable {
         graphics.drawString(translations.format("image.generated-at", "%time%",
                 formatCurrentTime()), style.outerMargin, y);
 
-        String footer = translations.get("image.footer-brand");
-        FontMetrics metrics = graphics.getFontMetrics();
-        graphics.drawString(footer,
-                settings.getWidth() - style.outerMargin - metrics.stringWidth(footer), y);
     }
 
     private void configureGraphics(Graphics2D graphics) {
@@ -891,6 +950,8 @@ public final class OnlineImageService implements AutoCloseable {
             Thread.currentThread().interrupt();
             imageExecutor.shutdownNow();
         }
+        baseCache.clear();
+        cachedBytes = null;
     }
 
     private static final class RenderLayout {
@@ -1069,13 +1130,13 @@ public final class OnlineImageService implements AutoCloseable {
             countBadgeRadius = radius(template, "count-badge", 16);
             playerBadgeRadius = radius(template, "player-badge", 16);
             avatarRadius = radius(template, "avatar", 11);
-            backgroundStartColor = color(template, "background-start", "#13468B");
-            backgroundEndColor = color(template, "background-end", "#189185");
-            overlayStartColor = color(template, "overlay-start", "#78368EEB");
-            overlayEndColor = color(template, "overlay-end", "#4437CCAE");
-            decorationColor = color(template, "decoration", "#0EFFFFFF");
-            gridColor = color(template, "grid", "#09FFFFFF");
-            headerAccentColor = color(template, "header-accent", "#EBFFFFFF");
+            backgroundStartColor = color(template, "background-start", "#101C30");
+            backgroundEndColor = color(template, "background-end", "#123E46");
+            overlayStartColor = color(template, "overlay-start", "#122D6CA8");
+            overlayEndColor = color(template, "overlay-end", "#1435BFA6");
+            decorationColor = color(template, "decoration", "#06FFFFFF");
+            gridColor = color(template, "grid", "#04FFFFFF");
+            headerAccentColor = color(template, "header-accent", "#78E5C5");
             titleColor = color(template, "title", "#FFFFFFFF");
             subtitleColor = color(template, "subtitle", "#D3E8F9");
             statusDotColor = color(template, "status-dot", "#68EBB5");
@@ -1091,17 +1152,17 @@ public final class OnlineImageService implements AutoCloseable {
             serverCountBackgroundColor = color(template, "server-count-background", "#21FFFFFF");
             serverCountTextColor = color(template, "server-count-text", "#D5ECFA");
             dividerColor = color(template, "divider", "#29FFFFFF");
-            playerBackgroundColor = color(template, "player-background", "#1FFFFFFF");
-            playerBorderColor = color(template, "player-border", "#2BE0F2FF");
+            playerBackgroundColor = color(template, "player-background", "#80132133");
+            playerBorderColor = color(template, "player-border", "#245EDCC3");
             playerTextColor = color(template, "player-text", "#F4F9FF");
             avatarBorderColor = color(template, "avatar-border", "#52FFFFFF");
             footerColor = color(template, "footer", "#B9D7EB");
-            cardShadowColor = color(template, "card-shadow", "#21000000");
-            cardBackgroundColor = color(template, "card-background", "#29FFFFFF");
-            cardBorderColor = color(template, "card-border", "#35E2F5FF");
-            panelShadowColor = color(template, "panel-shadow", "#1F000000");
-            panelBackgroundColor = color(template, "panel-background", "#26FFFFFF");
-            panelBorderColor = color(template, "panel-border", "#33E1F4FF");
+            cardShadowColor = color(template, "card-shadow", "#40000000");
+            cardBackgroundColor = color(template, "card-background", "#B31D3D4B");
+            cardBorderColor = color(template, "card-border", "#4078CBBF");
+            panelShadowColor = color(template, "panel-shadow", "#32000000");
+            panelBackgroundColor = color(template, "panel-background", "#B31B2D40");
+            panelBorderColor = color(template, "panel-border", "#30558598");
             placeholderColors = template.getColors("online.placeholder-colors",
                     "#498BFF", "#5CC4A4", "#A671F4", "#EE7E85", "#EFAA4C", "#4BAECD");
         }

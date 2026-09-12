@@ -41,6 +41,8 @@ public final class InventoryImageRenderer {
     private final java.util.List<String> equipmentLabels;
     private final ItemIconResolver iconResolver;
     private final Semaphore renderPermits;
+    private final haaa.shitbot.core.image.ImageBaseCache baseCache =
+            new haaa.shitbot.core.image.ImageBaseCache();
     private final Map<String, CachedRender> renderCache = new LinkedHashMap<String, CachedRender>(32, 0.75F, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, CachedRender> eldest) {
@@ -83,7 +85,17 @@ public final class InventoryImageRenderer {
         }
     }
 
-    private byte[] renderUncached(InventorySnapshot snapshot, boolean live) throws Exception {
+    public void prepareBase() {
+        Layout layout = new Layout();
+        baseCache.prepare("inventory", layout.width, layout.height, graphics -> paintBase(graphics, layout));
+    }
+
+    public void clear() {
+        baseCache.clear();
+        synchronized (renderCache) { renderCache.clear(); }
+    }
+
+    private final class Layout {
         int slot = settings.getSlotSize();
         int gap = style.slotGap;
         int padding = style.padding;
@@ -99,12 +111,45 @@ public final class InventoryImageRenderer {
         int requiredWidth = padding * 2 + gridWidth + style.gridEquipmentGap + equipmentWidth;
         int width = Math.max(settings.getWidth(), requiredWidth);
         int height = headerHeight + contentHeight + footerHeight + padding;
+        int left = (width - requiredWidth) / 2 + padding;
+    }
 
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+    private void paintBase(Graphics2D graphics, Layout layout) {
+        configureGraphics(graphics);
+        paintBackground(graphics, layout.width, layout.height);
+        for (int index = 0; index < DISPLAY_SLOTS.length; index++) {
+            paintSlotBackground(graphics, layout.left + (index % 9) * (layout.slot + layout.gap),
+                    layout.headerHeight + (index / 9) * (layout.slot + layout.gap), layout.slot);
+        }
+        Font smallFont = new Font(settings.getFontName(), Font.PLAIN, style.smallFontSize);
+        graphics.setFont(smallFont);
+        int equipmentX = layout.left + layout.gridWidth + style.gridEquipmentGap;
+        graphics.setColor(style.equipmentTitleColor);
+        graphics.drawString(translations.get("inventory.equipment-title"),
+                equipmentX, layout.headerHeight - style.equipmentTitleOffsetY);
+        for (int index = 0; index < EQUIPMENT_SLOTS.length; index++) {
+            int y = layout.headerHeight + index * (layout.slot + layout.gap);
+            graphics.setColor(style.secondaryTextColor);
+            graphics.drawString(index < equipmentLabels.size() ? equipmentLabels.get(index)
+                    : String.valueOf(index + 1), equipmentX, y + layout.slot / 2 + 5);
+            paintSlotBackground(graphics, equipmentX + style.equipmentIconOffset, y, layout.slot);
+        }
+    }
+
+    private byte[] renderUncached(InventorySnapshot snapshot, boolean live) throws Exception {
+        Layout layout = new Layout();
+        int slot = layout.slot;
+        int gap = layout.gap;
+        int padding = layout.padding;
+        int gridWidth = layout.gridWidth;
+        int contentHeight = layout.contentHeight;
+        int width = layout.width;
+        int height = layout.height;
+
+        BufferedImage image = baseCache.copy("inventory", width, height, graphics -> paintBase(graphics, layout));
         Graphics2D graphics = image.createGraphics();
         try {
             configureGraphics(graphics);
-            paintBackground(graphics, width, height);
 
             Font titleFont = new Font(settings.getFontName(), Font.BOLD, style.titleFontSize);
             Font playerFont = new Font(settings.getFontName(), Font.BOLD, style.playerFontSize);
@@ -112,23 +157,24 @@ public final class InventoryImageRenderer {
             Font amountFont = new Font(settings.getFontName(), Font.BOLD,
                     Math.max(style.minimumAmountFontSize, slot / 4));
 
-            int left = (width - requiredWidth) / 2 + padding;
-            int top = headerHeight;
+            int left = layout.left;
+            int top = layout.headerHeight;
+            String badge = translations.get(live ? "inventory.live" : "inventory.snapshot");
+            graphics.setFont(smallFont);
+            int badgeWidth = graphics.getFontMetrics().stringWidth(badge) + style.badgeHorizontalPadding;
+            int badgeX = width - padding - badgeWidth;
             String title = settings.getTitle().replace("%player%", snapshot.getPlayerName());
             graphics.setFont(titleFont);
             graphics.setColor(style.titleColor);
-            graphics.drawString(ellipsize(title, graphics.getFontMetrics(), width - padding * 2),
+            graphics.drawString(ellipsize(title, graphics.getFontMetrics(), badgeX - padding - 16),
                     padding, style.titleY);
 
             graphics.setFont(playerFont);
             graphics.setColor(style.playerColor);
-            graphics.drawString(snapshot.getPlayerName(), padding, style.playerY);
+            graphics.drawString(ellipsize(snapshot.getPlayerName(), graphics.getFontMetrics(),
+                    width - padding * 2), padding, style.playerY);
 
-            String badge = translations.get(live ? "inventory.live" : "inventory.snapshot");
             graphics.setFont(smallFont);
-            int badgeWidth = graphics.getFontMetrics().stringWidth(badge)
-                    + style.badgeHorizontalPadding;
-            int badgeX = width - padding - badgeWidth;
             graphics.setColor(live ? style.liveBadgeColor : style.snapshotBadgeColor);
             graphics.fillRoundRect(badgeX, style.badgeY, badgeWidth, style.badgeHeight,
                     style.statusBadgeRadius, style.statusBadgeRadius);
@@ -148,18 +194,8 @@ public final class InventoryImageRenderer {
             }
 
             int equipmentX = left + gridWidth + style.gridEquipmentGap;
-            graphics.setFont(smallFont);
-            graphics.setColor(style.equipmentTitleColor);
-            graphics.drawString(translations.get("inventory.equipment-title"),
-                    equipmentX, top - style.equipmentTitleOffsetY);
             for (int index = 0; index < EQUIPMENT_SLOTS.length; index++) {
                 int y = top + index * (slot + gap);
-                graphics.setFont(smallFont);
-                graphics.setColor(style.secondaryTextColor);
-                String equipmentLabel = index < equipmentLabels.size()
-                        ? equipmentLabels.get(index)
-                        : String.valueOf(index + 1);
-                graphics.drawString(equipmentLabel, equipmentX, y + slot / 2 + 5);
                 paintSlot(graphics, equipmentX + style.equipmentIconOffset, y, slot,
                         snapshot.getItem(EQUIPMENT_SLOTS[index]), amountFont);
             }
@@ -196,18 +232,13 @@ public final class InventoryImageRenderer {
                            int size,
                            InventorySnapshot.Item item,
                            Font amountFont) {
-        graphics.setColor(style.slotBackgroundColor);
-        graphics.fillRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
-        graphics.setStroke(new BasicStroke(item != null && item.isEnchanted()
-                ? style.enchantedBorderWidth
-                : style.normalBorderWidth));
-        graphics.setColor(item != null && item.isEnchanted()
-                ? style.enchantedBorderColor
-                : style.slotBorderColor);
-        graphics.drawRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
-
         if (item == null) {
             return;
+        }
+        if (item.isEnchanted()) {
+            graphics.setStroke(new BasicStroke(style.enchantedBorderWidth));
+            graphics.setColor(style.enchantedBorderColor);
+            graphics.drawRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
         }
         BufferedImage icon = iconResolver.resolve(item);
         int inset = Math.max(4, size / 10);
@@ -262,16 +293,33 @@ public final class InventoryImageRenderer {
         }
     }
 
+    private void paintSlotBackground(Graphics2D graphics, int x, int y, int size) {
+        graphics.setColor(style.slotBackgroundColor);
+        graphics.fillRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
+        graphics.setStroke(new BasicStroke(style.normalBorderWidth));
+        graphics.setColor(style.slotBorderColor);
+        graphics.drawRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
+    }
+
     private Color durabilityColor(double remaining) {
         float hue = (float) (remaining / 3.0D);
         return Color.getHSBColor(hue, style.durabilitySaturation, style.durabilityBrightness);
     }
 
     private void paintBackground(Graphics2D graphics, int width, int height) {
-        graphics.setColor(style.backgroundColor);
+        graphics.setPaint(new java.awt.GradientPaint(0, 0, style.backgroundColor,
+                width, height, style.backgroundEndColor));
         graphics.fillRect(0, 0, width, height);
+        graphics.setColor(style.cardShadowColor);
+        graphics.fillRoundRect(style.cardInset, style.cardInset + 4,
+                width - style.cardInset * 2, height - style.cardInset * 2 - 4,
+                style.cardRadius, style.cardRadius);
         graphics.setColor(style.cardColor);
         graphics.fillRoundRect(style.cardInset, style.cardInset,
+                width - style.cardInset * 2, height - style.cardInset * 2,
+                style.cardRadius, style.cardRadius);
+        graphics.setColor(style.cardBorderColor);
+        graphics.drawRoundRect(style.cardInset, style.cardInset,
                 width - style.cardInset * 2, height - style.cardInset * 2,
                 style.cardRadius, style.cardRadius);
     }
@@ -340,6 +388,9 @@ public final class InventoryImageRenderer {
         private final float normalBorderWidth;
         private final float enchantedBorderWidth;
         private final Color backgroundColor;
+        private final Color backgroundEndColor;
+        private final Color cardShadowColor;
+        private final Color cardBorderColor;
         private final Color cardColor;
         private final Color titleColor;
         private final Color playerColor;
@@ -388,17 +439,20 @@ public final class InventoryImageRenderer {
                     "inventory.strokes.normal-border-width-tenths", 1, 50, 10) / 10.0F;
             enchantedBorderWidth = template.getInt(
                     "inventory.strokes.enchanted-border-width-tenths", 1, 80, 20) / 10.0F;
-            backgroundColor = color(template, "background", "#0A0D13");
-            cardColor = color(template, "card", "#A61E283A");
+            backgroundColor = color(template, "background", "#101C30");
+            backgroundEndColor = color(template, "background-end", "#142B37");
+            cardShadowColor = color(template, "card-shadow", "#50000000");
+            cardBorderColor = color(template, "card-border", "#35586B7C");
+            cardColor = color(template, "card", "#D91B2D40");
             titleColor = color(template, "title", "#F6F8FC");
-            playerColor = color(template, "player", "#AED6FF");
-            liveBadgeColor = color(template, "live-badge", "#2B8954");
-            snapshotBadgeColor = color(template, "snapshot-badge", "#80652E");
+            playerColor = color(template, "player", "#88DDCA");
+            liveBadgeColor = color(template, "live-badge", "#22685B");
+            snapshotBadgeColor = color(template, "snapshot-badge", "#705A32");
             badgeTextColor = color(template, "badge-text", "#FFFFFFFF");
             equipmentTitleColor = color(template, "equipment-title", "#A8B1C2");
             secondaryTextColor = color(template, "secondary-text", "#97A0B2");
-            slotBackgroundColor = color(template, "slot-background", "#EB141923");
-            slotBorderColor = color(template, "slot-border", "#DC495265");
+            slotBackgroundColor = color(template, "slot-background", "#E6132333");
+            slotBorderColor = color(template, "slot-border", "#80516A7D");
             enchantedBorderColor = color(template, "enchanted-border", "#DC9767FF");
             amountShadowColor = color(template, "amount-shadow", "#BE000000");
             amountTextColor = color(template, "amount-text", "#FFFFFFFF");

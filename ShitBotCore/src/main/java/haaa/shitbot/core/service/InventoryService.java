@@ -72,6 +72,11 @@ public final class InventoryService implements AutoCloseable {
                 new NamedThreadFactory("shitbot-inventory-resources", true));
     }
 
+    public CompletableFuture<Void> prepareBaseAsync() {
+        return settings.isEnabled() ? CompletableFuture.runAsync(renderer::prepareBase, renderExecutor)
+                : CompletableFuture.completedFuture(null);
+    }
+
     public void start(ScheduledExecutorService scheduler) {
         if (!settings.isEnabled() || closed.get()) {
             return;
@@ -439,6 +444,7 @@ public final class InventoryService implements AutoCloseable {
         memorySnapshots.clear();
         renderExecutor.shutdownNow();
         resourceExecutor.shutdownNow();
+        renderer.clear();
     }
 
     private static final class SnapshotHolder {
