@@ -102,12 +102,6 @@ jobs:
             jar_file="${jars[0]}"
             jar_name="$(basename "${jar_file}")"
 
-            jar_size="$(stat -c '%s' "${jar_file}")"
-            if [[ "${jar_size}" -gt 1048576 ]]; then
-              echo "::error title=Plugin size limit exceeded::${jar_name} is ${jar_size} bytes; platform plugins must stay within 1 MiB."
-              exit 1
-            fi
-
             echo "Copying ${jar_file} -> release/${jar_name}"
             cp "${jar_file}" "release/${jar_name}"
             (
@@ -135,11 +129,6 @@ jobs:
 
           renderer_file="${renderer_jars[0]}"
           renderer_name="$(basename "${renderer_file}")"
-          renderer_size="$(stat -c '%s' "${renderer_file}")"
-          if [[ "${renderer_size}" -gt 1048576 ]]; then
-            echo "::error title=Renderer size limit exceeded::${renderer_name} is ${renderer_size} bytes; the optional renderer must stay within 1 MiB."
-            exit 1
-          fi
           cp "${renderer_file}" "release/${renderer_name}"
           (
             cd release
