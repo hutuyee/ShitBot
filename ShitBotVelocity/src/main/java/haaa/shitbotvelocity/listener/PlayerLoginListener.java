@@ -1,9 +1,10 @@
 package haaa.shitbotvelocity.listener;
 
 import com.velocitypowered.api.event.EventTask;
+import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
-import com.velocitypowered.api.event.connection.PreLoginEvent;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.util.TextUtil;
@@ -20,7 +21,7 @@ public final class PlayerLoginListener {
     }
 
     @Subscribe
-    public EventTask onPreLogin(final PreLoginEvent event) {
+    public EventTask onLogin(final LoginEvent event) {
         if (!event.getResult().isAllowed()) {
             return null;
         }
@@ -32,37 +33,35 @@ public final class PlayerLoginListener {
             String message = plugin.isStartupUnavailable()
                     ? message("messages.initialization-failed", "§cThe binding service is unavailable.")
                     : message("messages.reload-in-progress", "§cShitBot is reloading.");
-            event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
+            event.setResult(ResultedEvent.ComponentResult.denied(
                     LegacyComponentSerializer.legacySection().deserialize(message)));
             return null;
         }
         if (!runtime.getSettings().getBinding().isEnabled()) {
             return null;
         }
+        // LoginEvent exposes the authenticated profile; PreLoginEvent trusts client-supplied names.
         return EventTask.withContinuation(continuation ->
-                runtime.checkLogin(event.getUsername(), null).whenComplete((decision, throwable) -> {
-                    try {
-                        if (throwable != null || decision == null || !decision.isAllowed()) {
-                            String message = decision == null
-                                    ? runtime.getSettings().getMessages().getKickDatabaseUnavailable()
-                                    : decision.getMessage();
-                            event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
-                                    LegacyComponentSerializer.legacySection().deserialize(
-                                            TextUtil.color(message))));
-                        }
-                        continuation.resume();
-                    } catch (Throwable callbackError) {
-                        continuation.resumeWithException(callbackError);
-                    }
-                }));
+                runtime.checkLogin(event.getPlayer().getUsername(), event.getPlayer().getUniqueId().toString())
+                        .whenComplete((decision, throwable) -> {
+                            try {
+                                if (throwable != null || decision == null || !decision.isAllowed()) {
+                                    String message = decision == null
+                                            ? runtime.getSettings().getMessages().getKickDatabaseUnavailable()
+                                            : decision.getMessage();
+                                    event.setResult(ResultedEvent.ComponentResult.denied(
+                                            LegacyComponentSerializer.legacySection().deserialize(
+                                                    TextUtil.color(message))));
+                                }
+                                continuation.resume();
+                            } catch (Throwable callbackError) {
+                                continuation.resumeWithException(callbackError);
+                            }
+                        }));
     }
 
     @Subscribe
     public void onPostLogin(PostLoginEvent event) {
-        ShitBotRuntime runtime = plugin.getRuntime();
-        if (runtime != null && runtime.isReady()) {
-            runtime.checkLogin(event.getPlayer().getUsername(), event.getPlayer().getUniqueId().toString());
-        }
         final com.velocitypowered.api.proxy.Player player = event.getPlayer();
         if (!player.hasPermission("shitbot.admin")) {
             return;

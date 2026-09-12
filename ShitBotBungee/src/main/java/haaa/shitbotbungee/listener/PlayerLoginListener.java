@@ -9,8 +9,8 @@ import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbotbungee.ShitBotBungee;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.event.LoginEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
-import net.md_5.bungee.api.event.PreLoginEvent;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
@@ -23,7 +23,7 @@ public final class PlayerLoginListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
-    public void onPreLogin(final PreLoginEvent event) {
+    public void onLogin(final LoginEvent event) {
         if (event.isCancelled()) {
             return;
         }
@@ -43,7 +43,8 @@ public final class PlayerLoginListener implements Listener {
             return;
         }
         event.registerIntent(plugin);
-        runtime.checkLogin(event.getConnection().getName(), null).whenComplete(
+        // LoginEvent runs after authentication has fixed the player name and UUID.
+        runtime.checkLogin(event.getConnection().getName(), event.getConnection().getUniqueId().toString()).whenComplete(
                 new java.util.function.BiConsumer<LoginDecision, Throwable>() {
                     @Override
                     public void accept(LoginDecision decision, Throwable throwable) {
@@ -64,10 +65,6 @@ public final class PlayerLoginListener implements Listener {
 
     @EventHandler
     public void onPostLogin(PostLoginEvent event) {
-        ShitBotRuntime runtime = plugin.getRuntime();
-        if (runtime != null && runtime.isReady()) {
-            runtime.checkLogin(event.getPlayer().getName(), event.getPlayer().getUniqueId().toString());
-        }
         final ProxiedPlayer player = event.getPlayer();
         if (!player.hasPermission("shitbot.admin")) {
             return;
