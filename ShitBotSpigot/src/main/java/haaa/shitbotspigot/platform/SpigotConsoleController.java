@@ -49,7 +49,7 @@ public final class SpigotConsoleController implements AutoCloseable {
         this.plugin = plugin;
         this.scheduler = scheduler;
         this.tpsMonitor = new TpsMonitor(plugin, scheduler);
-        this.permissionResolver = new SpigotPermissionResolver(scheduler);
+        this.permissionResolver = new SpigotPermissionResolver(plugin, scheduler);
         this.tpsMonitor.start();
     }
 

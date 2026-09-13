@@ -1,21 +1,27 @@
 package haaa.shitbotspigot.platform;
 
+import haaa.shitbot.core.runtime.ShitBotRuntime;
+import haaa.shitbotspigot.ShitBotSpigot;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class SpigotPermissionResolver {
+    private final ShitBotSpigot plugin;
     private final SchedulerAdapter scheduler;
 
-    SpigotPermissionResolver(SchedulerAdapter scheduler) {
+    SpigotPermissionResolver(ShitBotSpigot plugin, SchedulerAdapter scheduler) {
+        this.plugin = plugin;
         this.scheduler = scheduler;
     }
 
@@ -34,12 +40,11 @@ final class SpigotPermissionResolver {
                             continue;
                         }
                         String cleanName = playerName.trim();
-                        Player online = Bukkit.getPlayerExact(cleanName);
-                        // Bukkit's "exact" lookup ignores case; bindings do not.
-                        if (online != null && cleanName.equals(online.getName())) {
+                        Player online = SpigotPlatformBridge.findPlayerByExactName(cleanName);
+                        if (online != null) {
                             checks.add(checkOnline(online, permission));
                         } else {
-                            checks.add(checkOffline(Bukkit.getOfflinePlayer(cleanName), cleanName, permission));
+                            checks.add(checkOfflineByName(cleanName, permission));
                         }
                     }
                 }
@@ -67,6 +72,55 @@ final class SpigotPermissionResolver {
             }
         });
         return result;
+    }
+
+    private CompletableFuture<Boolean> checkOfflineByName(final String playerName,
+                                                          final String permission) {
+        ShitBotRuntime runtime = plugin.getRuntime();
+        CompletableFuture<Optional<UUID>> identity = runtime == null
+                ? CompletableFuture.completedFuture(Optional.<UUID>empty())
+                : runtime.getBindingService().findUuidByPlayerName(playerName);
+        return identity.thenCompose(uniqueId -> {
+            final CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
+            try {
+                scheduler.executeGlobal(() -> {
+                    try {
+                        Player online = SpigotPlatformBridge.findPlayerByExactName(playerName);
+                        CompletableFuture<Boolean> check = online != null
+                                ? checkOnline(online, permission)
+                                : checkOffline(findOfflinePlayer(playerName, uniqueId.orElse(null)),
+                                        playerName, permission);
+                        check.whenComplete((allowed, error) -> result.complete(
+                                error == null && Boolean.TRUE.equals(allowed)));
+                    } catch (Throwable error) {
+                        result.complete(Boolean.FALSE);
+                    }
+                });
+            } catch (Throwable error) {
+                result.complete(Boolean.FALSE);
+            }
+            return result;
+        });
+    }
+
+    private OfflinePlayer findOfflinePlayer(String playerName, UUID uniqueId) {
+        if (uniqueId != null) {
+            return Bukkit.getOfflinePlayer(uniqueId);
+        }
+        OfflinePlayer cached = Bukkit.getOfflinePlayer(playerName);
+        if (playerName.equals(cached.getName())) {
+            return cached;
+        }
+        if (!Bukkit.getOnlineMode()) {
+            // The name cache may only retain aA; vanilla offline UUIDs retain Aa's spelling.
+            UUID offlineId = UUID.nameUUIDFromBytes(
+                    ("OfflinePlayer:" + playerName).getBytes(StandardCharsets.UTF_8));
+            OfflinePlayer offline = Bukkit.getOfflinePlayer(offlineId);
+            if (playerName.equals(offline.getName())) {
+                return offline;
+            }
+        }
+        return null;
     }
 
     private CompletableFuture<Boolean> checkOffline(final OfflinePlayer player,

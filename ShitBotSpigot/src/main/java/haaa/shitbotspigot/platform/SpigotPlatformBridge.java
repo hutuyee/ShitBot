@@ -984,14 +984,18 @@ public final class SpigotPlatformBridge implements PlatformBridge {
         return components.toArray(new BaseComponent[components.size()]);
     }
 
-    private static Player findPlayerByExactName(String playerName) {
+    static Player findPlayerByExactName(String playerName) {
         if (playerName == null || playerName.trim().isEmpty()) {
             return null;
         }
         String exactName = playerName.trim();
-        // Bukkit's "exact" lookup ignores case; bindings deliberately do not.
-        Player player = Bukkit.getPlayerExact(exactName);
-        return player != null && exactName.equals(player.getName()) ? player : null;
+        // Search the whole collection so Aa and aA can both be found when online.
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player != null && exactName.equals(player.getName())) {
+                return player;
+            }
+        }
+        return null;
     }
 
     @Override
