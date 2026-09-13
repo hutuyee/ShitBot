@@ -11,6 +11,7 @@ import haaa.shitbot.core.util.TextUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /** Business rules for login verification and QQ binding. */
@@ -74,6 +75,20 @@ public final class BindingService {
 
     public CompletableFuture<Optional<BindingRecord>> findByPlayerName(String playerName) {
         return repository.findByPlayerName(playerName);
+    }
+
+    /** Returns the login UUID recorded for this exact, case-sensitive binding name. */
+    public CompletableFuture<Optional<UUID>> findUuidByPlayerName(String playerName) {
+        return repository.findByPlayerName(playerName).thenApply(binding -> {
+            if (!binding.isPresent() || binding.get().getPlayerUuid() == null) {
+                return Optional.<UUID>empty();
+            }
+            try {
+                return Optional.of(UUID.fromString(binding.get().getPlayerUuid()));
+            } catch (IllegalArgumentException invalidUuid) {
+                return Optional.<UUID>empty();
+            }
+        });
     }
 
     public CompletableFuture<Optional<BindingRecord>> findByQqId(String qqId) {

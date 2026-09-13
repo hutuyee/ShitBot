@@ -134,8 +134,8 @@ public final class NukkitPlatformBridge implements PlatformBridge, AutoCloseable
                     Map<String, InventorySnapshot> result =
                             new LinkedHashMap<String, InventorySnapshot>();
                     for (String playerName : requested) {
-                        Player player = server.getPlayerExact(playerName);
-                        if (player != null && playerName.equals(player.getName()) && player.isOnline()) {
+                        Player player = findPlayerByExactName(playerName);
+                        if (player != null && player.isOnline()) {
                             result.put(playerName, snapshot(player));
                         }
                     }
@@ -146,6 +146,19 @@ public final class NukkitPlatformBridge implements PlatformBridge, AutoCloseable
             }
         });
         return future;
+    }
+
+    Player findPlayerByExactName(String playerName) {
+        if (playerName == null) {
+            return null;
+        }
+        String exactName = playerName.trim();
+        for (Player player : server.getOnlinePlayers().values()) {
+            if (player != null && exactName.equals(player.getName())) {
+                return player;
+            }
+        }
+        return null;
     }
 
     public InventorySnapshot captureInventorySnapshot(Player player) {

@@ -8,6 +8,7 @@ import haaa.shitbot.core.console.ConsoleResult;
 import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.LatestLogCapture;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
+import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbotnukkit.ShitBotNukkit;
@@ -149,8 +150,8 @@ final class NukkitConsoleGateway implements AutoCloseable {
                 public void run() {
                     try {
                         for (String playerName : request.getPlayerNames()) {
-                            Player player = server.getPlayerExact(playerName);
-                            if (player != null && playerName.equals(player.getName()) && player.isOnline()
+                            Player player = platform.findPlayerByExactName(playerName);
+                            if (player != null && player.isOnline()
                                     && player.hasPermission(request.getPermission())) {
                                 onlineCheck.complete(Boolean.TRUE);
                                 return;
@@ -172,10 +173,12 @@ final class NukkitConsoleGateway implements AutoCloseable {
                         if (Boolean.TRUE.equals(allowed)) {
                             return CompletableFuture.completedFuture(Boolean.TRUE);
                         }
+                        ShitBotRuntime runtime = plugin.getRuntime();
                         return LuckPermsPermissionResolver.hasPermission(
                                 plugin.getClass().getClassLoader(),
                                 request.getPlayerNames(),
-                                request.getPermission());
+                                request.getPermission(),
+                                runtime == null ? null : runtime.getBindingService());
                     }
                 });
     }

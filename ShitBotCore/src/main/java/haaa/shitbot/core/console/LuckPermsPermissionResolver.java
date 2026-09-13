@@ -1,5 +1,7 @@
 package haaa.shitbot.core.console;
 
+import haaa.shitbot.core.service.BindingService;
+
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -41,6 +43,13 @@ public final class LuckPermsPermissionResolver {
     public static CompletableFuture<Boolean> hasPermission(ClassLoader classLoader,
                                                            List<String> playerNames,
                                                            String permission) {
+        return hasPermission(classLoader, playerNames, permission, null);
+    }
+
+    public static CompletableFuture<Boolean> hasPermission(ClassLoader classLoader,
+                                                           List<String> playerNames,
+                                                           String permission,
+                                                           BindingService bindings) {
         if (classLoader == null || playerNames == null || playerNames.isEmpty()
                 || permission == null || permission.trim().isEmpty()) {
             return CompletableFuture.completedFuture(Boolean.FALSE);
@@ -57,7 +66,19 @@ public final class LuckPermsPermissionResolver {
         List<CompletableFuture<Boolean>> checks = new ArrayList<CompletableFuture<Boolean>>();
         for (String playerName : playerNames) {
             if (playerName != null && !playerName.trim().isEmpty()) {
-                checks.add(checkPlayer(userManager, playerName.trim(), permission));
+                final String exactName = playerName.trim();
+                if (bindings == null) {
+                    checks.add(checkPlayer(userManager, exactName, permission));
+                } else {
+                    checks.add(bindings.findUuidByPlayerName(exactName).thenCompose(uniqueId -> {
+                        if (!uniqueId.isPresent()) {
+                            return checkPlayer(userManager, exactName, permission);
+                        }
+                        CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
+                        loadUser(userManager, uniqueId.get(), exactName, permission, result);
+                        return result;
+                    }));
+                }
             }
         }
         return completeAny(checks);
@@ -116,7 +137,7 @@ public final class LuckPermsPermissionResolver {
 
     private static boolean readPermission(Object user, String playerName, String permission) {
         try {
-            // LuckPerms UUID lookup ignores case, while bindings identify exact player names.
+            // The name-to-UUID fallback ignores case; verify the loaded identity as well.
             if (!playerName.equals(method(user.getClass(), GET_USERNAME).invoke(user))) {
                 return false;
             }

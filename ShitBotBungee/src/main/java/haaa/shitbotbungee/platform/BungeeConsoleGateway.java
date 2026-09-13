@@ -7,6 +7,7 @@ import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
 import haaa.shitbot.core.console.LatestLogCapture;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
+import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.update.ReleaseAsset;
 import haaa.shitbot.core.update.UpdateInfo;
 import haaa.shitbot.core.update.UpdatePlatform;
@@ -208,8 +209,8 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             return transport.getEndpoint(request.getServer());
         }
         for (String playerName : request.getPlayerNames()) {
-            ProxiedPlayer player = plugin.getProxy().getPlayer(playerName);
-            if (player != null && playerName.equals(player.getName()) && player.getServer() != null) {
+            ProxiedPlayer player = findPlayerByExactName(playerName);
+            if (player != null && player.getServer() != null) {
                 ConsoleSettings.BackendEndpoint endpoint =
                         transport.getEndpoint(player.getServer().getInfo().getName());
                 if (endpoint != null) {
@@ -340,16 +341,30 @@ public final class BungeeConsoleGateway implements AutoCloseable {
             return CompletableFuture.completedFuture(Boolean.TRUE);
         }
         for (String playerName : request.getPlayerNames()) {
-            ProxiedPlayer player = plugin.getProxy().getPlayer(playerName);
-            if (player != null && playerName.equals(player.getName())
-                    && player.hasPermission(request.getPermission())) {
+            ProxiedPlayer player = findPlayerByExactName(playerName);
+            if (player != null && player.hasPermission(request.getPermission())) {
                 return CompletableFuture.completedFuture(Boolean.TRUE);
             }
         }
         Plugin luckPerms = plugin.getProxy().getPluginManager().getPlugin("LuckPerms");
+        ShitBotRuntime runtime = plugin.getRuntime();
         return LuckPermsPermissionResolver.hasPermission(
                 luckPerms == null ? null : luckPerms.getClass().getClassLoader(),
-                request.getPlayerNames(), request.getPermission());
+                request.getPlayerNames(), request.getPermission(),
+                runtime == null ? null : runtime.getBindingService());
+    }
+
+    private ProxiedPlayer findPlayerByExactName(String playerName) {
+        if (playerName == null) {
+            return null;
+        }
+        String exactName = playerName.trim();
+        for (ProxiedPlayer player : plugin.getProxy().getPlayers()) {
+            if (player != null && exactName.equals(player.getName())) {
+                return player;
+            }
+        }
+        return null;
     }
 
     @Override

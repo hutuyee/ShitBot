@@ -10,6 +10,7 @@ import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.console.ConsoleSocketProtocol;
 import haaa.shitbot.core.console.LatestLogCapture;
 import haaa.shitbot.core.console.LuckPermsPermissionResolver;
+import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbotvelocity.ShitBotVelocity;
 
@@ -158,9 +159,8 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             return transport.getEndpoint(request.getServer());
         }
         for (String playerName : request.getPlayerNames()) {
-            Optional<Player> player = server.getPlayer(playerName);
-            if (player.isPresent() && playerName.equals(player.get().getUsername())
-                    && player.get().getCurrentServer().isPresent()) {
+            Optional<Player> player = findPlayerByExactName(playerName);
+            if (player.isPresent() && player.get().getCurrentServer().isPresent()) {
                 ConsoleSettings.BackendEndpoint endpoint = transport.getEndpoint(
                         player.get().getCurrentServer().get().getServerInfo().getName());
                 if (endpoint != null) {
@@ -282,18 +282,32 @@ public final class VelocityConsoleGateway implements AutoCloseable {
             return CompletableFuture.completedFuture(Boolean.TRUE);
         }
         for (String playerName : request.getPlayerNames()) {
-            Optional<Player> player = server.getPlayer(playerName);
-            if (player.isPresent() && playerName.equals(player.get().getUsername())
-                    && player.get().hasPermission(request.getPermission())) {
+            Optional<Player> player = findPlayerByExactName(playerName);
+            if (player.isPresent() && player.get().hasPermission(request.getPermission())) {
                 return CompletableFuture.completedFuture(Boolean.TRUE);
             }
         }
         Optional<PluginContainer> container = server.getPluginManager().getPlugin("luckperms");
         Object luckPerms = container.isPresent() && container.get().getInstance().isPresent()
                 ? container.get().getInstance().get() : null;
+        ShitBotRuntime runtime = plugin.getRuntime();
         return LuckPermsPermissionResolver.hasPermission(
                 luckPerms == null ? null : luckPerms.getClass().getClassLoader(),
-                request.getPlayerNames(), request.getPermission());
+                request.getPlayerNames(), request.getPermission(),
+                runtime == null ? null : runtime.getBindingService());
+    }
+
+    private Optional<Player> findPlayerByExactName(String playerName) {
+        if (playerName == null) {
+            return Optional.empty();
+        }
+        String exactName = playerName.trim();
+        for (Player player : server.getAllPlayers()) {
+            if (player != null && exactName.equals(player.getUsername())) {
+                return Optional.of(player);
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
