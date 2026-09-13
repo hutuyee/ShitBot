@@ -95,7 +95,7 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                     if (papi == null || !papi.isEnabled()) {
                         throw new IllegalStateException("PlaceholderAPI is not installed or enabled");
                     }
-                    final Player player = playerName == null ? null : Bukkit.getPlayerExact(playerName.trim());
+                    final Player player = findPlayerByExactName(playerName);
                     if (player == null || !player.isOnline()) {
                         throw new IllegalArgumentException("PlaceholderAPI player is not online: " + playerName);
                     }
@@ -251,7 +251,7 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                     Map<String, InventorySnapshot> result =
                             new LinkedHashMap<String, InventorySnapshot>();
                     for (String playerName : requested) {
-                        Player player = Bukkit.getPlayerExact(playerName);
+                        Player player = findPlayerByExactName(playerName);
                         if (player != null && player.isOnline()) {
                             result.put(playerName, snapshot(player));
                         }
@@ -343,7 +343,7 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                 new LinkedHashMap<String, InventorySnapshot>();
         final AtomicInteger remaining = new AtomicInteger(names.size());
         for (final String playerName : names) {
-            final Player player = Bukkit.getPlayerExact(playerName);
+            final Player player = findPlayerByExactName(playerName);
             if (player == null || !player.isOnline()) {
                 if (remaining.decrementAndGet() == 0) {
                     synchronized (result) {
@@ -900,7 +900,7 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                 if (playerName == null || playerName.trim().isEmpty()) {
                     continue;
                 }
-                final Player player = Bukkit.getPlayerExact(playerName.trim());
+                final Player player = findPlayerByExactName(playerName);
                 if (player == null) {
                     continue;
                 }
@@ -922,7 +922,7 @@ public final class SpigotPlatformBridge implements PlatformBridge {
                     if (playerName == null || playerName.trim().isEmpty()) {
                         continue;
                     }
-                    Player player = Bukkit.getPlayerExact(playerName.trim());
+                    Player player = findPlayerByExactName(playerName);
                     if (player != null && player.isOnline()) {
                         player.kickPlayer(reason == null ? "" : reason);
                     }
@@ -982,6 +982,16 @@ public final class SpigotPlatformBridge implements PlatformBridge {
             }
         }
         return components.toArray(new BaseComponent[components.size()]);
+    }
+
+    private static Player findPlayerByExactName(String playerName) {
+        if (playerName == null || playerName.trim().isEmpty()) {
+            return null;
+        }
+        String exactName = playerName.trim();
+        // Bukkit's "exact" lookup ignores case; bindings deliberately do not.
+        Player player = Bukkit.getPlayerExact(exactName);
+        return player != null && exactName.equals(player.getName()) ? player : null;
     }
 
     @Override

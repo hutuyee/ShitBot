@@ -135,7 +135,7 @@ public final class NukkitPlatformBridge implements PlatformBridge, AutoCloseable
                             new LinkedHashMap<String, InventorySnapshot>();
                     for (String playerName : requested) {
                         Player player = server.getPlayerExact(playerName);
-                        if (player != null && player.isOnline()) {
+                        if (player != null && playerName.equals(player.getName()) && player.isOnline()) {
                             result.put(playerName, snapshot(player));
                         }
                     }
