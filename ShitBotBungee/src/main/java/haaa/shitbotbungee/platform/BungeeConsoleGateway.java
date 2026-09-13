@@ -209,7 +209,7 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         }
         for (String playerName : request.getPlayerNames()) {
             ProxiedPlayer player = plugin.getProxy().getPlayer(playerName);
-            if (player != null && player.getServer() != null) {
+            if (player != null && playerName.equals(player.getName()) && player.getServer() != null) {
                 ConsoleSettings.BackendEndpoint endpoint =
                         transport.getEndpoint(player.getServer().getInfo().getName());
                 if (endpoint != null) {
@@ -341,7 +341,8 @@ public final class BungeeConsoleGateway implements AutoCloseable {
         }
         for (String playerName : request.getPlayerNames()) {
             ProxiedPlayer player = plugin.getProxy().getPlayer(playerName);
-            if (player != null && player.hasPermission(request.getPermission())) {
+            if (player != null && playerName.equals(player.getName())
+                    && player.hasPermission(request.getPermission())) {
                 return CompletableFuture.completedFuture(Boolean.TRUE);
             }
         }

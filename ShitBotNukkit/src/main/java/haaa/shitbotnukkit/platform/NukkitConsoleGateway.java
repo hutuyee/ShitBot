@@ -150,7 +150,7 @@ final class NukkitConsoleGateway implements AutoCloseable {
                     try {
                         for (String playerName : request.getPlayerNames()) {
                             Player player = server.getPlayerExact(playerName);
-                            if (player != null && player.isOnline()
+                            if (player != null && playerName.equals(player.getName()) && player.isOnline()
                                     && player.hasPermission(request.getPermission())) {
                                 onlineCheck.complete(Boolean.TRUE);
                                 return;

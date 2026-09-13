@@ -20,6 +20,7 @@ public final class LuckPermsPermissionResolver {
     private static final MethodKey GET_USER_MANAGER = new MethodKey("getUserManager");
     private static final MethodKey LOOKUP_UNIQUE_ID = new MethodKey("lookupUniqueId", String.class);
     private static final MethodKey LOAD_USER = new MethodKey("loadUser", UUID.class);
+    private static final MethodKey GET_USERNAME = new MethodKey("getUsername");
     private static final MethodKey GET_CACHED_DATA = new MethodKey("getCachedData");
     private static final MethodKey GET_PERMISSION_DATA = new MethodKey("getPermissionData");
     private static final MethodKey CHECK_PERMISSION = new MethodKey("checkPermission", String.class);
@@ -63,7 +64,7 @@ public final class LuckPermsPermissionResolver {
     }
 
     private static CompletableFuture<Boolean> checkPlayer(final Object userManager,
-                                                           String playerName,
+                                                           final String playerName,
                                                            final String permission) {
         final CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         try {
@@ -79,7 +80,7 @@ public final class LuckPermsPermissionResolver {
                                 result.complete(Boolean.FALSE);
                                 return;
                             }
-                            loadUser(userManager, (UUID) uniqueId, permission, result);
+                            loadUser(userManager, (UUID) uniqueId, playerName, permission, result);
                         }
                     });
         } catch (Throwable ignored) {
@@ -90,6 +91,7 @@ public final class LuckPermsPermissionResolver {
 
     private static void loadUser(Object userManager,
                                  UUID uniqueId,
+                                 final String playerName,
                                  final String permission,
                                  final CompletableFuture<Boolean> result) {
         try {
@@ -104,7 +106,7 @@ public final class LuckPermsPermissionResolver {
                         public void accept(Object user, Throwable loadFailure) {
                             result.complete(Boolean.valueOf(loadFailure == null
                                     && user != null
-                                    && readPermission(user, permission)));
+                                    && readPermission(user, playerName, permission)));
                         }
                     });
         } catch (Throwable ignored) {
@@ -112,8 +114,12 @@ public final class LuckPermsPermissionResolver {
         }
     }
 
-    private static boolean readPermission(Object user, String permission) {
+    private static boolean readPermission(Object user, String playerName, String permission) {
         try {
+            // LuckPerms UUID lookup ignores case, while bindings identify exact player names.
+            if (!playerName.equals(method(user.getClass(), GET_USERNAME).invoke(user))) {
+                return false;
+            }
             Object cachedData = method(user.getClass(), GET_CACHED_DATA).invoke(user);
             Object permissionData = method(cachedData.getClass(), GET_PERMISSION_DATA).invoke(cachedData);
             Object tristate = method(permissionData.getClass(), CHECK_PERMISSION).invoke(permissionData, permission);

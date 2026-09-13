@@ -159,7 +159,8 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         }
         for (String playerName : request.getPlayerNames()) {
             Optional<Player> player = server.getPlayer(playerName);
-            if (player.isPresent() && player.get().getCurrentServer().isPresent()) {
+            if (player.isPresent() && playerName.equals(player.get().getUsername())
+                    && player.get().getCurrentServer().isPresent()) {
                 ConsoleSettings.BackendEndpoint endpoint = transport.getEndpoint(
                         player.get().getCurrentServer().get().getServerInfo().getName());
                 if (endpoint != null) {
@@ -282,7 +283,8 @@ public final class VelocityConsoleGateway implements AutoCloseable {
         }
         for (String playerName : request.getPlayerNames()) {
             Optional<Player> player = server.getPlayer(playerName);
-            if (player.isPresent() && player.get().hasPermission(request.getPermission())) {
+            if (player.isPresent() && playerName.equals(player.get().getUsername())
+                    && player.get().hasPermission(request.getPermission())) {
                 return CompletableFuture.completedFuture(Boolean.TRUE);
             }
         }

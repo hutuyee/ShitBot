@@ -33,11 +33,13 @@ final class SpigotPermissionResolver {
                         if (playerName == null || playerName.trim().isEmpty()) {
                             continue;
                         }
-                        Player online = Bukkit.getPlayerExact(playerName.trim());
-                        if (online != null) {
+                        String cleanName = playerName.trim();
+                        Player online = Bukkit.getPlayerExact(cleanName);
+                        // Bukkit's "exact" lookup ignores case; bindings do not.
+                        if (online != null && cleanName.equals(online.getName())) {
                             checks.add(checkOnline(online, permission));
                         } else {
-                            checks.add(checkOffline(Bukkit.getOfflinePlayer(playerName.trim()), permission));
+                            checks.add(checkOffline(Bukkit.getOfflinePlayer(cleanName), cleanName, permission));
                         }
                     }
                 }
@@ -67,8 +69,10 @@ final class SpigotPermissionResolver {
         return result;
     }
 
-    private CompletableFuture<Boolean> checkOffline(final OfflinePlayer player, final String permission) {
-        if (player == null) {
+    private CompletableFuture<Boolean> checkOffline(final OfflinePlayer player,
+                                                    final String playerName,
+                                                    final String permission) {
+        if (player == null || !playerName.equals(player.getName())) {
             return CompletableFuture.completedFuture(Boolean.FALSE);
         }
         try {
