@@ -72,6 +72,8 @@ inventory:
   live: "实时"
   snapshot: "离线快照"
   equipment-title: "装备 / 副手"
+  storage-title: "主背包"
+  hotbar-title: "快捷栏"
   data-time: "数据时间 %time%"
   time-format: "yyyy-MM-dd HH:mm:ss"
   summary: "占用 %occupied%/%slots%  ·  物品 %items%  ·  %server%"
@@ -136,6 +138,13 @@ admin:
   editor:
     opening: "&e正在生成一次性图片模板编辑器地址..."
     url: "&a图片模板编辑器: &b%url%"
+    open-button: "&a[打开编辑器]"
+    open-hover: "&f点击在浏览器中打开完整登录链接"
+    copy-button: "&b[复制链接到输入框]"
+    copy-hover: "&f点击将完整链接放入聊天输入框\n&7再按 Ctrl+A、Ctrl+C 复制，无需发送"
+    form-title: "图片模板编辑器"
+    form-help: "选择下方完整链接并复制，然后粘贴到浏览器打开。"
+    form-url: "完整登录链接"
     failed: "&c无法打开图片模板编辑器: &f%error%"
   update:
     not-initialized: "&c更新检查器尚未初始化。"

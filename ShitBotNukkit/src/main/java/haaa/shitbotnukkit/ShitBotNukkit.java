@@ -12,6 +12,9 @@ import cn.nukkit.event.player.PlayerAsyncPreLoginEvent;
 import cn.nukkit.event.player.PlayerChatEvent;
 import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
+import cn.nukkit.form.element.ElementInput;
+import cn.nukkit.form.element.ElementLabel;
+import cn.nukkit.form.window.FormWindowCustom;
 import cn.nukkit.plugin.PluginBase;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
@@ -529,10 +532,22 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
                         platformBridge.executeOnSenderThread(sender, new Runnable() {
                             @Override
                             public void run() {
-                                send(sender, throwable == null
-                                        ? translations.format("admin.editor.url", "%url%", url)
-                                        : translations.format("admin.editor.failed", "%error%",
-                                                errorMessage(throwable)));
+                                if (throwable != null) {
+                                    send(sender, translations.format("admin.editor.failed", "%error%",
+                                            errorMessage(throwable)));
+                                    return;
+                                }
+                                send(sender, translations.format("admin.editor.url", "%url%", url));
+                                if (sender instanceof Player) {
+                                    FormWindowCustom form = new FormWindowCustom(translations.get(
+                                            "admin.editor.form-title", "图片模板编辑器", "Image template editor"));
+                                    form.addElement(new ElementLabel(translations.get("admin.editor.form-help",
+                                            "选择下方完整链接并复制，然后粘贴到浏览器打开。",
+                                            "Select and copy the full link below, then open it in your browser.")));
+                                    form.addElement(new ElementInput(translations.get("admin.editor.form-url",
+                                            "完整登录链接", "Full login URL"), "", url));
+                                    ((Player) sender).showFormWindow(form);
+                                }
                             }
                         });
                     }

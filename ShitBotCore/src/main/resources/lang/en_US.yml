@@ -72,6 +72,8 @@ inventory:
   live: "Live"
   snapshot: "Offline Snapshot"
   equipment-title: "Equipment / Off Hand"
+  storage-title: "Inventory"
+  hotbar-title: "Hotbar"
   data-time: "Captured %time%"
   time-format: "yyyy-MM-dd HH:mm:ss"
   summary: "Used %occupied%/%slots%  ·  Items %items%  ·  %server%"
@@ -136,6 +138,13 @@ admin:
   editor:
     opening: "&eCreating a one-use image template editor URL..."
     url: "&aImage template editor: &b%url%"
+    open-button: "&a[Open editor]"
+    open-hover: "&fClick to open the complete login URL in your browser"
+    copy-button: "&b[Copy link via chat]"
+    copy-hover: "&fClick to put the full URL in your chat input\n&7Press Ctrl+A, Ctrl+C to copy; do not send it"
+    form-title: "Image template editor"
+    form-help: "Select and copy the full link below, then open it in your browser."
+    form-url: "Full login URL"
     failed: "&cCould not open the image template editor: &f%error%"
   update:
     not-initialized: "&cThe update checker has not initialized yet."

@@ -1,6 +1,7 @@
 package haaa.shitbotvelocity.command;
 
 import com.velocitypowered.api.command.SimpleCommand;
+import com.velocitypowered.api.proxy.Player;
 import haaa.shitbotvelocity.ShitBotVelocity;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.database.EasyBotMigrationResult;
@@ -12,6 +13,8 @@ import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import java.nio.file.Path;
@@ -120,11 +123,14 @@ public final class ShitBotCommand implements SimpleCommand {
         if ("editor".equalsIgnoreCase(args[0])) {
             send(invocation, translations.get("admin.editor.opening"));
             runtime.getApi().createImageEditorLoginUrl().whenComplete((url, throwable) ->
-                    plugin.getPlatformBridge().executeOnPlatformThread(() -> send(invocation,
-                            throwable == null
-                                    ? translations.format("admin.editor.url", "%url%", url)
-                                    : translations.format("admin.editor.failed", "%error%",
-                                            errorMessage(throwable)))));
+                    plugin.getPlatformBridge().executeOnPlatformThread(() -> {
+                        if (throwable == null) {
+                            sendEditorLink(invocation, translations, url);
+                        } else {
+                            send(invocation, translations.format("admin.editor.failed", "%error%",
+                                    errorMessage(throwable)));
+                        }
+                    }));
             return;
         }
         send(invocation, translations.get("admin.help"));
@@ -180,6 +186,36 @@ public final class ShitBotCommand implements SimpleCommand {
         send(invocation, translations.format("admin.update.backup-jar",
                 "%path%", String.valueOf(result.getBackupPath())));
         send(invocation, translations.get("admin.update.restart-proxy"));
+    }
+
+    private void sendEditorLink(Invocation invocation, Translations translations, String url) {
+        String message = translations.format("admin.editor.url", "%url%", url);
+        if (!(invocation.source() instanceof Player)) {
+            send(invocation, message);
+            return;
+        }
+        String openButton = translations.get("admin.editor.open-button",
+                "&a[打开编辑器]", "&a[Open editor]");
+        String openHover = translations.get("admin.editor.open-hover",
+                "&f点击在浏览器中打开完整登录链接", "&fClick to open the complete login URL in your browser");
+        String copyButton = translations.get("admin.editor.copy-button",
+                "&b[复制链接到输入框]", "&b[Copy link via chat]");
+        String copyHover = translations.get("admin.editor.copy-hover",
+                "&f点击填入聊天输入框，按 Ctrl+A、Ctrl+C 复制，无需发送", "&fClick to fill the chat input, then Ctrl+A, Ctrl+C to copy; do not send");
+        invocation.source().sendMessage(editorAction(message, openHover,
+                ClickEvent.openUrl(url)));
+        invocation.source().sendMessage(Component.empty()
+                .append(editorAction(openButton,
+                        openHover, ClickEvent.openUrl(url)))
+                .append(Component.text("  "))
+                .append(editorAction(copyButton,
+                        copyHover, ClickEvent.suggestCommand(url))));
+    }
+
+    private Component editorAction(String label, String hover, ClickEvent action) {
+        LegacyComponentSerializer serializer = LegacyComponentSerializer.legacySection();
+        return serializer.deserialize(TextUtil.color(label)).clickEvent(action)
+                .hoverEvent(HoverEvent.showText(serializer.deserialize(TextUtil.color(hover))));
     }
 
     private void send(Invocation invocation, String legacyText) {

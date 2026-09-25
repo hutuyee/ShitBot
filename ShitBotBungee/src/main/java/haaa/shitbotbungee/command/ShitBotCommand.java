@@ -13,7 +13,11 @@ import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import haaa.shitbotbungee.ShitBotBungee;
 import net.md_5.bungee.api.CommandSender;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Command;
 
 import java.nio.file.Path;
@@ -125,10 +129,12 @@ public final class ShitBotCommand extends Command {
                             runOnPlatform(new Runnable() {
                                 @Override
                                 public void run() {
-                                    send(sender, throwable == null
-                                            ? translations.format("admin.editor.url", "%url%", url)
-                                            : translations.format("admin.editor.failed", "%error%",
-                                                    errorMessage(throwable)));
+                                    if (throwable == null) {
+                                        sendEditorLink(sender, translations, url);
+                                    } else {
+                                        send(sender, translations.format("admin.editor.failed", "%error%",
+                                                errorMessage(throwable)));
+                                    }
                                 }
                             });
                         }
@@ -264,6 +270,45 @@ public final class ShitBotCommand extends Command {
         send(sender, translations.format("admin.update.backup-jar",
                 "%path%", String.valueOf(result.getBackupPath())));
         send(sender, translations.get("admin.update.restart-proxy"));
+    }
+
+    private void sendEditorLink(CommandSender sender, Translations translations, String url) {
+        String message = translations.format("admin.editor.url", "%url%", url);
+        if (!(sender instanceof ProxiedPlayer)) {
+            send(sender, message);
+            return;
+        }
+        String openButton = translations.get("admin.editor.open-button",
+                "&a[打开编辑器]", "&a[Open editor]");
+        String openHover = translations.get("admin.editor.open-hover",
+                "&f点击在浏览器中打开完整登录链接", "&fClick to open the complete login URL in your browser");
+        String copyButton = translations.get("admin.editor.copy-button",
+                "&b[复制链接到输入框]", "&b[Copy link via chat]");
+        String copyHover = translations.get("admin.editor.copy-hover",
+                "&f点击填入聊天输入框，按 Ctrl+A、Ctrl+C 复制，无需发送", "&fClick to fill the chat input, then Ctrl+A, Ctrl+C to copy; do not send");
+        sender.sendMessage(editorAction(message, openHover,
+                ClickEvent.Action.OPEN_URL, url));
+        TextComponent actions = new TextComponent("");
+        for (BaseComponent component : editorAction(openButton,
+                openHover, ClickEvent.Action.OPEN_URL, url)) {
+            actions.addExtra(component);
+        }
+        actions.addExtra("  ");
+        for (BaseComponent component : editorAction(copyButton,
+                copyHover, ClickEvent.Action.SUGGEST_COMMAND, url)) {
+            actions.addExtra(component);
+        }
+        sender.sendMessage(actions);
+    }
+
+    private BaseComponent[] editorAction(String label, String hover, ClickEvent.Action action, String url) {
+        BaseComponent[] components = TextComponent.fromLegacyText(TextUtil.color(label));
+        for (BaseComponent component : components) {
+            component.setClickEvent(new ClickEvent(action, url));
+            component.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                    TextComponent.fromLegacyText(TextUtil.color(hover))));
+        }
+        return components;
     }
 
     private void send(CommandSender sender, String message) {

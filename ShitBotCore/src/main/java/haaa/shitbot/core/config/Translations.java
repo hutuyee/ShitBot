@@ -43,6 +43,12 @@ public final class Translations {
         return isPresent(value) ? value : finalFallback;
     }
 
+    /** Supplies new labels when an existing language file predates the feature. */
+    public String get(String path, String chineseFallback, String englishFallback) {
+        return get(path, language.toLowerCase(Locale.ROOT).startsWith("en")
+                ? englishFallback : chineseFallback);
+    }
+
     public List<String> getList(String path) {
         return getList(path, Collections.<String>emptyList());
     }
