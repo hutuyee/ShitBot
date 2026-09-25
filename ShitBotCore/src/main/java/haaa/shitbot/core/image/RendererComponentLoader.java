@@ -51,10 +51,12 @@ final class RendererComponentLoader {
             "^([0-9a-fA-F]{64})(?:\\s+\\*?(.+))?$");
 
     private final Settings.CustomImages settings;
+    private final boolean debug;
     private final PlatformBridge platform;
 
-    RendererComponentLoader(Settings.CustomImages settings, PlatformBridge platform) {
+    RendererComponentLoader(Settings.CustomImages settings, boolean debug, PlatformBridge platform) {
         this.settings = settings;
+        this.debug = debug;
         this.platform = platform;
     }
 
@@ -62,6 +64,12 @@ final class RendererComponentLoader {
                         ImageTemplateEngineHost host) throws IOException {
         String version = componentVersion();
         String fileName = "ShitBotRenderer-" + version + ".jar";
+        Path localJar = debugRenderer(fileName);
+        if (localJar != null) {
+            validateLocalJar(localJar, version);
+            debug("Using local renderer JAR without checksum or signature verification: " + localJar);
+            return loadJar(localJar, engineSettings, host);
+        }
         Path directory = platform.getDataDirectory().resolve("components")
                 .resolve("image-renderer").resolve(version).toAbsolutePath().normalize();
         Files.createDirectories(directory);
@@ -73,6 +81,12 @@ final class RendererComponentLoader {
         }
         verify(jar, checksum, signature, fileName, version);
 
+        return loadJar(jar, engineSettings, host);
+    }
+
+    private LoadedRenderer loadJar(Path jar,
+                                   ImageTemplateEngineSettings engineSettings,
+                                   ImageTemplateEngineHost host) throws IOException {
         URLClassLoader classLoader = new URLClassLoader(
                 new URL[] { jar.toUri().toURL() }, ImageTemplateEngineFactory.class.getClassLoader());
         try {
@@ -101,6 +115,40 @@ final class RendererComponentLoader {
                 throw (IOException) throwable;
             }
             throw new IOException("Unable to load renderer component", throwable);
+        }
+    }
+
+    private Path debugRenderer(String fileName) {
+        if (!debug) {
+            return null;
+        }
+        Path dataDirectory = platform.getDataDirectory().toAbsolutePath().normalize();
+        Path[] directories = dataDirectory.getParent() == null
+                ? new Path[] { dataDirectory }
+                : new Path[] { dataDirectory, dataDirectory.getParent() };
+        for (Path directory : directories) {
+            Path versioned = directory.resolve(fileName).normalize();
+            if (Files.isRegularFile(versioned)) {
+                return versioned;
+            }
+            Path generic = directory.resolve("ShitBotRenderer.jar").normalize();
+            if (Files.isRegularFile(generic)) {
+                return generic;
+            }
+        }
+        return null;
+    }
+
+    private void validateLocalJar(Path jar, String version) throws IOException {
+        if (Files.size(jar) <= 0L || Files.size(jar) > settings.getMaximumDownloadBytes()) {
+            throw new IOException("Local renderer component has an invalid size");
+        }
+        validateJar(jar, version);
+    }
+
+    private void debug(String message) {
+        if (debug) {
+            platform.info("[debug] " + message);
         }
     }
 

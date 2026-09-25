@@ -78,7 +78,7 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
                             @Override
                             public RendererComponentLoader.LoadedRenderer get() {
                                 try {
-                                    return new RendererComponentLoader(customSettings, platform)
+                                    return new RendererComponentLoader(customSettings, settings.isDebug(), platform)
                                             .load(engineSettings(), CustomImageService.this);
                                 } catch (IOException exception) {
                                     throw new java.util.concurrent.CompletionException(exception);

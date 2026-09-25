@@ -12,6 +12,7 @@ import java.util.Locale;
 public final class Settings {
 
     private final int configVersion;
+    private final boolean debug;
     private final Translations translations;
     private final OneBot oneBot;
     private final Forwarding forwarding;
@@ -32,7 +33,23 @@ public final class Settings {
                     CustomImages customImages,
                     Inventory inventory,
                     Messages messages) {
+        this(configVersion, false, translations, oneBot, forwarding, binding,
+                database, image, customImages, inventory, messages);
+    }
+
+    public Settings(int configVersion,
+                    boolean debug,
+                    Translations translations,
+                    OneBot oneBot,
+                    Forwarding forwarding,
+                    Binding binding,
+                    Database database,
+                    Image image,
+                    CustomImages customImages,
+                    Inventory inventory,
+                    Messages messages) {
         this.configVersion = configVersion;
+        this.debug = debug;
         this.translations = require(translations, "translations");
         this.oneBot = require(oneBot, "oneBot");
         this.forwarding = require(forwarding, "forwarding");
@@ -46,6 +63,10 @@ public final class Settings {
 
     public int getConfigVersion() {
         return configVersion;
+    }
+
+    public boolean isDebug() {
+        return debug;
     }
 
     public Translations getTranslations() {

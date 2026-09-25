@@ -208,7 +208,8 @@ public final class SettingsFactory {
                 translations.get("messages.reload-success"),
                 translations.get("messages.reload-failed"));
 
-        return new Settings(source.getInt("config-version", 2), translations, oneBot, forwarding, binding,
+        return new Settings(source.getInt("config-version", 2),
+                source.getBoolean("debug", false), translations, oneBot, forwarding, binding,
                 database, image, customImages, inventory, messages);
     }
 

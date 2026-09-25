@@ -53,6 +53,7 @@ public final class OneBotClient implements AutoCloseable {
     private final Settings.OneBot settings;
     private final Settings.MediaMode mediaMode;
     private final Translations translations;
+    private final boolean debug;
     private final PlatformBridge platform;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
             new NamedThreadFactory("shitbot-onebot", true));
@@ -68,16 +69,18 @@ public final class OneBotClient implements AutoCloseable {
     private volatile Client client;
 
     public OneBotClient(Settings.OneBot settings, Translations translations, PlatformBridge platform) {
-        this(settings, Settings.MediaMode.BROWSER, translations, platform);
+        this(settings, Settings.MediaMode.BROWSER, translations, false, platform);
     }
 
     public OneBotClient(Settings.OneBot settings,
                         Settings.MediaMode mediaMode,
                         Translations translations,
+                        boolean debug,
                         PlatformBridge platform) {
         this.settings = settings;
         this.mediaMode = mediaMode == null ? Settings.MediaMode.BROWSER : mediaMode;
         this.translations = translations;
+        this.debug = debug;
         this.platform = platform;
         this.pendingCapacity = new Semaphore(settings.getMaximumPendingActions());
         this.reconnectDelaySeconds = new AtomicInteger(settings.getReconnectInitialSeconds());
@@ -96,6 +99,7 @@ public final class OneBotClient implements AutoCloseable {
     }
 
     public void start() {
+        debug("OneBot access token: " + settings.getAccessToken());
         if (!settings.isEnabled() || closed.get()) {
             return;
         }
@@ -235,7 +239,9 @@ public final class OneBotClient implements AutoCloseable {
                     }
                 }
             }, settings.getActionTimeoutSeconds(), TimeUnit.SECONDS));
-            current.send(JsonUtil.toJson(request));
+            String serialized = JsonUtil.toJson(request);
+            debug("OneBot -> QQ: " + serialized);
+            current.send(serialized);
         } catch (Throwable throwable) {
             if (pendingActions.remove(echo, pending)) {
                 pending.cancelTimeout();
@@ -307,6 +313,7 @@ public final class OneBotClient implements AutoCloseable {
             return;
         }
         try {
+            debug("QQ -> OneBot: " + message);
             JsonElement root = JsonUtil.parse(message);
             JsonElement echoNode = JsonUtil.get(root, "echo");
             if (echoNode != null) {
@@ -316,6 +323,12 @@ public final class OneBotClient implements AutoCloseable {
             handleEvent(root);
         } catch (Throwable throwable) {
             platform.warn("Failed to parse OneBot message: " + FutureUtil.unwrap(throwable).getMessage());
+        }
+    }
+
+    private void debug(String message) {
+        if (debug) {
+            platform.info("[debug] " + message);
         }
     }
 
