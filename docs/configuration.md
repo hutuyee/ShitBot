@@ -21,6 +21,16 @@ language: "zh_CN"
 
 语言文件缺少某个键时会回退到 `zh_CN.yml`，因此自定义语言可以在后续版本新增文本时继续工作；建议仍然定期与最新内置文件比较并补齐键。必须保留 `%player%`、`%result%` 等占位符。Minecraft 文本支持 `&` 颜色代码。
 
+## 调试模式
+
+本地测试时可以在 `config.yml` 顶层开启：
+
+```yaml
+debug: true
+```
+
+开启后会输出 OneBot 鉴权 token、发送给 QQ 的请求 JSON 和 QQ 返回的原始 JSON，同时优先加载插件数据目录或其上级 `plugins/` 目录中的 `ShitBotRenderer-<版本>.jar` 或 `ShitBotRenderer.jar`。本地 JAR 仍会检查组件服务入口和内嵌版本，但会跳过 SHA-256、`.sig` 和公钥校验；未找到本地 JAR 时仍使用正常的 Release 下载与校验流程。调试结束后请关闭此选项，因为日志包含敏感 token 和消息内容。
+
 ### 从旧配置迁移文本
 
 加载 `config-version: 1` 的旧 `config.yml` 时，ShitBot 会自动把以下内容写入数据目录中的 `lang/zh_CN.yml`：

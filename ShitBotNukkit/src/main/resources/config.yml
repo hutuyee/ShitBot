@@ -3,6 +3,10 @@ config-version: 2
 # 从 lang 目录选择语言文件（不写 .yml）。可复制现有语言文件后自行扩展。
 language: "zh_CN"
 
+# 调试模式：输出 OneBot token、收发 JSON，并优先从插件数据目录加载本地 ShitBotRenderer JAR。
+# 仅建议在本地测试时开启；本地 JAR 仍会检查 Renderer 元数据和版本，但跳过 checksum、sig 和公钥校验。
+debug: false
+
 onebot:
   enabled: true
   # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。

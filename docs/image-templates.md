@@ -58,10 +58,11 @@ custom-image-templates:
 高级模板总开关关闭时，下载逻辑不会运行。开启后，插件按以下顺序加载：
 
 1. 读取 `custom-image-templates.component.version`；留空时使用当前平台插件版本；
-2. 检查 `components/image-renderer/<版本>/` 下的缓存；
-3. 同时校验 JAR 大小、Release SHA-256、RSA 独立签名、组件内嵌版本和服务入口；
-4. 缓存缺失或校验失败时，才从官方 ShitBot GitHub Release 下载 JAR、`.sha256` 和 `.sig`；
-5. 下载完成且全部校验通过后，使用隔离类加载器启动组件。
+2. `debug: true` 且插件数据目录或其上级 `plugins/` 目录存在 `ShitBotRenderer-<版本>.jar` 或 `ShitBotRenderer.jar` 时，直接加载该本地 JAR；
+3. 否则检查 `components/image-renderer/<版本>/` 下的缓存；
+4. 正常模式同时校验 JAR 大小、Release SHA-256、RSA 独立签名、组件内嵌版本和服务入口；
+5. 缓存缺失或校验失败时，才从官方 ShitBot GitHub Release 下载 JAR、`.sha256` 和 `.sig`；
+6. 下载完成且全部校验通过后，使用隔离类加载器启动组件。
 
 默认配置：
 
@@ -78,6 +79,7 @@ custom-image-templates:
 ```
 
 下载器只接受 HTTPS 的官方 ShitBot Release 地址及 GitHub 的 Release 资源重定向。缓存损坏时不会加载损坏 JAR。某个版本的 Release 必须同时包含同版本 `ShitBotRenderer`、checksum 和签名；否则高级模板启动失败，但关闭总开关后仍可使用内置 Java 图片。
+调试模式的本地 JAR 仍必须包含 `META-INF/services/haaa.shitbot.api.spi.ImageTemplateEngineFactory` 和匹配版本的 `META-INF/shitbot-renderer.version`，只是不会要求旁边存在 `.sha256` 和 `.sig` 文件。
 
 ## 模板目录
 
