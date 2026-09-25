@@ -41,6 +41,7 @@ jobs:
           mvn \
             --batch-mode \
             --no-transfer-progress \
+            -DskipTests=${{ github.event_name == 'release' }} \
             clean package
 
       - name: Prepare plugin JAR files
