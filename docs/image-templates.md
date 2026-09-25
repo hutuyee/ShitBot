@@ -79,6 +79,7 @@ custom-image-templates:
 ```
 
 下载器只接受 HTTPS 的官方 ShitBot Release 地址及 GitHub 的 Release 资源重定向。缓存损坏时不会加载损坏 JAR。某个版本的 Release 必须同时包含同版本 `ShitBotRenderer`、checksum 和签名；否则高级模板启动失败，但关闭总开关后仍可使用内置 Java 图片。
+
 调试模式的本地 JAR 仍必须包含 `META-INF/services/haaa.shitbot.api.spi.ImageTemplateEngineFactory` 和匹配版本的 `META-INF/shitbot-renderer.version`，只是不会要求旁边存在 `.sha256` 和 `.sig` 文件。
 
 ## 模板目录
@@ -136,7 +137,7 @@ providers:
 | --- | --- | --- |
 | `shitbot` | `${data.shitbot.*}` | 平台名、插件版本、生成时间 |
 | `online-players` | `${data.online-players.*}` | 总在线数、子服列表、玩家列表；头像配置开启时还提供头像 URL |
-| `player-avatar` | `${data.player-avatar.*}` | 指定玩家名和按 `image.avatar.url-template` 生成的头像 URL |
+| `player-avatar` | `${data.player-avatar.*}` | 指定玩家的 `player`、`url`，以及头像服务地址模板 `url-template`；`template-only: true` 仅提供地址模板，供头像图层分别绑定玩家 |
 | `papi` | `${data.papi.*}` | 显式声明的 PlaceholderAPI 值、`values` 映射和逐项 `errors` 映射 |
 
 `player-avatar` 或其他 HTTPS 图片 URL 要真正绘制时，还必须显式开启 `custom-image-templates.remote-images.enabled`。默认只允许读取模板自己的 `assets/`。
@@ -170,7 +171,7 @@ layers:
 | --- | --- |
 | `text` | `text`、`font-family`、`font-size`、`font-style`、`color`、`align`、`line-height`、`maximum-lines` |
 | `image` | `source`、`fit: cover/contain/stretch`、`radius`、描边；本地资源写 `assets/name.png` |
-| `avatar` | 与 `image` 相同，但默认使用圆形裁剪 |
+| `avatar` | `player`（玩家名或变量）、`source`（直接图片来源）、`shape: square/circle`、`pixelated`、宽高、圆角和描边；未指定形状的旧头像图层仍使用圆形 |
 | `rectangle` | `fill`、`radius`、`stroke-color`、`stroke-width` |
 | `circle` | `fill`、`diameter` 或宽高、描边 |
 | `line` | `x2`/`y2` 或宽高、`color`、`stroke-width` |
@@ -180,6 +181,53 @@ layers:
 | `grid` | `children`、`columns`、`cell-width`、`cell-height`、行列间距 |
 | `condition` | `condition`、可选 `equals`、`then`、`else` |
 | `loop` | `items`、`as`、`maximum-items`、`children`；普通布局还可使用单项偏移 |
+
+### 放置玩家头像
+
+在编辑器顶部选择「玩家头像」并添加图层，然后在右侧设置头像来源：
+
+- **指定玩家名 / 自定义变量**：填写玩家名，或 `${player.name}` 等变量。同一模板中的不同头像可以分别使用不同玩家。画布根级新增头像默认填入示例名 `Steve`，可以直接改成自己的玩家名。
+- **当前玩家**：使用 `${context.player}`，适合玩家资料卡或绑定玩家的自定义命令。在「预览数据」的 `context` 中填写 `player` 作为预览玩家；实际渲染由调用方提供，没有玩家值时不绘制该头像。
+- **所在循环中的玩家**：将头像添加到玩家循环或其内部容器中时，会自动绑定该循环变量的 `name`，例如 `${player.name}`；支持按 `server.players` 遍历在线玩家。
+- **图片地址 / 头像图片变量**：直接填写 `assets/head.png`、HTTPS 图片地址或 `${player.avatar}`。这也兼容已有的头像图片来源写法。
+
+头像可以拖动、缩放，支持方形、圆角方形和圆形。新头像默认使用圆角方形与清晰像素缩放，保留 Minecraft 皮肤的像素边缘；需要时可以切换为平滑缩放。画布显示头像位置及玩家标记，真实头像通过「预览」查看。
+
+网络头像使用 `image.avatar.url-template` 配置的服务，并需要启用远程图片后重载：
+
+```yaml
+custom-image-templates:
+  remote-images:
+    enabled: true
+```
+
+编辑器添加按玩家名绑定的头像时，会自动补充 `player-avatar` 数据声明，并将图层和声明一起纳入撤销。已有且指定了 `player` 的 `player-avatar` 声明会原样保留；没有选项的简写会自动改成仅提供地址模板的声明。手写模板时，在 `manifest.yml` 的 `providers` 中添加：
+
+```yaml
+providers:
+  - id: player-avatar
+    template-only: true
+```
+
+随后在 `scene.yml` 的 `layers` 中放置头像：
+
+```yaml
+layers:
+  - type: avatar
+    name: 玩家头像
+    player: Steve  # 可改成 ${context.player} 或玩家循环中的 ${player.name}
+    x: 40
+    y: 40
+    width: 64
+    height: 64
+    shape: square  # circle 为圆形；square 配合 radius 为圆角方形
+    radius: 8
+    pixelated: true
+```
+
+`player` 模式会根据每个头像图层当前绑定的玩家生成地址，仍通过渲染器已有的图片加载与缓存处理。显式写出 `source` 或兼容字段 `avatar` 时优先使用该图片来源，避免与 `player` 混用。旧的 `player-avatar` 声明仍可使用 `player: "${context.player}"`，并通过 `${data.player-avatar.url}` 读取单个玩家的头像地址。
+
+### 变量绑定
 
 绑定规则：
 
