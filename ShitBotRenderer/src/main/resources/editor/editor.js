@@ -10,7 +10,7 @@ const state = {
   busy: false, previewUrl: null, zoom: 1, fit: true, snap: true, space: false, gesture: null
 };
 const layerTypes = {
-  text: ["文字", "T"], image: ["图片", "▧"], avatar: ["头像", "◉"],
+  text: ["文字", "T"], image: ["图片", "▧"], avatar: ["玩家头像", "◉"],
   rectangle: ["矩形", "▭"], circle: ["圆形", "○"], line: ["线条", "╱"],
   progress: ["进度条", "▰"], group: ["分组", "▣"], stack: ["堆叠布局", "☰"],
   grid: ["网格布局", "⊞"], condition: ["条件", "◇"], loop: ["循环", "↻"]
@@ -23,6 +23,7 @@ const numericFields = new Set([
 const fieldLabels = {
   name: "图层名称", x: "X 位置", y: "Y 位置", width: "宽度 W", height: "高度 H",
   x2: "终点 X", y2: "终点 Y", diameter: "直径", text: "文字内容", source: "图片地址",
+  player: "玩家名 / 变量", avatar: "头像地址",
   fill: "填充颜色", color: "颜色", background: "背景颜色", "stroke-color": "描边颜色",
   "stroke-width": "描边宽度", radius: "圆角", opacity: "不透明度 0–1",
   "font-family": "字体", "font-size": "字号", "font-style": "字形", align: "文字对齐",
@@ -385,7 +386,14 @@ function drawNodes(parent, nodes, prefix = [], layout = null) {
         textAlign: node.align || "left", lineHeight: node["line-height"] ? number(node["line-height"], 24) + "px" : "1.2",
         fontFamily: node["font-family"] && node["font-family"] !== "SansSerif" ? node["font-family"] : "sans-serif"
       });
-    } else if (node.type === "image" || node.type === "avatar") {
+    } else if (node.type === "avatar") {
+      const player = "source" in node || "avatar" in node ? null : node.player;
+      const label = player === "${context.player}" ? "当前玩家" : bound(player) ? "循环 / 绑定玩家" : player || "玩家头像";
+      el.classList.add("avatar-placeholder");
+      el.style.borderRadius = (node.shape || "circle") === "circle" ? "50%" : number(node.radius) + "px";
+      el.append(icon("avatar"), element("span", "avatar-label", label));
+      el.title = "玩家头像 · " + (player || node.source || node.avatar || "请设置玩家") + "（实际头像见预览）";
+    } else if (node.type === "image") {
       el.append(icon("image"));
       el.title = layerName(node) + " · " + (node.source || "请设置图片地址") + "（实际图片见预览）";
     } else if (node.type === "progress") {
@@ -455,7 +463,7 @@ function fieldGroup(title, target, names, defaults = {}) {
 
 function propertyField(target, name, placeholder) {
   const isColor = ["fill", "color", "background", "stroke-color", "gradient-start", "gradient-end"].includes(name);
-  const wide = isColor || ["name", "text", "source", "font-family", "when", "condition", "items", "equals"].includes(name);
+  const wide = isColor || ["name", "text", "source", "avatar", "player", "font-family", "when", "condition", "items", "equals"].includes(name);
   const label = element("label", wide ? "wide-field" : "");
   label.append(element("span", "", fieldLabels[name] || name));
   const input = element(name === "text" ? "textarea" : "input", name === "text" ? "text-field" : "");
@@ -494,7 +502,9 @@ function propertyField(target, name, placeholder) {
     if ((name === "visible" || name === "clip") && /^(true|false)$/.test(raw)) value = raw === "true";
     if (raw === "" && target === state.bundle.scene.canvas && ["width", "height"].includes(name)) throw new Error("请填写画布尺寸");
     const before = snapshot();
-    if (raw === "" && name !== "text") delete target[name]; else target[name] = value;
+    const avatarSource = target.type === "avatar" && ["source", "avatar", "player"].includes(name);
+    if (raw === "" && name !== "text" && !avatarSource) delete target[name]; else target[name] = value;
+    if (avatarSource && name === "player") ensureAvatarProvider();
     delete input.dataset.dirty;
     input.removeAttribute("aria-invalid");
     if (isColor) {
@@ -577,7 +587,10 @@ function renderProperties() {
   }
   if (node.type === "text") {
     fieldGroup("文字", node, ["text", "font-family", "font-size", "font-style", "align", "line-height", "maximum-lines", "color"], { "font-family": "SansSerif", "font-size": 18, "font-style": "plain", align: "left" });
-  } else if (["image", "avatar"].includes(node.type)) {
+  } else if (node.type === "avatar") {
+    renderAvatarProperties(node);
+    fieldGroup("头像外观", node, ["fit", "radius", "stroke-color", "stroke-width"], { fit: "cover", radius: 0 });
+  } else if (node.type === "image") {
     fieldGroup("图片", node, ["source", "fit", "radius", "stroke-color", "stroke-width"], { fit: "cover", radius: 0 });
   } else if (["rectangle", "circle", "line", "progress"].includes(node.type)) {
     const names = node.type === "line" ? ["x2", "y2", "color", "stroke-width"] : node.type === "progress"
@@ -595,6 +608,95 @@ function renderProperties() {
     box.append(element("p", "inspector-note", "在顶部添加位置中选择容器或条件分支，可直接添加子图层。条件与循环在布局视图中展示结构示例，实际结果请预览。"));
   }
   if (!state.jsonDirty) $("#layerJson").value = JSON.stringify(node, null, 2);
+}
+
+function loopPlayerBinding(path) {
+  for (let length = path?.length || 0; length > 0; length -= 2) {
+    const ancestor = nodeAt(path.slice(0, length));
+    if (ancestor?.type !== "loop") continue;
+    const alias = ancestor.as || "item";
+    if (!/^[a-zA-Z_][\w-]*$/.test(alias)) continue;
+    if (alias === "player" || /\.players\s*}$/.test(String(ancestor.items))) return "${" + alias + ".name}";
+  }
+  return null;
+}
+
+function ensureAvatarProvider() {
+  if (!flatten().some(({ node }) => node.type === "avatar" && "player" in node && !("source" in node) && !("avatar" in node))) return;
+  if (state.bundle.manifest.providers == null) state.bundle.manifest.providers = [];
+  const providers = state.bundle.manifest.providers;
+  if (!Array.isArray(providers)) throw new Error("模板的 providers 必须是列表");
+  let found = false;
+  providers.forEach((provider, index) => {
+    const id = typeof provider === "string" ? provider : provider?.id;
+    if (id !== "player-avatar") return;
+    found = true;
+    if (typeof provider === "string") {
+      providers[index] = { id: "player-avatar", "template-only": true };
+    } else if (!("player" in provider) && !("template-only" in provider)) {
+      provider["template-only"] = true;
+    }
+  });
+  if (!found) {
+    providers.push({ id: "player-avatar", "template-only": true });
+  }
+}
+
+function avatarSelect(title, value, choices, change) {
+  const label = element("label", "wide-field");
+  label.append(element("span", "", title));
+  const select = element("select");
+  for (const [key, text] of choices) select.add(new Option(text, key));
+  if (!choices.some(([key]) => key === String(value))) select.add(new Option("自定义：" + value, value));
+  select.value = String(value);
+  select.onchange = () => {
+    try {
+      flushEdits();
+      mutate(() => {
+        change(nodeAt(state.selection[0]), select.value);
+        ensureAvatarProvider();
+      }, "已更新" + title);
+    } catch (error) { status(error.message, true); }
+  };
+  label.append(select);
+  return label;
+}
+
+function renderAvatarProperties(node) {
+  const loop = loopPlayerBinding(state.selection[0]);
+  const hasSource = "source" in node || "avatar" in node;
+  const mode = hasSource ? "source" : node.player === "${context.player}" ? "context" : loop && node.player === loop ? "loop" : "player";
+  const section = element("section", "property-section");
+  section.append(element("h3", "", "玩家头像"));
+  const grid = element("div", "field-grid");
+  const choices = [["player", "指定玩家名 / 自定义变量"], ["context", "当前玩家（context.player）"]];
+  if (loop) choices.push(["loop", "所在循环中的玩家"]);
+  choices.push(["source", "图片地址 / 头像图片变量"]);
+  grid.append(avatarSelect("头像来源", mode, choices, (target, value) => {
+    if (value === "source") {
+      if (!("source" in target) && !("avatar" in target)) target.source = "";
+      delete target.player;
+    } else {
+      delete target.source;
+      delete target.avatar;
+      target.player = value === "context" ? "${context.player}" : value === "loop" ? loop : "Steve";
+    }
+  }));
+  if (hasSource) {
+    grid.append(propertyField(node, "source" in node ? "source" : "avatar", "assets/head.png 或 ${player.avatar}"));
+  } else {
+    const playerField = propertyField(node, "player", "Steve 或 ${player.name}");
+    playerField.querySelector("input").readOnly = mode === "context" || mode === "loop";
+    grid.append(playerField);
+  }
+  grid.append(avatarSelect("头像形状", node.shape || "circle", [["square", "方形 / 圆角方形"], ["circle", "圆形"]], (target, value) => { target.shape = value; }));
+  grid.append(avatarSelect("缩放效果", node.pixelated ?? true, [["true", "清晰像素（Minecraft）"], ["false", "平滑缩放"]], (target, value) => { target.pixelated = value === "true"; }));
+  section.append(grid);
+  $("#fields").append(section);
+  $("#fields").append(element("p", "inspector-note", hasSource
+    ? "可填写本地图片、HTTPS 头像地址或 ${player.avatar} 等图片变量。真实效果请查看预览。"
+    : "填写玩家名即可放置对应头像，同一模板可放置多名玩家。当前玩家来自预览数据或调用方的 context.player；没有玩家值时不绘制。"));
+  $("#fields").append(element("p", "inspector-note", "网络头像需要在 config.yml 开启 custom-image-templates.remote-images.enabled，然后重载。玩家头像服务沿用 image.avatar.url-template。"));
 }
 
 function addAlignmentControls() {
@@ -634,6 +736,7 @@ function applyLayerJson() {
   validateLayer(parsed, (path.length - 1) / 2);
   const before = snapshot();
   parentList(path)[path.at(-1)] = parsed;
+  ensureAvatarProvider();
   state.jsonDirty = false;
   recordChange(before, "已应用图层 JSON");
   renderVisual();
@@ -745,12 +848,13 @@ function alignSelection(alignment) {
   }, "已对齐图层");
 }
 
-function defaultLayer(type) {
+function defaultLayer(type, parentPath = null) {
   const [width, height] = defaultSize(type);
   const node = { type, name: layerTypes[type][0], x: 24, y: 24, width, height };
   if (type === "text") Object.assign(node, { text: "新的文字", "font-size": 24, color: "#FFFFFFFF" });
   else if (["rectangle", "circle"].includes(type)) Object.assign(node, { fill: "#80E2C0", ...(type === "rectangle" ? { radius: 12 } : {}) });
-  else if (["image", "avatar"].includes(type)) node.source = "assets/example.png";
+  else if (type === "avatar") Object.assign(node, { player: loopPlayerBinding(parentPath) || "Steve", shape: "square", radius: 8, pixelated: true });
+  else if (type === "image") node.source = "assets/example.png";
   else if (type === "line") Object.assign(node, { height: 0, color: "#FFFFFFFF", "stroke-width": 2 });
   else if (type === "progress") Object.assign(node, { value: 60, maximum: 100, fill: "#80E2C0" });
   else if (type === "condition") return { type, name: "条件", condition: "${data.example.enabled}", then: [], else: [] };
@@ -769,8 +873,9 @@ function addLayer() {
   const list = target === "root" ? layers() : parent?.[target];
   if (!Array.isArray(list)) throw new Error("请先选择可以添加子图层的布局或分支");
   mutate(() => {
-    const node = defaultLayer($("#newLayerType").value);
+    const node = defaultLayer($("#newLayerType").value, target === "root" ? null : state.selection[0]);
     list.push(node);
+    ensureAvatarProvider();
     selectNodes([node]);
     $("#layerSearch").value = "";
   }, "已添加图层");

@@ -274,8 +274,7 @@ final class SceneRenderer {
         if (player.isEmpty()) return null;
         String template = bindings.text("${data.player-avatar.url-template}", "").trim();
         if (template.isEmpty()) {
-            throw new IOException("Player avatar layers require the player-avatar provider "
-                    + "with template-only: true in manifest.yml");
+            throw new IOException("Player avatar layers require the player-avatar provider in manifest.yml");
         }
         return template.replace("%player%", URLEncoder.encode(player, StandardCharsets.UTF_8.name()));
     }
