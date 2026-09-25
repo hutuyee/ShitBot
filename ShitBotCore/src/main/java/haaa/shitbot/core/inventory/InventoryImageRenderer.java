@@ -3,6 +3,7 @@ package haaa.shitbot.core.inventory;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
+import haaa.shitbot.core.image.NativeImageDrawing;
 
 import javax.imageio.ImageIO;
 import java.awt.BasicStroke;
@@ -99,10 +100,17 @@ public final class InventoryImageRenderer {
         int slot = settings.getSlotSize();
         int gap = style.slotGap;
         int padding = style.padding;
-        int headerHeight = style.headerHeight;
-        int footerHeight = style.footerHeight;
+        int titleY = Math.max(style.titleY, style.cardInset + style.titleFontSize + 12);
+        int playerY = Math.max(style.playerY, titleY + style.playerFontSize + 8);
+        int badgeY = Math.max(style.badgeY, titleY - style.titleFontSize + 2);
+        int sectionLabelHeight = Math.max(24, style.smallFontSize + 12);
+        int headerHeight = Math.max(style.headerHeight,
+                Math.max(playerY + style.playerFontSize / 3, badgeY + style.badgeHeight) + sectionLabelHeight + 16);
+        int footerHeight = Math.max(style.footerHeight,
+                Math.max(style.footerOffsetY, style.smallFontSize + 26) + style.smallFontSize * 2 + 12);
+        int hotbarGap = Math.max(style.hotbarGap, style.smallFontSize + 8);
         int gridWidth = slot * 9 + gap * 8;
-        int gridHeight = slot * 4 + gap * 3;
+        int gridHeight = slot * 4 + gap * 3 + hotbarGap + style.smallFontSize + 8;
         int equipmentHeight = slot * 5 + gap * 4;
         int contentHeight = Math.max(gridHeight, equipmentHeight);
         int equipmentWidth = Math.max(
@@ -112,21 +120,47 @@ public final class InventoryImageRenderer {
         int width = Math.max(settings.getWidth(), requiredWidth);
         int height = headerHeight + contentHeight + footerHeight + padding;
         int left = (width - requiredWidth) / 2 + padding;
+
+        int slotY(int row) {
+            return headerHeight + row * (slot + gap) + (row == 3 ? hotbarGap : 0);
+        }
     }
 
     private void paintBase(Graphics2D graphics, Layout layout) {
         configureGraphics(graphics);
         paintBackground(graphics, layout.width, layout.height);
+        int equipmentX = layout.left + layout.gridWidth + style.gridEquipmentGap;
+        int inset = Math.min(10, style.gridEquipmentGap / 3);
+        int trayY = layout.headerHeight - layout.sectionLabelHeight;
+        int trayHeight = layout.contentHeight + layout.sectionLabelHeight + 8;
+        NativeImageDrawing.surface(graphics, layout.left - inset, trayY, layout.gridWidth + inset * 2,
+                trayHeight, style.cardRadius / 2, NativeImageDrawing.alpha(style.slotBackgroundColor, 60),
+                NativeImageDrawing.alpha(style.slotBorderColor, 40), NativeImageDrawing.alpha(style.cardShadowColor, 0));
+        NativeImageDrawing.surface(graphics, equipmentX - inset, trayY, layout.equipmentWidth + inset * 2,
+                trayHeight, style.cardRadius / 2, NativeImageDrawing.alpha(style.slotBackgroundColor, 60),
+                NativeImageDrawing.alpha(style.slotBorderColor, 40), NativeImageDrawing.alpha(style.cardShadowColor, 0));
         for (int index = 0; index < DISPLAY_SLOTS.length; index++) {
             paintSlotBackground(graphics, layout.left + (index % 9) * (layout.slot + layout.gap),
-                    layout.headerHeight + (index / 9) * (layout.slot + layout.gap), layout.slot);
+                    layout.slotY(index / 9), layout.slot);
         }
         Font smallFont = new Font(settings.getFontName(), Font.PLAIN, style.smallFontSize);
         graphics.setFont(smallFont);
-        int equipmentX = layout.left + layout.gridWidth + style.gridEquipmentGap;
         graphics.setColor(style.equipmentTitleColor);
-        graphics.drawString(translations.get("inventory.equipment-title"),
-                equipmentX, layout.headerHeight - style.equipmentTitleOffsetY);
+        int labelOffset = Math.min(layout.sectionLabelHeight - style.smallFontSize,
+                Math.max(8, style.equipmentTitleOffsetY));
+        graphics.drawString(ellipsize(translations.get("inventory.storage-title", "主背包", "Inventory"),
+                graphics.getFontMetrics(), layout.gridWidth), layout.left, layout.headerHeight - labelOffset);
+        graphics.drawString(ellipsize(translations.get("inventory.hotbar-title", "快捷栏", "Hotbar"),
+                graphics.getFontMetrics(), layout.gridWidth), layout.left, layout.slotY(3) - 7);
+        graphics.drawString(ellipsize(translations.get("inventory.equipment-title"),
+                graphics.getFontMetrics(), layout.equipmentWidth), equipmentX, layout.headerHeight - labelOffset);
+        for (int column = 0; column < 9; column++) {
+            String number = String.valueOf(column + 1);
+            graphics.setColor(style.secondaryTextColor);
+            graphics.drawString(number, layout.left + column * (layout.slot + layout.gap)
+                    + (layout.slot - graphics.getFontMetrics().stringWidth(number)) / 2,
+                    layout.slotY(3) + layout.slot + style.smallFontSize + 3);
+        }
         for (int index = 0; index < EQUIPMENT_SLOTS.length; index++) {
             int y = layout.headerHeight + index * (layout.slot + layout.gap);
             graphics.setColor(style.secondaryTextColor);
@@ -134,6 +168,9 @@ public final class InventoryImageRenderer {
                     : String.valueOf(index + 1), equipmentX, y + layout.slot / 2 + 5);
             paintSlotBackground(graphics, equipmentX + style.equipmentIconOffset, y, layout.slot);
         }
+        graphics.setColor(style.cardBorderColor);
+        graphics.drawLine(layout.padding, layout.headerHeight + layout.contentHeight + 16,
+                layout.width - layout.padding, layout.headerHeight + layout.contentHeight + 16);
     }
 
     private byte[] renderUncached(InventorySnapshot snapshot, boolean live) throws Exception {
@@ -161,35 +198,39 @@ public final class InventoryImageRenderer {
             int top = layout.headerHeight;
             String badge = translations.get(live ? "inventory.live" : "inventory.snapshot");
             graphics.setFont(smallFont);
-            int badgeWidth = graphics.getFontMetrics().stringWidth(badge) + style.badgeHorizontalPadding;
+            int badgeWidth = graphics.getFontMetrics().stringWidth(badge) + style.badgeHorizontalPadding + 14;
             int badgeX = width - padding - badgeWidth;
             String title = settings.getTitle().replace("%player%", snapshot.getPlayerName());
             graphics.setFont(titleFont);
             graphics.setColor(style.titleColor);
-            graphics.drawString(ellipsize(title, graphics.getFontMetrics(), badgeX - padding - 16),
-                    padding, style.titleY);
+            graphics.drawString(ellipsize(title, graphics.getFontMetrics(), badgeX - padding - 30),
+                    padding + 14, layout.titleY);
+            graphics.setColor(style.playerColor);
+            graphics.fillRoundRect(padding, layout.titleY - style.titleFontSize + 2, 4, style.titleFontSize, 4, 4);
 
             graphics.setFont(playerFont);
             graphics.setColor(style.playerColor);
             graphics.drawString(ellipsize(snapshot.getPlayerName(), graphics.getFontMetrics(),
-                    width - padding * 2), padding, style.playerY);
+                    width - padding * 2 - 14), padding + 14, layout.playerY);
 
             graphics.setFont(smallFont);
             graphics.setColor(live ? style.liveBadgeColor : style.snapshotBadgeColor);
-            graphics.fillRoundRect(badgeX, style.badgeY, badgeWidth, style.badgeHeight,
+            graphics.fillRoundRect(badgeX, layout.badgeY, badgeWidth, style.badgeHeight,
                     style.statusBadgeRadius, style.statusBadgeRadius);
             graphics.setColor(style.badgeTextColor);
-            int badgeTextY = style.badgeY
+            int badgeTextY = layout.badgeY
                     + (style.badgeHeight - graphics.getFontMetrics().getHeight()) / 2
                     + graphics.getFontMetrics().getAscent();
-            graphics.drawString(badge, badgeX + style.badgeHorizontalPadding / 2, badgeTextY);
+            graphics.fillOval(badgeX + style.badgeHorizontalPadding / 2,
+                    layout.badgeY + (style.badgeHeight - 6) / 2, 6, 6);
+            graphics.drawString(badge, badgeX + style.badgeHorizontalPadding / 2 + 14, badgeTextY);
 
             graphics.setFont(amountFont);
             for (int index = 0; index < DISPLAY_SLOTS.length; index++) {
                 int row = index / 9;
                 int column = index % 9;
                 int x = left + column * (slot + gap);
-                int y = top + row * (slot + gap);
+                int y = layout.slotY(row);
                 paintSlot(graphics, x, y, slot, snapshot.getItem(DISPLAY_SLOTS[index]), amountFont);
             }
 
@@ -200,7 +241,7 @@ public final class InventoryImageRenderer {
                         snapshot.getItem(EQUIPMENT_SLOTS[index]), amountFont);
             }
 
-            int footerY = top + contentHeight + style.footerOffsetY;
+            int footerY = top + contentHeight + Math.max(style.footerOffsetY, style.smallFontSize + 26);
             graphics.setFont(smallFont);
             graphics.setColor(style.secondaryTextColor);
             String timestamp = formatTimestamp(snapshot.getCapturedAt());
@@ -211,10 +252,15 @@ public final class InventoryImageRenderer {
                     "%slots%", String.valueOf(InventorySnapshot.TOTAL_SLOTS),
                     "%items%", String.valueOf(snapshot.getTotalItemCount()),
                     "%server%", snapshot.getServerName());
-            int summaryWidth = Math.max(80,
-                    width - padding * 2 - timeWidth - style.gridEquipmentGap);
-            graphics.drawString(ellipsize(summary, graphics.getFontMetrics(), summaryWidth), padding, footerY);
-            graphics.drawString(timeText, width - padding - timeWidth, footerY);
+            int availableWidth = width - padding * 2;
+            if (graphics.getFontMetrics().stringWidth(summary) + timeWidth + style.gridEquipmentGap <= availableWidth) {
+                graphics.drawString(summary, padding, footerY);
+                graphics.drawString(timeText, width - padding - timeWidth, footerY);
+            } else {
+                graphics.drawString(ellipsize(summary, graphics.getFontMetrics(), availableWidth), padding, footerY);
+                graphics.drawString(ellipsize(timeText, graphics.getFontMetrics(), availableWidth), padding,
+                        footerY + graphics.getFontMetrics().getHeight() + 4);
+            }
         } finally {
             graphics.dispose();
         }
@@ -236,6 +282,8 @@ public final class InventoryImageRenderer {
             return;
         }
         if (item.isEnchanted()) {
+            graphics.setColor(NativeImageDrawing.alpha(style.enchantedBorderColor, 22));
+            graphics.fillRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
             graphics.setStroke(new BasicStroke(style.enchantedBorderWidth));
             graphics.setColor(style.enchantedBorderColor);
             graphics.drawRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
@@ -257,11 +305,15 @@ public final class InventoryImageRenderer {
         if (item.getAmount() > 1) {
             String amount = String.valueOf(item.getAmount());
             graphics.setFont(amountFont);
+            while (graphics.getFont().getSize() > 8 && graphics.getFontMetrics().stringWidth(amount) > size - 12) {
+                graphics.setFont(graphics.getFont().deriveFont((float) graphics.getFont().getSize() - 1));
+            }
             FontMetrics metrics = graphics.getFontMetrics();
-            int textX = x + size - metrics.stringWidth(amount) - 4;
-            int textY = y + size - 5;
+            int textX = x + size - metrics.stringWidth(amount) - 6;
+            int textY = y + size - (item.hasDurability() ? 10 : 6);
             graphics.setColor(style.amountShadowColor);
-            graphics.drawString(amount, textX + 1, textY + 1);
+            graphics.fillRoundRect(textX - 4, textY - metrics.getAscent() - 1,
+                    metrics.stringWidth(amount) + 8, metrics.getHeight() + 2, 6, 6);
             graphics.setColor(style.amountTextColor);
             graphics.drawString(amount, textX, textY);
         }
@@ -269,36 +321,35 @@ public final class InventoryImageRenderer {
         if (item.hasDurability()) {
             double remaining = 1.0D - (double) item.getDamage() / (double) item.getMaximumDurability();
             remaining = Math.max(0.0D, Math.min(1.0D, remaining));
-            int barX = x + 4;
-            int barY = y + size - 4;
-            int barWidth = size - 8;
+            int barX = x + 6;
+            int barY = y + size - 6;
+            int barWidth = size - 12;
             graphics.setColor(style.durabilityBackgroundColor);
-            graphics.fillRect(barX, barY, barWidth, 2);
+            graphics.fillRoundRect(barX, barY, barWidth, 3, 3, 3);
             graphics.setColor(durabilityColor(remaining));
-            graphics.fillRect(barX, barY, (int) Math.round(barWidth * remaining), 2);
+            graphics.fillRoundRect(barX, barY, (int) Math.round(barWidth * remaining), 3, 3, 3);
         }
     }
 
     private void paintMissingTexture(Graphics2D graphics, int x, int y, int size) {
-        int cell = Math.max(4, size / 4);
-        for (int row = 0; row * cell < size; row++) {
-            for (int column = 0; column * cell < size; column++) {
-                graphics.setColor(((row + column) & 1) == 0
-                        ? style.missingLightColor
-                        : style.missingDarkColor);
-                int width = Math.min(cell, size - column * cell);
-                int height = Math.min(cell, size - row * cell);
-                graphics.fillRect(x + column * cell, y + row * cell, width, height);
-            }
-        }
+        graphics.setColor(NativeImageDrawing.alpha(style.missingDarkColor, 100));
+        graphics.fillRoundRect(x + 2, y + 2, size - 4, size - 4, 8, 8);
+        graphics.setColor(style.missingLightColor);
+        graphics.setFont(new Font(settings.getFontName(), Font.BOLD, Math.max(12, size / 2)));
+        FontMetrics metrics = graphics.getFontMetrics();
+        graphics.drawString("?", x + (size - metrics.stringWidth("?")) / 2,
+                y + (size - metrics.getHeight()) / 2 + metrics.getAscent());
     }
 
     private void paintSlotBackground(Graphics2D graphics, int x, int y, int size) {
-        graphics.setColor(style.slotBackgroundColor);
+        graphics.setPaint(new java.awt.GradientPaint(x, y, style.slotBackgroundColor,
+                x, y + size, NativeImageDrawing.mix(style.slotBackgroundColor, Color.WHITE, 0.06F)));
         graphics.fillRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
         graphics.setStroke(new BasicStroke(style.normalBorderWidth));
         graphics.setColor(style.slotBorderColor);
         graphics.drawRoundRect(x, y, size, size, style.slotRadius, style.slotRadius);
+        graphics.setColor(NativeImageDrawing.alpha(style.slotBorderColor, style.slotBorderColor.getAlpha() / 3));
+        graphics.drawLine(x + 7, y + size - 2, x + size - 7, y + size - 2);
     }
 
     private Color durabilityColor(double remaining) {
@@ -310,18 +361,11 @@ public final class InventoryImageRenderer {
         graphics.setPaint(new java.awt.GradientPaint(0, 0, style.backgroundColor,
                 width, height, style.backgroundEndColor));
         graphics.fillRect(0, 0, width, height);
-        graphics.setColor(style.cardShadowColor);
-        graphics.fillRoundRect(style.cardInset, style.cardInset + 4,
-                width - style.cardInset * 2, height - style.cardInset * 2 - 4,
-                style.cardRadius, style.cardRadius);
-        graphics.setColor(style.cardColor);
-        graphics.fillRoundRect(style.cardInset, style.cardInset,
-                width - style.cardInset * 2, height - style.cardInset * 2,
-                style.cardRadius, style.cardRadius);
-        graphics.setColor(style.cardBorderColor);
-        graphics.drawRoundRect(style.cardInset, style.cardInset,
-                width - style.cardInset * 2, height - style.cardInset * 2,
-                style.cardRadius, style.cardRadius);
+        NativeImageDrawing.glow(graphics, width, 0, Math.max(160, width / 2),
+                NativeImageDrawing.alpha(style.playerColor, 24));
+        NativeImageDrawing.surface(graphics, style.cardInset, style.cardInset,
+                width - style.cardInset * 2, height - style.cardInset * 2, style.cardRadius,
+                style.cardColor, style.cardBorderColor, style.cardShadowColor);
     }
 
     private void configureGraphics(Graphics2D graphics) {
@@ -341,15 +385,16 @@ public final class InventoryImageRenderer {
     }
 
     private String ellipsize(String text, FontMetrics metrics, int maximumWidth) {
+        if (maximumWidth <= 0) return "";
         if (metrics.stringWidth(text) <= maximumWidth) {
             return text;
         }
         String suffix = "…";
         int end = text.length();
         while (end > 0 && metrics.stringWidth(text.substring(0, end) + suffix) > maximumWidth) {
-            end--;
+            end = text.offsetByCodePoints(end, -1);
         }
-        return text.substring(0, end) + suffix;
+        return end == 0 ? "" : text.substring(0, end) + suffix;
     }
 
     private static final class CachedRender {
@@ -365,6 +410,7 @@ public final class InventoryImageRenderer {
     private static final class InventoryStyle {
         private final int padding;
         private final int slotGap;
+        private final int hotbarGap;
         private final int headerHeight;
         private final int footerHeight;
         private final int gridEquipmentGap;
@@ -411,58 +457,59 @@ public final class InventoryImageRenderer {
         private final float durabilityBrightness;
 
         private InventoryStyle(ImageTemplate template) {
-            padding = template.getInt("inventory.layout.padding", 8, 160, 24);
-            slotGap = template.getInt("inventory.layout.slot-gap", 0, 48, 5);
-            headerHeight = template.getInt("inventory.layout.header-height", 48, 240, 92);
-            footerHeight = template.getInt("inventory.layout.footer-height", 24, 160, 54);
-            gridEquipmentGap = template.getInt("inventory.layout.grid-equipment-gap", 0, 120, 24);
-            equipmentExtraWidth = template.getInt("inventory.layout.equipment-extra-width", 32, 200, 72);
+            padding = template.getInt("inventory.layout.padding", 8, 160, 32);
+            slotGap = template.getInt("inventory.layout.slot-gap", 0, 48, 7);
+            hotbarGap = template.getInt("inventory.layout.hotbar-gap", 8, 80, 24);
+            headerHeight = template.getInt("inventory.layout.header-height", 48, 240, 132);
+            footerHeight = template.getInt("inventory.layout.footer-height", 24, 160, 68);
+            gridEquipmentGap = template.getInt("inventory.layout.grid-equipment-gap", 0, 120, 32);
+            equipmentExtraWidth = template.getInt("inventory.layout.equipment-extra-width", 32, 200, 64);
             equipmentIconOffset = template.getInt("inventory.layout.equipment-icon-offset", 0, 120, 28);
             cardInset = template.getInt("inventory.layout.card-inset", 0, 80, 12);
-            titleY = template.getInt("inventory.layout.title-y", 16, 160, 38);
-            playerY = template.getInt("inventory.layout.player-y", 24, 220, 66);
-            badgeY = template.getInt("inventory.layout.badge-y", 0, 160, 24);
+            titleY = template.getInt("inventory.layout.title-y", 16, 160, 54);
+            playerY = template.getInt("inventory.layout.player-y", 24, 220, 82);
+            badgeY = template.getInt("inventory.layout.badge-y", 0, 160, 30);
             badgeHeight = template.getInt("inventory.layout.badge-height", 16, 96, 28);
             badgeHorizontalPadding = template.getInt(
-                    "inventory.layout.badge-horizontal-padding", 4, 100, 20);
+                    "inventory.layout.badge-horizontal-padding", 4, 100, 22);
             equipmentTitleOffsetY = template.getInt(
-                    "inventory.layout.equipment-title-offset-y", 0, 80, 10);
+                    "inventory.layout.equipment-title-offset-y", 0, 80, 8);
             footerOffsetY = template.getInt("inventory.layout.footer-offset-y", 8, 120, 30);
             titleFontSize = fontSize(template, "title", 28);
-            playerFontSize = fontSize(template, "player", 18);
-            smallFontSize = fontSize(template, "small", 13);
+            playerFontSize = fontSize(template, "player", 16);
+            smallFontSize = fontSize(template, "small", 12);
             minimumAmountFontSize = fontSize(template, "minimum-amount", 12);
             cardRadius = radius(template, "card", 24);
             statusBadgeRadius = radius(template, "status-badge", 14);
-            slotRadius = radius(template, "slot", 10);
+            slotRadius = radius(template, "slot", 8);
             normalBorderWidth = template.getInt(
                     "inventory.strokes.normal-border-width-tenths", 1, 50, 10) / 10.0F;
             enchantedBorderWidth = template.getInt(
-                    "inventory.strokes.enchanted-border-width-tenths", 1, 80, 20) / 10.0F;
-            backgroundColor = color(template, "background", "#101C30");
-            backgroundEndColor = color(template, "background-end", "#142B37");
-            cardShadowColor = color(template, "card-shadow", "#50000000");
-            cardBorderColor = color(template, "card-border", "#35586B7C");
-            cardColor = color(template, "card", "#D91B2D40");
-            titleColor = color(template, "title", "#F6F8FC");
-            playerColor = color(template, "player", "#88DDCA");
-            liveBadgeColor = color(template, "live-badge", "#22685B");
-            snapshotBadgeColor = color(template, "snapshot-badge", "#705A32");
-            badgeTextColor = color(template, "badge-text", "#FFFFFFFF");
-            equipmentTitleColor = color(template, "equipment-title", "#A8B1C2");
-            secondaryTextColor = color(template, "secondary-text", "#97A0B2");
-            slotBackgroundColor = color(template, "slot-background", "#E6132333");
-            slotBorderColor = color(template, "slot-border", "#80516A7D");
-            enchantedBorderColor = color(template, "enchanted-border", "#DC9767FF");
-            amountShadowColor = color(template, "amount-shadow", "#BE000000");
-            amountTextColor = color(template, "amount-text", "#FFFFFFFF");
-            durabilityBackgroundColor = color(template, "durability-background", "#BE000000");
-            missingLightColor = color(template, "missing-light", "#F100F1");
-            missingDarkColor = color(template, "missing-dark", "#180018");
+                    "inventory.strokes.enchanted-border-width-tenths", 1, 80, 16) / 10.0F;
+            backgroundColor = color(template, "background", "#111820");
+            backgroundEndColor = color(template, "background-end", "#18272B");
+            cardShadowColor = color(template, "card-shadow", "#55000000");
+            cardBorderColor = color(template, "card-border", "#364951");
+            cardColor = color(template, "card", "#F01D2B34");
+            titleColor = color(template, "title", "#F2F7F5");
+            playerColor = color(template, "player", "#88D9BD");
+            liveBadgeColor = color(template, "live-badge", "#2A5143");
+            snapshotBadgeColor = color(template, "snapshot-badge", "#5B4932");
+            badgeTextColor = color(template, "badge-text", "#EAF4EF");
+            equipmentTitleColor = color(template, "equipment-title", "#B1C6CF");
+            secondaryTextColor = color(template, "secondary-text", "#8FA6B0");
+            slotBackgroundColor = color(template, "slot-background", "#14212B");
+            slotBorderColor = color(template, "slot-border", "#415360");
+            enchantedBorderColor = color(template, "enchanted-border", "#BFA0E5");
+            amountShadowColor = color(template, "amount-shadow", "#D0101820");
+            amountTextColor = color(template, "amount-text", "#F5F8FA");
+            durabilityBackgroundColor = color(template, "durability-background", "#C0101820");
+            missingLightColor = color(template, "missing-light", "#93A9B8");
+            missingDarkColor = color(template, "missing-dark", "#263844");
             durabilitySaturation = template.getInt(
-                    "inventory.durability.saturation-percent", 0, 100, 90) / 100.0F;
+                    "inventory.durability.saturation-percent", 0, 100, 65) / 100.0F;
             durabilityBrightness = template.getInt(
-                    "inventory.durability.brightness-percent", 0, 100, 95) / 100.0F;
+                    "inventory.durability.brightness-percent", 0, 100, 85) / 100.0F;
         }
 
         private static int fontSize(ImageTemplate template, String name, int fallback) {

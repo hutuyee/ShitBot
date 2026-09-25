@@ -5,143 +5,144 @@
 
 online:
   layout:
-    outer-margin: 48
-    header-height: 154
-    footer-height: 66
+    outer-margin: 40
+    header-height: 168
+    footer-height: 64
     server-gap: 20
-    minimum-height: 420
-    empty-panel-height: 116
-    panel-horizontal-padding: 26
-    panel-header-height: 78
+    minimum-height: 400
+    empty-panel-height: 136
+    panel-horizontal-padding: 24
+    panel-header-height: 80
     panel-bottom-padding: 24
-    badge-minimum-height: 46
-    badge-horizontal-padding: 20
+    badge-minimum-height: 60
+    badge-horizontal-padding: 24
     badge-avatar-gap: 12
-    badge-minimum-extra-width: 54
-    row-gap: 10
+    badge-minimum-extra-width: 72
+    row-gap: 12
     column-gap: 12
-    grid-size: 44
+    grid-size: 32
   sizes:
-    border-width-tenths: 11
-    header-accent-width: 8
-    header-accent-height: 50
-    status-card-width: 214
-    status-card-height: 82
+    border-width-tenths: 10
+    header-accent-width: 4
+    header-accent-height: 42
+    status-card-width: 244
+    status-card-height: 110
     server-icon-size: 34
     server-dot-size: 10
-    status-dot-size: 10
+    status-dot-size: 8
   fonts:
-    title: 40
-    subtitle: 18
-    status: 13
-    total-count: 32
-    total-label: 14
-    empty-title: 23
+    title: 38
+    subtitle: 16
+    status: 12
+    total-count: 42
+    total-label: 13
+    empty-title: 22
     empty-subtitle: 15
-    server-title: 23
-    server-count: 14
-    player: 18
+    server-title: 22
+    server-count: 13
+    player: 17
     placeholder-minimum: 14
-    footer: 14
+    footer: 13
   radii:
     status-card: 24
-    panel: 28
-    server-icon: 12
-    count-badge: 16
-    player-badge: 16
-    avatar: 11
+    panel: 24
+    server-icon: 10
+    count-badge: 12
+    player-badge: 12
+    avatar: 8
   colors:
-    background-start: "#101C30"
-    background-end: "#123E46"
-    overlay-start: "#122D6CA8"
-    overlay-end: "#1435BFA6"
-    decoration: "#06FFFFFF"
-    grid: "#04FFFFFF"
-    header-accent: "#78E5C5"
-    title: "#FFFFFFFF"
-    subtitle: "#D3E8F9"
-    status-dot: "#68EBB5"
-    status-text: "#D0FFED"
-    total-count: "#FFFFFFFF"
-    total-label: "#D6EBF8"
-    empty-dot: "#68EBB5"
-    empty-title: "#FFFFFFFF"
-    empty-subtitle: "#C6DDEE"
-    server-icon: "#3B69EEB8"
-    server-dot: "#83FFCB"
-    server-title: "#FFFFFFFF"
-    server-count-background: "#21FFFFFF"
-    server-count-text: "#D5ECFA"
-    divider: "#29FFFFFF"
-    player-background: "#80132133"
-    player-border: "#245EDCC3"
-    player-text: "#F4F9FF"
-    avatar-border: "#52FFFFFF"
-    footer: "#B9D7EB"
-    card-shadow: "#40000000"
-    card-background: "#B31D3D4B"
-    card-border: "#4078CBBF"
-    panel-shadow: "#32000000"
-    panel-background: "#B31B2D40"
-    panel-border: "#30558598"
+    background-start: "#111820"
+    background-end: "#18272B"
+    overlay-start: "#082B4C58"
+    overlay-end: "#08458072"
+    decoration: "#06A5D7CB"
+    grid: "#08B8D3D4"
+    header-accent: "#88D9BD"
+    title: "#F2F7F5"
+    subtitle: "#A1B3BF"
+    status-dot: "#8AE0BA"
+    status-text: "#B6EBD4"
+    total-count: "#F3F8F6"
+    total-label: "#AEC9C3"
+    empty-dot: "#7DBCA8"
+    empty-title: "#EFF5F3"
+    empty-subtitle: "#91A8B3"
+    server-icon: "#28443F"
+    server-dot: "#91DEC4"
+    server-title: "#EAF3F0"
+    server-count-background: "#263E38"
+    server-count-text: "#A9DDC7"
+    divider: "#30434B"
+    player-background: "#18252F"
+    player-border: "#344550"
+    player-text: "#E5EEF3"
+    avatar-border: "#658894"
+    footer: "#8FA6B0"
+    card-shadow: "#55000000"
+    card-background: "#253C38"
+    card-border: "#3F6257"
+    panel-shadow: "#38000000"
+    panel-background: "#F01D2B34"
+    panel-border: "#364951"
   placeholder-colors:
-    - "#498BFF"
-    - "#5CC4A4"
-    - "#A671F4"
-    - "#EE7E85"
-    - "#EFAA4C"
-    - "#4BAECD"
+    - "#497A9E"
+    - "#397F6B"
+    - "#75659A"
+    - "#A26B74"
+    - "#A68A53"
+    - "#47868F"
 
 inventory:
   layout:
-    padding: 24
-    slot-gap: 5
-    header-height: 92
-    footer-height: 54
-    grid-equipment-gap: 24
-    equipment-extra-width: 72
+    padding: 32
+    slot-gap: 7
+    hotbar-gap: 24
+    header-height: 132
+    footer-height: 68
+    grid-equipment-gap: 32
+    equipment-extra-width: 64
     equipment-icon-offset: 28
     card-inset: 12
-    title-y: 38
-    player-y: 66
-    badge-y: 24
+    title-y: 54
+    player-y: 82
+    badge-y: 30
     badge-height: 28
-    badge-horizontal-padding: 20
-    equipment-title-offset-y: 10
+    badge-horizontal-padding: 22
+    equipment-title-offset-y: 8
     footer-offset-y: 30
   fonts:
     title: 28
-    player: 18
-    small: 13
+    player: 16
+    small: 12
     minimum-amount: 12
   radii:
     card: 24
     status-badge: 14
-    slot: 10
+    slot: 8
   strokes:
     normal-border-width-tenths: 10
-    enchanted-border-width-tenths: 20
+    enchanted-border-width-tenths: 16
   colors:
-    background: "#101C30"
-    background-end: "#142B37"
-    card: "#D91B2D40"
-    card-shadow: "#50000000"
-    card-border: "#35586B7C"
-    title: "#F6F8FC"
-    player: "#88DDCA"
-    live-badge: "#22685B"
-    snapshot-badge: "#705A32"
-    badge-text: "#FFFFFFFF"
-    equipment-title: "#A8B1C2"
-    secondary-text: "#97A0B2"
-    slot-background: "#E6132333"
-    slot-border: "#80516A7D"
-    enchanted-border: "#DC9767FF"
-    amount-shadow: "#BE000000"
-    amount-text: "#FFFFFFFF"
-    durability-background: "#BE000000"
-    missing-light: "#F100F1"
-    missing-dark: "#180018"
+    background: "#111820"
+    background-end: "#18272B"
+    card: "#F01D2B34"
+    card-shadow: "#55000000"
+    card-border: "#364951"
+    title: "#F2F7F5"
+    player: "#88D9BD"
+    live-badge: "#2A5143"
+    snapshot-badge: "#5B4932"
+    badge-text: "#EAF4EF"
+    equipment-title: "#B1C6CF"
+    secondary-text: "#8FA6B0"
+    slot-background: "#14212B"
+    slot-border: "#415360"
+    enchanted-border: "#BFA0E5"
+    amount-shadow: "#D0101820"
+    amount-text: "#F5F8FA"
+    durability-background: "#C0101820"
+    missing-light: "#93A9B8"
+    missing-dark: "#263844"
   durability:
-    saturation-percent: 90
-    brightness-percent: 95
+    saturation-percent: 65
+    brightness-percent: 85
