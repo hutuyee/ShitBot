@@ -32,6 +32,7 @@
     <div class="document-heading"><span class="eyebrow">IMAGE TEMPLATE</span><span id="templateTitle">选择一个模板开始创作</span></div>
     <span class="spacer"></span>
     <span id="saveState" class="save-state">草稿</span>
+    <button id="showShortcuts" class="icon-button shortcut-trigger" title="快捷键 · ?" aria-label="查看快捷键">?</button>
     <div class="header-actions">
       <button id="save" title="保存草稿 · Ctrl+S"><svg class="icon"><use href="#i-save"/></svg><span>保存草稿</span></button>
       <button id="preview" title="查看实际渲染效果"><svg class="icon"><use href="#i-play"/></svg><span>预览</span></button>
@@ -42,18 +43,20 @@
     <aside class="library" aria-label="模板与图层">
       <section class="templates">
         <div class="panel-title"><svg class="icon"><use href="#i-grid"/></svg><h2>模板库</h2><span id="templateCount" class="count"></span><button id="newTemplate" class="icon-button" title="新建模板" aria-label="新建模板"><svg class="icon"><use href="#i-plus"/></svg></button></div>
+        <label class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="templateSearch" type="search" placeholder="搜索模板…" aria-label="搜索模板"></label>
         <div id="templates"><p class="panel-empty">正在加载模板…</p></div>
       </section>
       <section class="layer-panel" aria-label="图层">
         <div class="panel-title"><svg class="icon"><use href="#i-layers"/></svg><h2>图层</h2><span id="layerCount" class="count"></span><span class="spacer"></span></div>
         <div class="layer-tools">
-          <span class="muted">排列顺序</span><span class="spacer"></span>
-          <button id="layerUp" class="icon-button" title="上移图层" aria-label="上移图层"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
-          <button id="layerDown" class="icon-button" title="下移图层" aria-label="下移图层"><svg class="icon"><use href="#i-arrow-down"/></svg></button>
+          <button id="duplicateLayer" class="icon-button" title="复制图层 · Ctrl+D" aria-label="复制图层">⧉</button><span class="spacer"></span>
+          <button id="layerUp" class="icon-button" title="上移图层 · Ctrl+]" aria-label="上移图层"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
+          <button id="layerDown" class="icon-button" title="下移图层 · Ctrl+[" aria-label="下移图层"><svg class="icon"><use href="#i-arrow-down"/></svg></button>
           <button id="deleteLayer" class="icon-button danger" title="删除选中图层 · Delete" aria-label="删除选中图层"><svg class="icon"><use href="#i-trash"/></svg></button>
         </div>
+        <label class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="layerSearch" type="search" placeholder="查找图层…" aria-label="查找图层"></label>
         <div id="layers"><p class="panel-empty">图层会显示在这里</p></div>
-        <p class="layer-hint">点击画布或列表选择图层</p>
+        <p class="layer-hint"><kbd>Shift</kbd> 加选　<kbd>Delete</kbd> 删除</p>
       </section>
       <details class="asset-box">
         <summary><svg class="icon"><use href="#i-image"/></svg>图片资源<span class="muted">PNG / JPG / GIF</span></summary>
@@ -73,15 +76,15 @@
           <button id="tabData" data-tab="data" role="tab" aria-controls="data" aria-selected="false"><svg class="icon"><use href="#i-data"/></svg>预览数据</button>
         </div>
         <span class="spacer"></span>
-        <div class="insert-controls"><select id="newLayerType" aria-label="新图层类型"></select><button id="addLayer" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg>添加图层</button></div>
+        <div class="insert-controls"><select id="insertTarget" aria-label="添加图层的位置" title="添加图层的位置"><option value="root">画布根级</option><option value="children">选中容器内</option><option value="then">条件成立时</option><option value="else">条件不成立时</option></select><select id="newLayerType" aria-label="新图层类型"></select><button id="addLayer" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg>添加图层</button></div>
       </nav>
       <div id="visual" class="tab active" role="tabpanel" aria-labelledby="tabVisual">
         <section class="canvas-area" aria-label="设计画布">
-          <div class="canvas-toolbar"><span class="canvas-mode"><span class="live-dot"></span>布局视图</span><span id="canvasSize" class="canvas-size"></span><span class="spacer"></span><span class="canvas-note">动态数据与图片效果请查看预览</span></div>
+          <div class="canvas-toolbar"><span class="canvas-mode"><span class="live-dot"></span>布局视图</span><span id="canvasSize" class="canvas-size"></span><span class="spacer"></span><div class="history-controls"><button id="undo" class="icon-button" title="撤销 · Ctrl+Z" aria-label="撤销">↶</button><button id="redo" class="icon-button" title="重做 · Ctrl+Shift+Z" aria-label="重做">↷</button></div><button id="snap" class="toggle-button active" aria-pressed="true" title="拖动时吸附到 5 像素网格；按住 Alt 临时关闭">吸附 5px</button></div>
           <div class="stage-wrap" tabindex="0" aria-label="画布，点击选择图层后可使用快捷键">
-            <div class="stage-space"><div id="stageFrame"><div id="stage"></div></div></div>
+            <div class="stage-space"><div id="emptyCanvas" class="canvas-empty"><svg class="icon"><use href="#i-grid"/></svg><h2>从一张画布开始</h2><p>选择左侧模板，或创建属于你的新布局。</p><button data-action="newTemplate" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg>新建模板</button></div><div id="stageFrame" hidden><div id="stage"></div></div></div>
           </div>
-          <div class="canvas-bottom"><span id="selectionInfo">选择图层开始编辑</span><span class="spacer"></span><span class="muted">拖动调整位置 · 右下角调整大小</span></div>
+          <div class="canvas-bottom"><span id="selectionInfo">选择图层开始编辑</span><span class="spacer"></span><div class="zoom-controls"><button id="zoomOut" class="icon-button" title="缩小" aria-label="缩小">−</button><button id="zoomReset" title="原始大小 · 100%">100%</button><button id="zoomIn" class="icon-button" title="放大" aria-label="放大">＋</button><button id="zoomFit" title="适应画布 · Ctrl+0">适应</button></div></div>
         </section>
         <aside class="properties" aria-label="设计属性">
           <div class="inspector-heading"><span class="eyebrow">DESIGN</span><h2 id="inspectorTitle">设计属性</h2><p id="inspectorSubtitle">选择图层，调整每一个细节。</p></div>
@@ -94,6 +97,7 @@
         </aside>
       </div>
       <div id="source" class="tab source-grid" role="tabpanel" aria-labelledby="tabSource">
+        <p class="source-hint">切换 YAML 与设计视图时会保存并同步草稿。语法有误时会留在当前视图，保留你的修改。</p>
         <label class="editor-card"><span class="editor-card-heading"><svg class="icon"><use href="#i-code"/></svg><b>manifest.yml</b><span>模板配置</span></span><textarea id="manifestSource" spellcheck="false" aria-label="manifest.yml 源码" placeholder="选择模板后编辑配置…"></textarea></label>
         <label class="editor-card"><span class="editor-card-heading"><svg class="icon"><use href="#i-layers"/></svg><b>scene.yml</b><span>画布与图层</span></span><textarea id="sceneSource" spellcheck="false" aria-label="scene.yml 源码" placeholder="选择模板后编辑图层…"></textarea></label>
       </div>
@@ -110,8 +114,31 @@
     </section>
   </main>
   <dialog id="previewDialog" class="preview-dialog" aria-labelledby="previewTitle">
-    <div class="dialog-heading"><div><span class="eyebrow">PREVIEW</span><h2 id="previewTitle">渲染预览</h2></div><button id="closePreview" class="icon-button" aria-label="关闭预览"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="dialog-heading"><div><span class="eyebrow">PREVIEW</span><h2 id="previewTitle">渲染预览</h2></div><a id="downloadPreview" class="download-link" download="template.png">下载 PNG</a><button id="closePreview" class="icon-button" aria-label="关闭预览"><svg class="icon"><use href="#i-close"/></svg></button></div>
     <div class="preview-content"><img id="previewImage" alt="模板实际渲染效果"></div>
+  </dialog>
+  <dialog id="newTemplateDialog" class="form-dialog" aria-labelledby="newTemplateTitle">
+    <form id="newTemplateForm">
+      <div class="dialog-heading"><div><span class="eyebrow">NEW TEMPLATE</span><h2 id="newTemplateTitle">创建新模板</h2></div><button type="button" data-close="newTemplateDialog" class="icon-button" aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <div class="dialog-body"><label>模板名称<input id="newTemplateName" placeholder="例如：我的服务器状态卡" required maxlength="100" autofocus></label><label>模板 ID<input id="newTemplateId" placeholder="my-server-card" pattern="[a-z0-9][a-z0-9_\-]{0,63}" required maxlength="64" autocomplete="off"></label><p class="help-text">以小写字母或数字开头，可含下划线和短横线，最多 64 个字符。</p><p id="newTemplateError" class="form-error" role="alert"></p></div>
+      <div class="dialog-actions"><button type="button" data-close="newTemplateDialog">取消</button><button type="submit" class="primary">创建模板</button></div>
+    </form>
+  </dialog>
+  <dialog id="shortcutsDialog" class="shortcuts-dialog" aria-labelledby="shortcutsTitle">
+    <div class="dialog-heading"><div><span class="eyebrow">WORK FASTER</span><h2 id="shortcutsTitle">少点几次，多做一点</h2></div><button data-close="shortcutsDialog" class="icon-button" aria-label="关闭快捷键说明"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <dl class="shortcut-list">
+      <div><dt>删除选中图层 / 布局</dt><dd><kbd>Delete</kbd> / <kbd>Backspace</kbd></dd></div>
+      <div><dt>撤销 / 重做</dt><dd><kbd>Ctrl Z</kbd> / <kbd>Ctrl Shift Z</kbd></dd></div>
+      <div><dt>复制选中图层</dt><dd><kbd>Ctrl D</kbd></dd></div>
+      <div><dt>保存草稿</dt><dd><kbd>Ctrl S</kbd></dd></div>
+      <div><dt>微调位置 / 移动 10px</dt><dd><kbd>方向键</kbd> / <kbd>Shift 方向键</kbd></dd></div>
+      <div><dt>加选 / 全选图层</dt><dd><kbd>Shift 点击</kbd> / <kbd>Ctrl A</kbd></dd></div>
+      <div><dt>上移 / 下移图层</dt><dd><kbd>Ctrl ]</kbd> / <kbd>Ctrl [</kbd></dd></div>
+      <div><dt>平移画布</dt><dd><kbd>Space 拖动</kbd> / 中键拖动</dd></div>
+      <div><dt>缩放 / 适应画布</dt><dd><kbd>Ctrl 滚轮</kbd> / <kbd>Ctrl 0</kbd></dd></div>
+      <div><dt>等比缩放 / 临时关闭吸附</dt><dd><kbd>Shift 拖动</kbd> / <kbd>Alt 拖动</kbd></dd></div>
+      <div><dt>取消选择或当前拖动</dt><dd><kbd>Esc</kbd></dd></div>
+    </dl><p class="dialog-note">Mac 使用 ⌘ 代替 Ctrl。输入文字时保留输入框自身的快捷键。</p>
   </dialog>
   <script src="/editor.js"></script>
 </body>
