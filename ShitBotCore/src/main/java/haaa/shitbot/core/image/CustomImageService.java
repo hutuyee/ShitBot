@@ -314,12 +314,18 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
 
             @Override
             public CompletableFuture<Map<String, Object>> provide(ImageDataRequest request) {
+                Map<String, Object> values = new LinkedHashMap<String, Object>();
+                values.put("url-template", settings.getImage().getAvatarUrlTemplate());
+                // Avatar layers bind each player at render time, including inside loops.
+                // Keep the existing single-player provider contract for older templates.
+                if (Boolean.parseBoolean(option(request, "template-only", "false"))) {
+                    return CompletableFuture.completedFuture(values);
+                }
                 String player = bindContext(option(request, "player", ""), request.getContext()).trim();
                 if (player.isEmpty()) {
                     return FutureUtil.failedFuture(new IllegalArgumentException(
                             "Player avatar provider requires a player"));
                 }
-                Map<String, Object> values = new LinkedHashMap<String, Object>();
                 values.put("player", player);
                 values.put("url", avatarUrl(player));
                 return CompletableFuture.completedFuture(values);

@@ -21,6 +21,8 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -234,6 +236,9 @@ final class SceneRenderer {
                             double y,
                             boolean avatar) throws IOException {
         Object source = state.bindings.value(first(node, "source", avatar ? "avatar" : "source"));
+        if (avatar && !node.containsKey("source") && !node.containsKey("avatar")) {
+            source = playerAvatarSource(node, state.bindings);
+        }
         BufferedImage image = images.load(state.snapshot, source);
         if (image == null) return;
         int width = (int) clamp(state.bindings.number(node.get("width"), image.getWidth()),
@@ -241,19 +246,38 @@ final class SceneRenderer {
         int height = (int) clamp(state.bindings.number(node.get("height"), image.getHeight()),
                 1.0D, settings.getMaximumHeight());
         String fit = state.bindings.text(node.get("fit"), "cover").toLowerCase(Locale.ROOT);
-        Shape oldClip = state.graphics.getClip();
+        String shape = state.bindings.text(node.get("shape"), avatar ? "circle" : "square");
         Shape clip;
-        if (avatar || "circle".equalsIgnoreCase(state.bindings.text(node.get("shape"), ""))) {
+        if ("circle".equalsIgnoreCase(shape)) {
             clip = new Ellipse2D.Double(x, y, width, height);
         } else {
             double radius = Math.max(0.0D, state.bindings.number(node.get("radius"), 0.0D));
             clip = radius <= 0.0D ? new java.awt.geom.Rectangle2D.Double(x, y, width, height)
                     : new RoundRectangle2D.Double(x, y, width, height, radius * 2.0D, radius * 2.0D);
         }
-        state.graphics.clip(clip);
-        drawFitted(state.graphics, image, x, y, width, height, fit);
-        state.graphics.setClip(oldClip);
+        Graphics2D imageGraphics = (Graphics2D) state.graphics.create();
+        try {
+            imageGraphics.clip(clip);
+            if (state.bindings.bool(node.get("pixelated"), avatar)) {
+                imageGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                        RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            }
+            drawFitted(imageGraphics, image, x, y, width, height, fit);
+        } finally {
+            imageGraphics.dispose();
+        }
         stroke(node, state, clip);
+    }
+
+    private Object playerAvatarSource(Map<String, Object> node, BindingResolver bindings) throws IOException {
+        String player = bindings.text(node.get("player"), "").trim();
+        if (player.isEmpty()) return null;
+        String template = bindings.text("${data.player-avatar.url-template}", "").trim();
+        if (template.isEmpty()) {
+            throw new IOException("Player avatar layers require the player-avatar provider "
+                    + "with template-only: true in manifest.yml");
+        }
+        return template.replace("%player%", URLEncoder.encode(player, StandardCharsets.UTF_8.name()));
     }
 
     private void paintProgress(Map<String, Object> node, PaintState state, double x, double y) {
