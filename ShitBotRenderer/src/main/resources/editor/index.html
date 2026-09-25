@@ -1,67 +1,118 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ShitBot Image Templates</title>
+  <meta name="theme-color" content="#15171c">
+  <title>ShitBot · 模板编辑器</title>
   <link rel="stylesheet" href="/editor.css">
 </head>
 <body>
-  <header>
-    <strong>ShitBot Image Templates</strong>
-    <span id="templateTitle">No template selected</span>
-    <span id="status" role="status"></span>
-    <button id="save">Save draft</button>
-    <button id="preview">Preview</button>
-    <button id="publish" class="primary">Publish</button>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></symbol>
+    <symbol id="i-data" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8V4Z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M4 3h13l4 4v14H3V3h1Zm3 0v6h9V3M7 21v-8h10v8"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 20V4m-7 7 7-7 7 7"/></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 4v16m-7-7 7 7 7-7"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 3 15 11-8 1-4 7-3-19Z"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6M12 7v5l3 2"/></symbol>
+  </svg>
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-grid"/></svg></span><div><strong>ShitBot</strong><small>模板工作室</small></div></div>
+    <span class="header-divider"></span>
+    <div class="document-heading"><span class="eyebrow">IMAGE TEMPLATE</span><span id="templateTitle">选择一个模板开始创作</span></div>
+    <span class="spacer"></span>
+    <span id="saveState" class="save-state">草稿</span>
+    <div class="header-actions">
+      <button id="save" title="保存草稿 · Ctrl+S"><svg class="icon"><use href="#i-save"/></svg><span>保存草稿</span></button>
+      <button id="preview" title="查看实际渲染效果"><svg class="icon"><use href="#i-play"/></svg><span>预览</span></button>
+      <button id="publish" class="primary"><svg class="icon"><use href="#i-upload"/></svg><span>发布模板</span></button>
+    </div>
   </header>
   <main>
-    <aside class="templates">
-      <div class="aside-title">Templates <button id="newTemplate" title="New template">＋</button></div>
-      <div id="templates"></div>
-      <div class="asset-box">
-        <label>Upload asset<input id="asset" type="file" accept="image/png,image/jpeg,image/gif"></label>
-        <input id="assetName" placeholder="images/example.png">
-        <button id="upload">Upload</button>
-      </div>
+    <aside class="library" aria-label="模板与图层">
+      <section class="templates">
+        <div class="panel-title"><svg class="icon"><use href="#i-grid"/></svg><h2>模板库</h2><span id="templateCount" class="count"></span><button id="newTemplate" class="icon-button" title="新建模板" aria-label="新建模板"><svg class="icon"><use href="#i-plus"/></svg></button></div>
+        <div id="templates"><p class="panel-empty">正在加载模板…</p></div>
+      </section>
+      <section class="layer-panel" aria-label="图层">
+        <div class="panel-title"><svg class="icon"><use href="#i-layers"/></svg><h2>图层</h2><span id="layerCount" class="count"></span><span class="spacer"></span></div>
+        <div class="layer-tools">
+          <span class="muted">排列顺序</span><span class="spacer"></span>
+          <button id="layerUp" class="icon-button" title="上移图层" aria-label="上移图层"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
+          <button id="layerDown" class="icon-button" title="下移图层" aria-label="下移图层"><svg class="icon"><use href="#i-arrow-down"/></svg></button>
+          <button id="deleteLayer" class="icon-button danger" title="删除选中图层 · Delete" aria-label="删除选中图层"><svg class="icon"><use href="#i-trash"/></svg></button>
+        </div>
+        <div id="layers"><p class="panel-empty">图层会显示在这里</p></div>
+        <p class="layer-hint">点击画布或列表选择图层</p>
+      </section>
+      <details class="asset-box">
+        <summary><svg class="icon"><use href="#i-image"/></svg>图片资源<span class="muted">PNG / JPG / GIF</span></summary>
+        <div class="asset-content">
+          <label class="file-picker">选择图片<input id="asset" type="file" accept="image/png,image/jpeg,image/gif"></label>
+          <label>资源路径<input id="assetName" placeholder="images/example.png" autocomplete="off"></label>
+          <button id="upload"><svg class="icon"><use href="#i-upload"/></svg>上传到当前模板</button>
+          <p class="help-text">图层图片地址填写 assets/资源路径。</p>
+        </div>
+      </details>
     </aside>
-    <section class="workspace">
-      <nav>
-        <button data-tab="visual" class="active">Visual</button>
-        <button data-tab="source">YAML</button>
-        <button data-tab="data">Preview data</button>
+    <section class="workspace" aria-label="编辑区">
+      <nav class="workspace-nav" aria-label="编辑模式">
+        <div class="tab-switcher" role="tablist" aria-label="编辑模式">
+          <button id="tabVisual" data-tab="visual" class="active" role="tab" aria-controls="visual" aria-selected="true"><svg class="icon"><use href="#i-cursor"/></svg>设计</button>
+          <button id="tabSource" data-tab="source" role="tab" aria-controls="source" aria-selected="false"><svg class="icon"><use href="#i-code"/></svg>YAML</button>
+          <button id="tabData" data-tab="data" role="tab" aria-controls="data" aria-selected="false"><svg class="icon"><use href="#i-data"/></svg>预览数据</button>
+        </div>
         <span class="spacer"></span>
-        <select id="newLayerType"></select><button id="addLayer">Add layer</button>
+        <div class="insert-controls"><select id="newLayerType" aria-label="新图层类型"></select><button id="addLayer" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg>添加图层</button></div>
       </nav>
-      <div id="visual" class="tab active">
-        <div class="stage-wrap"><div id="stage"></div></div>
-        <div class="layer-panel">
-          <div class="panel-title">Layers <button id="layerUp">↑</button><button id="layerDown">↓</button><button id="deleteLayer">Delete</button></div>
-          <div id="layers"></div>
-        </div>
-        <div class="properties">
-          <div class="panel-title">Properties</div>
+      <div id="visual" class="tab active" role="tabpanel" aria-labelledby="tabVisual">
+        <section class="canvas-area" aria-label="设计画布">
+          <div class="canvas-toolbar"><span class="canvas-mode"><span class="live-dot"></span>布局视图</span><span id="canvasSize" class="canvas-size"></span><span class="spacer"></span><span class="canvas-note">动态数据与图片效果请查看预览</span></div>
+          <div class="stage-wrap" tabindex="0" aria-label="画布，点击选择图层后可使用快捷键">
+            <div class="stage-space"><div id="stageFrame"><div id="stage"></div></div></div>
+          </div>
+          <div class="canvas-bottom"><span id="selectionInfo">选择图层开始编辑</span><span class="spacer"></span><span class="muted">拖动调整位置 · 右下角调整大小</span></div>
+        </section>
+        <aside class="properties" aria-label="设计属性">
+          <div class="inspector-heading"><span class="eyebrow">DESIGN</span><h2 id="inspectorTitle">设计属性</h2><p id="inspectorSubtitle">选择图层，调整每一个细节。</p></div>
           <div id="fields"></div>
-          <label>Complete layer JSON<textarea id="layerJson" spellcheck="false"></textarea></label>
-          <button id="applyLayerJson">Apply JSON</button>
-        </div>
+          <details id="advancedProperties" class="advanced-properties">
+            <summary>高级属性 <span class="code-badge">JSON</span></summary>
+            <label>完整图层 JSON<textarea id="layerJson" spellcheck="false" aria-label="完整图层 JSON"></textarea></label>
+            <button id="applyLayerJson">应用 JSON</button>
+          </details>
+        </aside>
       </div>
-      <div id="source" class="tab source-grid">
-        <label>manifest.yml<textarea id="manifestSource" spellcheck="false"></textarea></label>
-        <label>scene.yml<textarea id="sceneSource" spellcheck="false"></textarea></label>
+      <div id="source" class="tab source-grid" role="tabpanel" aria-labelledby="tabSource">
+        <label class="editor-card"><span class="editor-card-heading"><svg class="icon"><use href="#i-code"/></svg><b>manifest.yml</b><span>模板配置</span></span><textarea id="manifestSource" spellcheck="false" aria-label="manifest.yml 源码" placeholder="选择模板后编辑配置…"></textarea></label>
+        <label class="editor-card"><span class="editor-card-heading"><svg class="icon"><use href="#i-layers"/></svg><b>scene.yml</b><span>画布与图层</span></span><textarea id="sceneSource" spellcheck="false" aria-label="scene.yml 源码" placeholder="选择模板后编辑图层…"></textarea></label>
       </div>
-      <div id="data" class="tab data-grid">
-        <label>context (JSON)<textarea id="contextData" spellcheck="false">{"title":"Server status","server-name":"Minecraft Server"}</textarea></label>
-        <label>data overrides (JSON)<textarea id="overrideData" spellcheck="false">{}</textarea></label>
-        <div><button id="resolveData">Resolve declared providers</button><pre id="resolvedData"></pre></div>
+      <div id="data" class="tab data-grid" role="tabpanel" aria-labelledby="tabData">
+        <div class="data-intro"><span class="eyebrow">PREVIEW DATA</span><h2>让模板带上真实内容</h2><p>填写预览上下文与数据覆盖值，或解析模板声明的数据提供器。</p></div>
+        <label class="editor-card"><span class="editor-card-heading"><b>context</b><span>上下文 · JSON</span></span><textarea id="contextData" spellcheck="false" aria-label="预览上下文 JSON">{"title":"服务器状态","server-name":"Minecraft Server"}</textarea></label>
+        <label class="editor-card"><span class="editor-card-heading"><b>data</b><span>数据覆盖 · JSON</span></span><textarea id="overrideData" spellcheck="false" aria-label="数据覆盖 JSON">{}</textarea></label>
+        <div class="editor-card resolved-card"><div class="editor-card-heading"><b>解析结果</b><button id="resolveData">解析数据提供器</button></div><pre id="resolvedData">解析后的数据将显示在这里。</pre></div>
       </div>
-      <footer>
-        <label>Published history <select id="versions"></select></label>
-        <button id="rollback">Roll back to selected version</button>
+      <footer class="workspace-footer">
+        <span id="status" role="status" aria-live="polite">准备就绪</span><span class="spacer"></span>
+        <div class="version-controls"><svg class="icon"><use href="#i-history"/></svg><label class="sr-only" for="versions">已发布版本</label><select id="versions" aria-label="已发布版本"></select><button id="rollback" class="text-button">回滚版本</button></div>
       </footer>
     </section>
-    <dialog id="previewDialog"><button id="closePreview">Close</button><img id="previewImage" alt="Rendered template preview"></dialog>
   </main>
+  <dialog id="previewDialog" class="preview-dialog" aria-labelledby="previewTitle">
+    <div class="dialog-heading"><div><span class="eyebrow">PREVIEW</span><h2 id="previewTitle">渲染预览</h2></div><button id="closePreview" class="icon-button" aria-label="关闭预览"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="preview-content"><img id="previewImage" alt="模板实际渲染效果"></div>
+  </dialog>
   <script src="/editor.js"></script>
 </body>
 </html>
