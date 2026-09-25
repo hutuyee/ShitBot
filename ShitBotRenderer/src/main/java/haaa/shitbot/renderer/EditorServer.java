@@ -14,7 +14,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpCookie;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -34,7 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 final class EditorServer implements AutoCloseable {
-    private static final String COOKIE_NAME = "ShitBotEditor";
+    private static final String COOKIE_PREFIX = "ShitBotEditor_";
     private static final long SESSION_MILLIS = TimeUnit.MINUTES.toMillis(30L);
     private static final int MAX_LOGIN_TOKENS = 32;
     private static final int MAX_SOURCE_BODY = 2 * 1024 * 1024;
@@ -51,6 +50,7 @@ final class EditorServer implements AutoCloseable {
     private final YamlDocuments yaml = new YamlDocuments();
     private volatile HttpServer server;
     private volatile InetAddress boundAddress;
+    private String cookieName;
 
     EditorServer(ImageTemplateEngineSettings settings,
                  ImageTemplateEngineHost host,
@@ -69,6 +69,8 @@ final class EditorServer implements AutoCloseable {
         }
         HttpServer created = HttpServer.create(
                 new InetSocketAddress(address, settings.getEditorPort()), 16);
+        // Cookies are shared across ports on the same host. Keep each editor's session separate.
+        cookieName = COOKIE_PREFIX + created.getAddress().getPort();
         created.createContext("/login", new LoginHandler());
         created.createContext("/api/", new ApiHandler());
         created.createContext("/", new StaticHandler());
@@ -105,17 +107,19 @@ final class EditorServer implements AutoCloseable {
             String supplied = query(exchange.getRequestURI()).get("token");
             Long expires = supplied == null ? null : loginTokens.remove(supplied);
             if (expires == null || expires.longValue() < System.currentTimeMillis()) {
-                sendError(exchange, 403, "This editor login link is invalid, expired, or already used.");
+                if (authorized(exchange)) {
+                    redirectToEditor(exchange);
+                } else {
+                    sendLoginRequired(exchange, 403);
+                }
                 return;
             }
             String session = token();
             sessions.put(session, Long.valueOf(System.currentTimeMillis() + SESSION_MILLIS));
             secureHeaders(exchange.getResponseHeaders());
-            exchange.getResponseHeaders().add("Set-Cookie", COOKIE_NAME + '=' + session
-                    + "; Path=/; HttpOnly; SameSite=Strict");
-            exchange.getResponseHeaders().set("Location", "/");
-            exchange.sendResponseHeaders(303, -1L);
-            exchange.close();
+            exchange.getResponseHeaders().add("Set-Cookie", cookieName + '=' + session
+                    + "; Path=/; HttpOnly; SameSite=Lax");
+            redirectToEditor(exchange);
         }
     }
 
@@ -126,11 +130,15 @@ final class EditorServer implements AutoCloseable {
                 sendError(exchange, 405, "Method not allowed");
                 return;
             }
-            if (!authorized(exchange)) {
-                sendError(exchange, 401, "Open a fresh editor link from /shitbot editor.");
+            String path = exchange.getRequestURI().getPath();
+            if ("/session.css".equals(path)) {
+                sendResource(exchange, "/editor/session.css", "text/css; charset=utf-8");
                 return;
             }
-            String path = exchange.getRequestURI().getPath();
+            if (!authorized(exchange)) {
+                sendLoginRequired(exchange, 401);
+                return;
+            }
             if ("/".equals(path)) sendResource(exchange, "/editor/index.html", "text/html; charset=utf-8");
             else if ("/editor.css".equals(path)) sendResource(exchange, "/editor/editor.css", "text/css; charset=utf-8");
             else if ("/editor.js".equals(path)) sendResource(exchange, "/editor/editor.js", "application/javascript; charset=utf-8");
@@ -142,7 +150,7 @@ final class EditorServer implements AutoCloseable {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             if (!authorized(exchange)) {
-                sendError(exchange, 401, "Editor session expired");
+                sendError(exchange, 401, "Editor session expired. Open a new /shitbot editor link in this browser, then retry; your unsaved draft can stay open.");
                 return;
             }
             if (!sameOrigin(exchange)) {
@@ -279,20 +287,36 @@ final class EditorServer implements AutoCloseable {
 
     private boolean authorized(HttpExchange exchange) {
         cleanupAuth();
-        String cookie = exchange.getRequestHeaders().getFirst("Cookie");
-        if (cookie == null) return false;
-        try {
-            for (HttpCookie value : HttpCookie.parse(cookie)) {
-                if (!COOKIE_NAME.equals(value.getName())) continue;
-                Long expires = sessions.get(value.getValue());
-                if (expires == null || expires.longValue() < System.currentTimeMillis()) return false;
-                sessions.put(value.getValue(), Long.valueOf(System.currentTimeMillis() + SESSION_MILLIS));
+        List<String> headers = exchange.getRequestHeaders().get("Cookie");
+        if (headers == null) return false;
+        long now = System.currentTimeMillis();
+        for (String header : headers) {
+            // A request Cookie header contains semicolon-separated pairs, not Set-Cookie attributes.
+            for (String pair : header.split(";")) {
+                int separator = pair.indexOf('=');
+                if (separator < 0 || !cookieName.equals(pair.substring(0, separator).trim())) continue;
+                String value = pair.substring(separator + 1).trim();
+                if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                Long expires = sessions.get(value);
+                if (expires == null || expires.longValue() <= now) continue;
+                sessions.replace(value, Long.valueOf(now + SESSION_MILLIS));
                 return true;
             }
-        } catch (IllegalArgumentException ignored) {
-            return false;
         }
         return false;
+    }
+
+    private void redirectToEditor(HttpExchange exchange) throws IOException {
+        secureHeaders(exchange.getResponseHeaders());
+        exchange.getResponseHeaders().set("Location", "/");
+        exchange.sendResponseHeaders(303, -1L);
+        exchange.close();
+    }
+
+    private void sendLoginRequired(HttpExchange exchange, int status) throws IOException {
+        sendResource(exchange, status, "/editor/session-expired.html", "text/html; charset=utf-8");
     }
 
     private boolean sameOrigin(HttpExchange exchange) {
@@ -369,6 +393,10 @@ final class EditorServer implements AutoCloseable {
     }
 
     private void sendResource(HttpExchange exchange, String resource, String contentType) throws IOException {
+        sendResource(exchange, 200, resource, contentType);
+    }
+
+    private void sendResource(HttpExchange exchange, int status, String resource, String contentType) throws IOException {
         byte[] bytes;
         try (InputStream input = EditorServer.class.getResourceAsStream(resource)) {
             if (input == null) {
@@ -384,7 +412,7 @@ final class EditorServer implements AutoCloseable {
             }
             bytes = output.toByteArray();
         }
-        sendBytes(exchange, 200, bytes, contentType);
+        sendBytes(exchange, status, bytes, contentType);
     }
 
     private void sendJson(HttpExchange exchange, int status, Object value) throws IOException {
