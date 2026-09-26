@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/** Downloads and verifies the optional renderer only after custom templates are enabled. */
+/** Loads the optional renderer locally in debug mode or from a verified release. */
 final class RendererComponentLoader {
     private static final String PUBLIC_KEY_RESOURCE =
             "/haaa/shitbot/core/update/update-public-key.pem";
@@ -64,16 +64,15 @@ final class RendererComponentLoader {
                         ImageTemplateEngineHost host) throws IOException {
         String version = componentVersion();
         String fileName = "ShitBotRenderer-" + version + ".jar";
-        Path localJar = debugRenderer(fileName);
-        if (localJar != null) {
-            validateLocalJar(localJar, version);
-            debug("Using local renderer JAR without checksum or signature verification: " + localJar);
-            return loadJar(localJar, engineSettings, host);
-        }
         Path directory = platform.getDataDirectory().resolve("components")
                 .resolve("image-renderer").resolve(version).toAbsolutePath().normalize();
-        Files.createDirectories(directory);
         Path jar = directory.resolve(fileName);
+        if (debug) {
+            validateLocalJar(jar, version);
+            debug("Using local renderer JAR without checksum or signature verification: " + jar);
+            return loadJar(jar, engineSettings, host);
+        }
+        Files.createDirectories(directory);
         Path checksum = directory.resolve(fileName + ".sha256");
         Path signature = directory.resolve(fileName + ".sig");
         if (!isVerified(jar, checksum, signature, fileName, version)) {
@@ -118,28 +117,11 @@ final class RendererComponentLoader {
         }
     }
 
-    private Path debugRenderer(String fileName) {
-        if (!debug) {
-            return null;
-        }
-        Path dataDirectory = platform.getDataDirectory().toAbsolutePath().normalize();
-        Path[] directories = dataDirectory.getParent() == null
-                ? new Path[] { dataDirectory }
-                : new Path[] { dataDirectory, dataDirectory.getParent() };
-        for (Path directory : directories) {
-            Path versioned = directory.resolve(fileName).normalize();
-            if (Files.isRegularFile(versioned)) {
-                return versioned;
-            }
-            Path generic = directory.resolve("ShitBotRenderer.jar").normalize();
-            if (Files.isRegularFile(generic)) {
-                return generic;
-            }
-        }
-        return null;
-    }
-
     private void validateLocalJar(Path jar, String version) throws IOException {
+        if (!Files.isRegularFile(jar)) {
+            throw new IOException("Debug mode requires a local renderer JAR at " + jar
+                    + "; automatic downloads are disabled");
+        }
         if (Files.size(jar) <= 0L || Files.size(jar) > settings.getMaximumDownloadBytes()) {
             throw new IOException("Local renderer component has an invalid size");
         }
