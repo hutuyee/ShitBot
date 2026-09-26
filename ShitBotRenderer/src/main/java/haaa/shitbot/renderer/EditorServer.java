@@ -142,6 +142,10 @@ final class EditorServer implements AutoCloseable {
             if ("/".equals(path)) sendResource(exchange, "/editor/index.html", "text/html; charset=utf-8");
             else if ("/editor.css".equals(path)) sendResource(exchange, "/editor/editor.css", "text/css; charset=utf-8");
             else if ("/editor.js".equals(path)) sendResource(exchange, "/editor/editor.js", "application/javascript; charset=utf-8");
+            else if ("/theme.js".equals(path)) sendResource(exchange, "/editor/theme.js", "application/javascript; charset=utf-8");
+            else if ("/editor-icon.png".equals(path)) {
+                sendResource(exchange, 200, "/editor/editor-icon.png", "image/png", 2 * 1024 * 1024);
+            }
             else sendError(exchange, 404, "Not found");
         }
     }
@@ -402,6 +406,11 @@ final class EditorServer implements AutoCloseable {
     }
 
     private void sendResource(HttpExchange exchange, int status, String resource, String contentType) throws IOException {
+        sendResource(exchange, status, resource, contentType, 512 * 1024);
+    }
+
+    private void sendResource(HttpExchange exchange, int status, String resource, String contentType,
+                              int maximumBytes) throws IOException {
         byte[] bytes;
         try (InputStream input = EditorServer.class.getResourceAsStream(resource)) {
             if (input == null) {
@@ -413,7 +422,7 @@ final class EditorServer implements AutoCloseable {
             int read;
             while ((read = input.read(buffer)) >= 0) {
                 if (read > 0) output.write(buffer, 0, read);
-                if (output.size() > 512 * 1024) throw new IOException("Editor resource is too large");
+                if (output.size() > maximumBytes) throw new IOException("Editor resource is too large");
             }
             bytes = output.toByteArray();
         }
