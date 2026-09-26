@@ -2,16 +2,8 @@ schema-version: scene-v1
 canvas:
   width: 1200
   height: 960
-  gradient-start: "#FAF5F8"
-  gradient-end: "#EEEAF6"
+  background: "#F3F4F6"
 layers:
-  - type: circle
-    name: 右上装饰
-    x: 920
-    y: -120
-    width: 400
-    height: 400
-    fill: "#70E9CADA"
   - type: rectangle
     name: 主卡片
     x: 24
@@ -19,8 +11,8 @@ layers:
     width: 1152
     height: 912
     radius: 28
-    fill: "#DCFFFCFE"
-    stroke-color: "#E7DDE6"
+    fill: "#FFFFFF"
+    stroke-color: "#D8DEE5"
     stroke-width: 1
   - type: text
     name: 顶部标识
@@ -31,7 +23,7 @@ layers:
     font-size: 12
     font-style: bold
     maximum-lines: 1
-    color: "#A46180"
+    color: "#59636E"
   - type: text
     name: 图片标题
     x: 52
@@ -42,7 +34,7 @@ layers:
     font-style: bold
     font-size: 40
     maximum-lines: 1
-    color: "#392E3D"
+    color: "#20262E"
   - type: text
     name: 服务器名称
     x: 54
@@ -51,7 +43,7 @@ layers:
     text: "${context.server-name}"
     font-size: 17
     maximum-lines: 1
-    color: "#8A7789"
+    color: "#59636E"
   - type: rectangle
     name: 在线人数卡片
     x: 938
@@ -59,8 +51,8 @@ layers:
     width: 210
     height: 112
     radius: 20
-    fill: "#F5E5EE"
-    stroke-color: "#E8C9DA"
+    fill: "#EDF2F6"
+    stroke-color: "#D5DFE7"
     stroke-width: 1
   - type: text
     name: 总在线人数
@@ -72,7 +64,7 @@ layers:
     font-style: bold
     font-size: 46
     maximum-lines: 1
-    color: "#A04E72"
+    color: "#355874"
   - type: text
     name: 在线人数说明
     x: 958
@@ -82,14 +74,14 @@ layers:
     align: center
     font-size: 13
     maximum-lines: 1
-    color: "#A36582"
+    color: "#355874"
   - type: line
     name: 标题分隔线
     x: 52
     y: 178
     width: 1096
     height: 0
-    color: "#EADFE7"
+    color: "#E0E4E8"
     stroke-width: 1
   - type: text
     name: 名单标题
@@ -100,7 +92,7 @@ layers:
     font-size: 15
     font-style: bold
     maximum-lines: 1
-    color: "#655268"
+    color: "#20262E"
   - type: condition
     name: 名单展示范围
     condition: "${data.online-players.group-by-server}"
@@ -117,7 +109,7 @@ layers:
             align: right
             font-size: 11
             maximum-lines: 1
-            color: "#9B8295"
+            color: "#59636E"
         else:
           - type: text
             x: 744
@@ -127,7 +119,7 @@ layers:
             align: right
             font-size: 11
             maximum-lines: 1
-            color: "#9B8295"
+            color: "#59636E"
     else:
       - type: condition
         name: 单服玩家展示范围
@@ -141,7 +133,7 @@ layers:
             align: right
             font-size: 11
             maximum-lines: 1
-            color: "#9B8295"
+            color: "#59636E"
         else:
           - type: text
             x: 744
@@ -151,7 +143,7 @@ layers:
             align: right
             font-size: 11
             maximum-lines: 1
-            color: "#9B8295"
+            color: "#59636E"
   # Proxies group players by backend ID; standalone servers show player cards directly.
   # Both layouts stay within the default 256-layer budget.
   - type: condition
@@ -188,8 +180,8 @@ layers:
                         width: 538
                         height: 316
                         radius: 18
-                        fill: "#FFFEFF"
-                        stroke-color: "#E8DFE8"
+                        fill: "#FFFFFF"
+                        stroke-color: "#D8DEE5"
                         stroke-width: 1
                       - type: condition
                         name: 服务器人数指示
@@ -200,14 +192,14 @@ layers:
                             y: 26
                             width: 8
                             height: 8
-                            fill: "#78A892"
+                            fill: "#327A55"
                         else:
                           - type: circle
                             x: 18
                             y: 26
                             width: 8
                             height: 8
-                            fill: "#C0B1BF"
+                            fill: "#6B7280"
                       - type: text
                         name: 代理服务器 ID
                         x: 35
@@ -217,7 +209,7 @@ layers:
                         font-style: bold
                         font-size: 18
                         maximum-lines: 1
-                        color: "#514054"
+                        color: "#20262E"
                       - type: rectangle
                         name: 子服人数标签
                         x: 382
@@ -225,7 +217,7 @@ layers:
                         width: 138
                         height: 27
                         radius: 13
-                        fill: "#F8EDF3"
+                        fill: "#F0F2F4"
                       - type: condition
                         name: 子服人数与省略提示
                         condition: "${server.players.8}"
@@ -238,7 +230,7 @@ layers:
                             align: center
                             font-size: 11
                             maximum-lines: 1
-                            color: "#A16C89"
+                            color: "#59636E"
                         else:
                           - type: text
                             x: 389
@@ -248,14 +240,14 @@ layers:
                             align: center
                             font-size: 11
                             maximum-lines: 1
-                            color: "#A16C89"
+                            color: "#59636E"
                       - type: line
                         name: 子服分隔线
                         x: 18
                         y: 54
                         width: 502
                         height: 0
-                        color: "#F0E8EF"
+                        color: "#E6E9ED"
                         stroke-width: 1
                       - type: condition
                         name: 子服玩家与空状态
@@ -287,8 +279,8 @@ layers:
                                         width: 244
                                         height: 52
                                         radius: 10
-                                        fill: "#F7F3F8"
-                                        stroke-color: "#EEE5EF"
+                                        fill: "#F6F7F8"
+                                        stroke-color: "#E6E9ED"
                                         stroke-width: 1
                                       - type: rectangle
                                         name: 头像底色
@@ -297,7 +289,7 @@ layers:
                                         width: 36
                                         height: 36
                                         radius: 7
-                                        fill: "#E7DBEB"
+                                        fill: "#E3E7EB"
                                       - type: avatar
                                         name: 玩家皮肤头像
                                         x: 8
@@ -310,7 +302,7 @@ layers:
                                         radius: 7
                                         fit: cover
                                         pixelated: true
-                                        stroke-color: "#DBCADD"
+                                        stroke-color: "#C7CED6"
                                         stroke-width: 1
                                       - type: text
                                         name: 玩家名称
@@ -321,7 +313,7 @@ layers:
                                         font-size: 14
                                         line-height: 18
                                         maximum-lines: 2
-                                        color: "#65516A"
+                                        color: "#20262E"
                         else:
                           - type: text
                             x: 28
@@ -331,7 +323,7 @@ layers:
                             align: center
                             font-size: 17
                             maximum-lines: 1
-                            color: "#A38DA3"
+                            color: "#59636E"
                           - type: text
                             x: 28
                             y: 171
@@ -340,7 +332,7 @@ layers:
                             align: center
                             font-size: 12
                             maximum-lines: 1
-                            color: "#B29FB0"
+                            color: "#59636E"
         else:
           - type: grid
             name: 单服玩家网格
@@ -368,8 +360,8 @@ layers:
                         width: 256
                         height: 52
                         radius: 10
-                        fill: "#F7F3F8"
-                        stroke-color: "#EEE5EF"
+                        fill: "#F6F7F8"
+                        stroke-color: "#E6E9ED"
                         stroke-width: 1
                       - type: rectangle
                         name: 头像底色
@@ -378,7 +370,7 @@ layers:
                         width: 36
                         height: 36
                         radius: 7
-                        fill: "#E7DBEB"
+                        fill: "#E3E7EB"
                       - type: avatar
                         name: 玩家皮肤头像
                         x: 8
@@ -390,7 +382,7 @@ layers:
                         radius: 7
                         fit: cover
                         pixelated: true
-                        stroke-color: "#DBCADD"
+                        stroke-color: "#C7CED6"
                         stroke-width: 1
                       - type: text
                         name: 玩家名称
@@ -401,7 +393,7 @@ layers:
                         font-size: 14
                         line-height: 18
                         maximum-lines: 2
-                        color: "#65516A"
+                        color: "#20262E"
     else:
       - type: rectangle
         name: 无人在线底板
@@ -410,8 +402,8 @@ layers:
         width: 1096
         height: 652
         radius: 18
-        fill: "#FFFCFE"
-        stroke-color: "#E8DFE8"
+        fill: "#FFFFFF"
+        stroke-color: "#D8DEE5"
         stroke-width: 1
       - type: circle
         name: 空状态圆形底色
@@ -419,7 +411,7 @@ layers:
         y: 375
         width: 144
         height: 144
-        fill: "#F5E8F0"
+        fill: "#F0F2F4"
       - type: rectangle
         name: 空状态像素头像
         x: 579
@@ -427,7 +419,7 @@ layers:
         width: 42
         height: 42
         radius: 8
-        fill: "#CFACCA"
+        fill: "#78828E"
       - type: rectangle
         name: 空状态像素肩部
         x: 562
@@ -435,7 +427,7 @@ layers:
         width: 76
         height: 25
         radius: 9
-        fill: "#CFACCA"
+        fill: "#78828E"
       - type: text
         name: 无人在线标题
         x: 152
@@ -446,7 +438,7 @@ layers:
         font-style: bold
         font-size: 28
         maximum-lines: 1
-        color: "#735777"
+        color: "#20262E"
       - type: text
         name: 无人在线说明
         x: 152
@@ -456,14 +448,14 @@ layers:
         align: center
         font-size: 16
         maximum-lines: 1
-        color: "#A08AA0"
+        color: "#59636E"
   - type: line
     name: 页脚分隔线
     x: 52
     y: 898
     width: 1096
     height: 0
-    color: "#EADFE7"
+    color: "#E0E4E8"
     stroke-width: 1
   - type: text
     name: 页脚标识
@@ -473,7 +465,7 @@ layers:
     text: "ShitBot"
     font-size: 11
     maximum-lines: 1
-    color: "#AB91A5"
+    color: "#59636E"
   - type: text
     name: 数据生成时间
     x: 548
@@ -483,4 +475,4 @@ layers:
     align: right
     font-size: 11
     maximum-lines: 1
-    color: "#AB91A5"
+    color: "#59636E"
