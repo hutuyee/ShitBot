@@ -4,6 +4,8 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => Array.from(document.querySelectorAll(selector));
 const clone = value => JSON.parse(JSON.stringify(value));
 const query = encodeURIComponent;
+const SESSION_KEEPALIVE_MILLIS = 5 * 60 * 1000;
+let sessionKeepAlivePending = false;
 const state = {
   id: null, bundle: null, sources: null, templates: [], selection: [], tab: "visual",
   saved: null, sourceDirty: false, jsonDirty: false, history: [], future: [],
@@ -66,10 +68,25 @@ async function api(path, options = {}) {
   if (!response.ok) {
     let message = response.statusText;
     try { message = (await response.json()).error || message; } catch (_) { /* Non-JSON error response. */ }
-    if (response.status === 401) message = "登录已过期。请在新标签页打开新的 /shitbot editor 链接，再回到此页面保存；当前修改仍保留。";
+    if (response.status === 401) message = "编辑器会话已失效。请在新标签页打开新的 /shitbot editor 链接，再回到此页面保存；当前修改仍保留。";
     throw new Error(message || "请求失败，请稍后重试");
   }
   return response;
+}
+
+async function keepSessionAlive() {
+  if (sessionKeepAlivePending) return;
+  sessionKeepAlivePending = true;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    await api("session", { method: "POST", signal: controller.signal });
+  } catch (_) {
+    // Retry later without interrupting edits or replacing the current operation's status.
+  } finally {
+    window.clearTimeout(timeout);
+    sessionKeepAlivePending = false;
+  }
 }
 
 function jsonRequest(method, value) {
@@ -1203,6 +1220,12 @@ window.addEventListener("blur", () => {
 window.addEventListener("beforeunload", event => {
   if (hasChanges()) { event.preventDefault(); event.returnValue = ""; }
 });
+window.addEventListener("pageshow", keepSessionAlive);
+window.addEventListener("focus", keepSessionAlive);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) keepSessionAlive();
+});
+window.setInterval(keepSessionAlive, SESSION_KEEPALIVE_MILLIS);
 
 $(".stage-wrap").addEventListener("pointerdown", startGesture);
 $(".stage-wrap").addEventListener("pointermove", moveGesture);

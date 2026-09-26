@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 final class EditorServer implements AutoCloseable {
     private static final String COOKIE_PREFIX = "ShitBotEditor_";
-    private static final long SESSION_MILLIS = TimeUnit.MINUTES.toMillis(30L);
+    private static final long SESSION_IDLE_MILLIS = TimeUnit.HOURS.toMillis(24L);
     private static final int MAX_LOGIN_TOKENS = 32;
     private static final int MAX_SOURCE_BODY = 2 * 1024 * 1024;
 
@@ -115,7 +115,7 @@ final class EditorServer implements AutoCloseable {
                 return;
             }
             String session = token();
-            sessions.put(session, Long.valueOf(System.currentTimeMillis() + SESSION_MILLIS));
+            sessions.put(session, Long.valueOf(System.currentTimeMillis() + SESSION_IDLE_MILLIS));
             secureHeaders(exchange.getResponseHeaders());
             exchange.getResponseHeaders().add("Set-Cookie", cookieName + '=' + session
                     + "; Path=/; HttpOnly; SameSite=Lax");
@@ -178,6 +178,11 @@ final class EditorServer implements AutoCloseable {
                        String method,
                        String route,
                        Map<String, String> query) throws Exception {
+        if ("POST".equals(method) && "session".equals(route)) {
+            // Authorization has already renewed this browser's existing session.
+            sendJson(exchange, 200, Collections.singletonMap("status", "active"));
+            return;
+        }
         if ("GET".equals(method) && "templates".equals(route)) {
             List<Map<String, Object>> values = new ArrayList<Map<String, Object>>();
             Map<String, ImageTemplateInfo> published = new LinkedHashMap<String, ImageTemplateInfo>();
@@ -301,7 +306,7 @@ final class EditorServer implements AutoCloseable {
                 }
                 Long expires = sessions.get(value);
                 if (expires == null || expires.longValue() <= now) continue;
-                sessions.replace(value, Long.valueOf(now + SESSION_MILLIS));
+                sessions.replace(value, Long.valueOf(now + SESSION_IDLE_MILLIS));
                 return true;
             }
         }
