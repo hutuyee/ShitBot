@@ -148,7 +148,7 @@ public final class SettingsFactory {
                 source.getInt("custom-image-templates.limits.render-timeout-ms", 5000),
                 source.getInt("custom-image-templates.render.threads", 2),
                 source.getInt("custom-image-templates.render.maximum-queued", 16),
-                source.getBoolean("custom-image-templates.remote-images.enabled", false),
+                source.getBoolean("custom-image-templates.remote-images.enabled", true),
                 source.getInt("custom-image-templates.data.maximum-queries", 32),
                 source.getInt("custom-image-templates.data.timeout-ms", 3000),
                 source.getInt("custom-image-templates.data.cache-seconds", 10),

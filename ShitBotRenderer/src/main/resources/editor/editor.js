@@ -715,7 +715,7 @@ function renderAvatarProperties(node) {
   $("#fields").append(element("p", "inspector-note", hasSource
     ? "可填写本地图片、HTTPS 头像地址或 ${player.avatar} 等图片变量。真实效果请查看预览。"
     : "填写玩家名即可放置对应头像，同一模板可放置多名玩家。当前玩家来自预览数据或调用方的 context.player；没有玩家值时不绘制。"));
-  $("#fields").append(element("p", "inspector-note", "网络头像需要在 config.yml 开启 custom-image-templates.remote-images.enabled，然后重载。玩家头像服务沿用 image.avatar.url-template。"));
+  $("#fields").append(element("p", "inspector-note", "网络头像默认可用，服务地址沿用 image.avatar.url-template。若旧配置中 custom-image-templates.remote-images.enabled 为 false，请改为 true 后重载。"));
 }
 
 function addAlignmentControls() {

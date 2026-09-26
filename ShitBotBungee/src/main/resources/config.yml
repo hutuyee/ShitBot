@@ -205,8 +205,8 @@ custom-image-templates:
     threads: 2
     maximum-queued: 16
   remote-images:
-    # 默认只读各模板 assets/；开启后 HTTPS 图片仍会经过地址、大小和像素限制。
-    enabled: false
+    # 默认允许 HTTPS 玩家头像和图片，仍会经过地址、大小和像素限制；不需要时可关闭。
+    enabled: true
   data:
     maximum-queries: 32
     timeout-ms: 3000
