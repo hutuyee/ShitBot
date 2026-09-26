@@ -7,7 +7,7 @@ ShitBot 提供两条互不混装的图片路径。默认模式面向普通服务
 | 模式 | 配置 | 运行内容 | 网络下载 | 适用场景 |
 | --- | --- | --- | --- | --- |
 | 内置 Java 图片 | `image.renderer: "java"` | 平台插件内已有的 Java2D 在线图；外观来自 `templates/*.yml` | 不下载高级渲染组件 | 希望占用低、配置简单的服务器 |
-| 高级场景模板 | `custom-image-templates.enabled: true` | 独立的 `ShitBotRenderer` 组件、`image-templates/` 场景、数据提供器和可选编辑器 | 首次启用且本地无有效缓存时下载 | 需要自由图层、条件/循环、PAPI 或第三方插件调用的服务器 |
+| 高级场景模板 | `custom-image-templates.enabled: true` | 独立的 `ShitBotRenderer` 组件、`image-templates/` 场景、数据提供器和可选编辑器 | 正常模式下本地无有效缓存时下载；debug 模式只加载本地 JAR | 需要自由图层、条件/循环、PAPI 或第三方插件调用的服务器 |
 
 当前高级渲染器仍然使用 Java2D，不包含 Chromium、Node.js、React 运行时，也不会执行模板上传的 HTML、JavaScript 或服务器命令。平台插件 JAR 与可选渲染器 JAR 分开发布，模板图片和资源只放在插件数据目录。
 
@@ -58,8 +58,8 @@ custom-image-templates:
 高级模板总开关关闭时，下载逻辑不会运行。开启后，插件按以下顺序加载：
 
 1. 读取 `custom-image-templates.component.version`；留空时使用当前平台插件版本；
-2. `debug: true` 且插件数据目录或其上级 `plugins/` 目录存在 `ShitBotRenderer-<版本>.jar` 或 `ShitBotRenderer.jar` 时，直接加载该本地 JAR；
-3. 否则检查 `components/image-renderer/<版本>/` 下的缓存；
+2. `debug: true` 时，只加载插件数据目录下的 `components/image-renderer/<版本>/ShitBotRenderer-<版本>.jar`，跳过 checksum 和签名校验；文件缺失或无效时直接报错，不会下载；
+3. `debug: false` 时，检查 `components/image-renderer/<版本>/` 下的缓存；
 4. 正常模式同时校验 JAR 大小、Release SHA-256、RSA 独立签名、组件内嵌版本和服务入口；
 5. 缓存缺失或校验失败时，才从官方 ShitBot GitHub Release 下载 JAR、`.sha256` 和 `.sig`；
 6. 下载完成且全部校验通过后，使用隔离类加载器启动组件。
@@ -78,9 +78,9 @@ custom-image-templates:
     read-timeout-ms: 30000
 ```
 
-下载器只接受 HTTPS 的官方 ShitBot Release 地址及 GitHub 的 Release 资源重定向。缓存损坏时不会加载损坏 JAR。某个版本的 Release 必须同时包含同版本 `ShitBotRenderer`、checksum 和签名；否则高级模板启动失败，但关闭总开关后仍可使用内置 Java 图片。
+正常模式下，下载器只接受 HTTPS 的官方 ShitBot Release 地址及 GitHub 的 Release 资源重定向。缓存损坏时不会加载损坏 JAR。某个版本的 Release 必须同时包含同版本 `ShitBotRenderer`、checksum 和签名；否则高级模板启动失败，但关闭总开关后仍可使用内置 Java 图片。
 
-调试模式的本地 JAR 仍必须包含 `META-INF/services/haaa.shitbot.api.spi.ImageTemplateEngineFactory` 和匹配版本的 `META-INF/shitbot-renderer.version`，只是不会要求旁边存在 `.sha256` 和 `.sig` 文件。
+调试模式的本地 JAR 仍会检查大小，并且必须包含 `META-INF/services/haaa.shitbot.api.spi.ImageTemplateEngineFactory` 和匹配版本的 `META-INF/shitbot-renderer.version`，但不读取旁边的 `.sha256` 和 `.sig` 文件，也不进行公钥校验。缺少 JAR 时，错误信息会给出需要放置文件的完整路径。
 
 ## 模板目录
 

@@ -29,7 +29,9 @@ language: "zh_CN"
 debug: true
 ```
 
-开启后会输出 OneBot 鉴权 token、发送给 QQ 的请求 JSON 和 QQ 返回的原始 JSON，同时优先加载插件数据目录或其上级 `plugins/` 目录中的 `ShitBotRenderer-<版本>.jar` 或 `ShitBotRenderer.jar`。本地 JAR 仍会检查组件服务入口和内嵌版本，但会跳过 SHA-256、`.sig` 和公钥校验；未找到本地 JAR 时仍使用正常的 Release 下载与校验流程。调试结束后请关闭此选项，因为日志包含敏感 token 和消息内容。
+开启后会输出 OneBot 鉴权 token、发送给 QQ 的请求 JSON 和 QQ 返回的原始 JSON。启用高级图片模板时，只加载插件数据目录下的 `components/image-renderer/<版本>/ShitBotRenderer-<版本>.jar`，不会下载渲染组件。`<版本>` 取自 `custom-image-templates.component.version`，留空时使用当前平台插件版本。
+
+本地 JAR 仍会检查大小、组件服务入口和内嵌版本，但会跳过 SHA-256、`.sig` 和公钥校验；本地 JAR 缺失或无效时直接报错，不会回退到 Release 下载。调试结束后请关闭此选项，因为日志包含敏感 token 和消息内容。
 
 ### 从旧配置迁移文本
 
@@ -242,7 +244,7 @@ custom-image-templates:
   directory: "image-templates"
 ```
 
-只有 `custom-image-templates.enabled: true` 时，插件才检查本地缓存并按需下载同版本 `ShitBotRenderer`、checksum 和签名。保持 `image.renderer: "java"` 时，默认在线图仍走内置路径，但高级编辑器、自定义群命令和插件 API 可以单独使用；设为 `custom` 时，`服务器状态` 和 `/shitbot image` 读取 `image.custom-template` 指定的发布版本。
+只有 `custom-image-templates.enabled: true` 时，插件才加载同版本 `ShitBotRenderer`。正常模式会检查本地缓存并按需下载组件、checksum 和签名；`debug: true` 时只使用对应版本目录里的本地 JAR，不会下载。保持 `image.renderer: "java"` 时，默认在线图仍走内置路径，但高级编辑器、自定义群命令和插件 API 可以单独使用；设为 `custom` 时，`服务器状态` 和 `/shitbot image` 读取 `image.custom-template` 指定的发布版本。
 
 完整组件配置、场景 YAML、数据提供器、编辑器和 API 见[图片渲染与高级模板](image-templates.md)。
 

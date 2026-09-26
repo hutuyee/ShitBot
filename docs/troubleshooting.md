@@ -121,9 +121,10 @@ MySQL：
 需要时检查：
 
 - `image.renderer: "custom"` 必须同时开启高级模板总开关；
-- 当前 Release 含同版本 `ShitBotRenderer-<版本>.jar`、`.sha256` 和 `.sig`；
-- 服务器能访问 GitHub Release 下载域名；
-- `components/image-renderer/<版本>/` 可写，缓存文件没有被人工替换；
+- `debug: true` 时，插件数据目录下存在 `components/image-renderer/<版本>/ShitBotRenderer-<版本>.jar`，且组件元数据与版本正确；此模式不会下载，也不需要 `.sha256` 和 `.sig`；
+- `debug: false` 时，当前 Release 含同版本 `ShitBotRenderer-<版本>.jar`、`.sha256` 和 `.sig`；
+- `debug: false` 时，服务器能访问 GitHub Release 下载域名；
+- `debug: false` 时，`components/image-renderer/<版本>/` 可写，缓存文件没有被人工替换；
 - 下载大小、模板资源、画布、像素、图层、循环、渲染时间和队列没有超过配置限制；
 - 模板已发布，`image.custom-template` 或群命令中的模板 ID 拼写正确；
 - 远程图片默认关闭，引用 HTTPS 头像或图片时已明确开启；
