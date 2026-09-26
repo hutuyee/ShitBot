@@ -12,10 +12,10 @@ const state = {
   busy: false, previewUrl: null, zoom: 1, fit: true, snap: true, space: false, gesture: null
 };
 const layerTypes = {
-  text: ["文字", "T"], image: ["图片", "▧"], avatar: ["玩家头像", "◉"],
-  rectangle: ["矩形", "▭"], circle: ["圆形", "○"], line: ["线条", "╱"],
-  progress: ["进度条", "▰"], group: ["分组", "▣"], stack: ["堆叠布局", "☰"],
-  grid: ["网格布局", "⊞"], condition: ["条件", "◇"], loop: ["循环", "↻"]
+  text: ["文字", "type"], image: ["图片", "image"], avatar: ["玩家头像", "avatar"],
+  rectangle: ["矩形", "rectangle"], circle: ["圆形", "circle"], line: ["线条", "line"],
+  progress: ["进度条", "progress"], group: ["分组", "group"], stack: ["堆叠布局", "stack"],
+  grid: ["网格布局", "grid"], condition: ["条件", "condition"], loop: ["循环", "loop"]
 };
 const numericFields = new Set([
   "x", "y", "width", "height", "x2", "y2", "diameter", "stroke-width", "radius", "opacity",
@@ -455,7 +455,9 @@ function renderLayerList() {
     el.style.paddingLeft = 8 + item.depth * 14 + "px";
     el.title = layerName(item.node) + " · " + (layerTypes[item.node.type]?.[0] || item.node.type);
     el.setAttribute("aria-pressed", String(isSelected(item.path)));
-    el.append(element("span", "layer-type", layerTypes[item.node.type]?.[1] || "◇"), element("span", "layer-label", layerName(item.node)));
+    const typeIcon = element("span", "layer-type");
+    typeIcon.append(icon(layerTypes[item.node.type]?.[1] || "layers"));
+    el.append(typeIcon, element("span", "layer-label", layerName(item.node)));
     if (["then", "else"].includes(item.path.at(-2))) el.append(element("span", "branch-tag", item.path.at(-2) === "then" ? "成立" : "否则"));
     el.onclick = event => {
       try {
@@ -720,8 +722,9 @@ function addAlignmentControls() {
   const section = element("section", "property-section");
   section.append(element("h3", "", state.selection.length > 1 ? "对齐所选图层" : "对齐画布"));
   const row = element("div", "alignment-controls");
-  for (const [value, label, glyph] of [["left", "左对齐", "⇤"], ["center", "水平居中", "↔"], ["right", "右对齐", "⇥"], ["top", "顶部对齐", "↥"], ["middle", "垂直居中", "↕"], ["bottom", "底部对齐", "↧"]]) {
-    const button = element("button", "icon-button", glyph);
+  for (const [value, label] of [["left", "左对齐"], ["center", "水平居中"], ["right", "右对齐"], ["top", "顶部对齐"], ["middle", "垂直居中"], ["bottom", "底部对齐"]]) {
+    const button = element("button", "icon-button");
+    button.append(icon("align-" + value));
     button.title = label;
     button.setAttribute("aria-label", label);
     button.dataset.align = value;
@@ -1279,3 +1282,4 @@ perform(async () => {
   if (state.templates.length) await openTemplate(state.templates[0].id);
   else status("创建一个模板，开始设计你的状态卡");
 });
+

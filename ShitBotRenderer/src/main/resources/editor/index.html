@@ -1,10 +1,12 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#15171c">
-  <title>ShitBot · 模板编辑器</title>
+  <meta name="theme-color" content="#faf8f7">
+  <title>ShitBot · 模板工作室</title>
+  <link rel="icon" type="image/png" href="/editor-icon.png">
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="/editor.css">
 </head>
 <body>
@@ -26,22 +28,52 @@
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
     <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 3 15 11-8 1-4 7-3-19Z"/></symbol>
     <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6M12 7v5l3 2"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V4H4v11h4"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 4 5 5-5 5m5-5H10a6 6 0 0 0 0 12h3"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3M12 4v16m-4 0h8"/></symbol>
+    <symbol id="i-rectangle" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></symbol>
+    <symbol id="i-line" viewBox="0 0 24 24"><path d="m5 19 14-14M3 17l4 4M17 3l4 4"/></symbol>
+    <symbol id="i-progress" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="3"/><path d="M7 11v2m3-2v2m3-2v2"/></symbol>
+    <symbol id="i-group" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+    <symbol id="i-stack" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/></symbol>
+    <symbol id="i-condition" viewBox="0 0 24 24"><path d="m12 2 7 7-7 7-7-7 7-7Zm0 14v6M5 9H2v11h5m12-11h3v11h-5"/></symbol>
+    <symbol id="i-loop" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4m14-3v4a3 3 0 0 1-3 3H3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h7m4 0h5M4 17h3m4 0h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 15h10"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m14 3 2.5 6.5L23 12l-6.5 2.5L14 21l-2.5-6.5L5 12l6.5-2.5L14 3ZM4 2v5M1.5 4.5h5"/></symbol>
+    <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M4 3v18"/><rect x="8" y="5" width="12" height="5" rx="1"/><rect x="8" y="14" width="8" height="5" rx="1"/></symbol>
+    <symbol id="i-align-center" viewBox="0 0 24 24"><path d="M12 2v3m0 5v4m0 5v3"/><rect x="4" y="5" width="16" height="5" rx="1"/><rect x="7" y="14" width="10" height="5" rx="1"/></symbol>
+    <symbol id="i-align-right" viewBox="0 0 24 24"><path d="M20 3v18"/><rect x="4" y="5" width="12" height="5" rx="1"/><rect x="8" y="14" width="8" height="5" rx="1"/></symbol>
+    <symbol id="i-align-top" viewBox="0 0 24 24"><path d="M3 4h18"/><rect x="5" y="8" width="5" height="12" rx="1"/><rect x="14" y="8" width="5" height="8" rx="1"/></symbol>
+    <symbol id="i-align-middle" viewBox="0 0 24 24"><path d="M2 12h3m5 0h4m5 0h3"/><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="7" width="5" height="10" rx="1"/></symbol>
+    <symbol id="i-align-bottom" viewBox="0 0 24 24"><path d="M3 20h18"/><rect x="5" y="4" width="5" height="12" rx="1"/><rect x="14" y="8" width="5" height="8" rx="1"/></symbol>
   </svg>
   <header class="app-header">
-    <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-grid"/></svg></span><div><strong>ShitBot</strong><small>模板工作室</small></div></div>
+    <div class="brand"><span class="brand-mark"><img src="/editor-icon.png" width="44" height="44" alt="ShitBot 标识"></span><div><strong>ShitBot<span class="brand-dot">.</span></strong><small>模板工作室</small></div></div>
     <span class="header-divider"></span>
-    <div class="document-heading"><span class="eyebrow">IMAGE TEMPLATE</span><span id="templateTitle">选择一个模板开始创作</span></div>
+    <div class="document-heading"><span class="document-breadcrumb">工作空间<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg><span>图片模板</span></span><span id="templateTitle">开始你的下一份创作</span></div>
     <span class="spacer"></span>
     <span id="saveState" class="save-state">草稿</span>
-    <button id="showShortcuts" class="icon-button shortcut-trigger" title="快捷键 · ?" aria-label="查看快捷键">?</button>
+    <div class="header-utilities">
+      <button id="showShortcuts" class="icon-button shortcut-trigger" title="快捷键 · ?" aria-label="查看快捷键"><svg class="icon"><use href="#i-keyboard"/></svg></button>
+      <button id="themeToggle" class="icon-button" title="切换为暗色主题" aria-label="切换为暗色主题" aria-pressed="true"><svg class="icon"><use href="#i-moon"/></svg></button>
+    </div>
     <div class="header-actions">
-      <button id="save" title="保存草稿 · Ctrl+S"><svg class="icon"><use href="#i-save"/></svg><span>保存草稿</span></button>
+      <button id="save" title="保存草稿 · Ctrl+S" aria-label="保存草稿"><svg class="icon"><use href="#i-save"/></svg><span>保存草稿</span></button>
       <button id="preview" title="查看实际渲染效果"><svg class="icon"><use href="#i-play"/></svg><span>预览</span></button>
       <button id="publish" class="primary"><svg class="icon"><use href="#i-upload"/></svg><span>发布模板</span></button>
     </div>
   </header>
   <main>
     <aside class="library" aria-label="模板与图层">
+      <div class="library-heading"><span class="eyebrow">YOUR WORKSPACE</span><span class="workspace-tag">创作空间</span></div>
       <section class="templates">
         <div class="panel-title"><svg class="icon"><use href="#i-grid"/></svg><h2>模板库</h2><span id="templateCount" class="count"></span><button id="newTemplate" class="icon-button" title="新建模板" aria-label="新建模板"><svg class="icon"><use href="#i-plus"/></svg></button></div>
         <label class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="templateSearch" type="search" placeholder="搜索模板…" aria-label="搜索模板"></label>
@@ -50,19 +82,19 @@
       <section class="layer-panel" aria-label="图层">
         <div class="panel-title"><svg class="icon"><use href="#i-layers"/></svg><h2>图层</h2><span id="layerCount" class="count"></span><span class="spacer"></span></div>
         <div class="layer-tools">
-          <button id="duplicateLayer" class="icon-button" title="复制图层 · Ctrl+D" aria-label="复制图层">⧉</button><span class="spacer"></span>
+          <span class="muted">排列与管理</span><span class="spacer"></span><button id="duplicateLayer" class="icon-button" title="复制图层 · Ctrl+D" aria-label="复制图层"><svg class="icon"><use href="#i-copy"/></svg></button>
           <button id="layerUp" class="icon-button" title="上移图层 · Ctrl+]" aria-label="上移图层"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
           <button id="layerDown" class="icon-button" title="下移图层 · Ctrl+[" aria-label="下移图层"><svg class="icon"><use href="#i-arrow-down"/></svg></button>
           <button id="deleteLayer" class="icon-button danger" title="删除选中图层 · Delete" aria-label="删除选中图层"><svg class="icon"><use href="#i-trash"/></svg></button>
         </div>
         <label class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="layerSearch" type="search" placeholder="查找图层…" aria-label="查找图层"></label>
         <div id="layers"><p class="panel-empty">图层会显示在这里</p></div>
-        <p class="layer-hint"><kbd>Shift</kbd> 加选　<kbd>Delete</kbd> 删除</p>
+        <p class="layer-hint"><svg class="icon" aria-hidden="true"><use href="#i-cursor"/></svg><span><kbd>Shift</kbd> 多选<span class="hint-divider">·</span><kbd>Delete</kbd> 删除</span></p>
       </section>
       <details class="asset-box">
-        <summary><svg class="icon"><use href="#i-image"/></svg>图片资源<span class="muted">PNG / JPG / GIF</span></summary>
+        <summary><span class="asset-symbol"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg></span><span class="asset-heading">图片资源<span class="muted">为你的模板添加素材</span></span><svg class="icon disclosure-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
         <div class="asset-content">
-          <label class="file-picker">选择图片<input id="asset" type="file" accept="image/png,image/jpeg,image/gif"></label>
+          <label class="file-picker"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg><span>选择图片素材</span><span class="file-formats">PNG · JPG · GIF</span><input id="asset" type="file" accept="image/png,image/jpeg,image/gif"></label>
           <label>资源路径<input id="assetName" placeholder="images/example.png" autocomplete="off"></label>
           <button id="upload"><svg class="icon"><use href="#i-upload"/></svg>上传到当前模板</button>
           <p class="help-text">图层图片地址填写 assets/资源路径。</p>
@@ -77,18 +109,24 @@
           <button id="tabData" data-tab="data" role="tab" aria-controls="data" aria-selected="false"><svg class="icon"><use href="#i-data"/></svg>预览数据</button>
         </div>
         <span class="spacer"></span>
-        <div class="insert-controls"><select id="insertTarget" aria-label="添加图层的位置" title="添加图层的位置"><option value="root">画布根级</option><option value="children">选中容器内</option><option value="then">条件成立时</option><option value="else">条件不成立时</option></select><select id="newLayerType" aria-label="新图层类型"></select><button id="addLayer" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg>添加图层</button></div>
+        <div class="insert-controls"><select id="insertTarget" aria-label="添加图层的位置" title="添加图层的位置"><option value="root">画布根级</option><option value="children">选中容器内</option><option value="then">条件成立时</option><option value="else">条件不成立时</option></select><select id="newLayerType" aria-label="新图层类型"></select><button id="addLayer" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg><span>添加图层</span></button></div>
       </nav>
       <div id="visual" class="tab active" role="tabpanel" aria-labelledby="tabVisual">
         <section class="canvas-area" aria-label="设计画布">
-          <div class="canvas-toolbar"><span class="canvas-mode"><span class="live-dot"></span>布局视图</span><span id="canvasSize" class="canvas-size"></span><span class="spacer"></span><div class="history-controls"><button id="undo" class="icon-button" title="撤销 · Ctrl+Z" aria-label="撤销">↶</button><button id="redo" class="icon-button" title="重做 · Ctrl+Shift+Z" aria-label="重做">↷</button></div><button id="snap" class="toggle-button active" aria-pressed="true" title="拖动时吸附到 5 像素网格；按住 Alt 临时关闭">吸附 5px</button></div>
+          <div class="canvas-toolbar"><span class="canvas-mode"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg>布局画布</span><span id="canvasSize" class="canvas-size"></span><span class="spacer"></span><div class="history-controls"><button id="undo" class="icon-button" title="撤销 · Ctrl+Z" aria-label="撤销"><svg class="icon"><use href="#i-undo"/></svg></button><button id="redo" class="icon-button" title="重做 · Ctrl+Shift+Z" aria-label="重做"><svg class="icon"><use href="#i-redo"/></svg></button></div><button id="snap" class="toggle-button active" aria-pressed="true" title="拖动时吸附到 5 像素网格；按住 Alt 临时关闭"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>吸附 5px</button></div>
           <div class="stage-wrap" tabindex="0" aria-label="画布，点击选择图层后可使用快捷键">
-            <div class="stage-space"><div id="emptyCanvas" class="canvas-empty"><svg class="icon"><use href="#i-grid"/></svg><h2>从一张画布开始</h2><p>选择左侧模板，或创建属于你的新布局。</p><button data-action="newTemplate" class="subtle-primary"><svg class="icon"><use href="#i-plus"/></svg>新建模板</button></div><div id="stageFrame" hidden><div id="stage"></div></div></div>
+            <div class="stage-space">
+              <div id="emptyCanvas" class="canvas-empty">
+                <div class="empty-art" aria-hidden="true"><div class="art-sheet art-sheet-back"></div><div class="art-sheet art-sheet-front"><span class="art-picture"><svg class="icon"><use href="#i-image"/></svg></span><span class="art-line"></span><span class="art-line art-line-short"></span><span class="art-dot"></span></div><span class="art-sparkle"><svg class="icon"><use href="#i-sparkles"/></svg></span><span class="art-cursor"><svg class="icon"><use href="#i-cursor"/></svg></span></div>
+                <span class="eyebrow">A LITTLE SPACE FOR BIG IDEAS</span><h2>好看的模板，从这里开始。</h2><p>选择一个模板继续打磨，<br>或从空白画布开始，让灵感变成自己的作品。</p><button data-action="newTemplate" class="primary"><svg class="icon"><use href="#i-plus"/></svg>创建我的模板</button><span class="empty-footnote">每一点细节，都由你来定义</span>
+              </div>
+              <div id="stageFrame" hidden><div id="stage"></div></div>
+            </div>
           </div>
-          <div class="canvas-bottom"><span id="selectionInfo">选择图层开始编辑</span><span class="spacer"></span><div class="zoom-controls"><button id="zoomOut" class="icon-button" title="缩小" aria-label="缩小">−</button><button id="zoomReset" title="原始大小 · 100%">100%</button><button id="zoomIn" class="icon-button" title="放大" aria-label="放大">＋</button><button id="zoomFit" title="适应画布 · Ctrl+0">适应</button></div></div>
+          <div class="canvas-bottom"><span class="selection-indicator" aria-hidden="true"><svg class="icon"><use href="#i-cursor"/></svg></span><span id="selectionInfo">选择图层开始编辑</span><span class="spacer"></span><div class="zoom-controls"><button id="zoomOut" class="icon-button" title="缩小" aria-label="缩小"><svg class="icon"><use href="#i-minus"/></svg></button><button id="zoomReset" title="原始大小 · 100%">100%</button><button id="zoomIn" class="icon-button" title="放大" aria-label="放大"><svg class="icon"><use href="#i-plus"/></svg></button><button id="zoomFit" title="适应画布 · Ctrl+0"><svg class="icon"><use href="#i-expand"/></svg><span>适应</span></button></div></div>
         </section>
         <aside class="properties" aria-label="设计属性">
-          <div class="inspector-heading"><span class="eyebrow">DESIGN</span><h2 id="inspectorTitle">设计属性</h2><p id="inspectorSubtitle">选择图层，调整每一个细节。</p></div>
+          <div class="inspector-heading"><div class="inspector-kicker"><span class="eyebrow">DESIGN INSPECTOR</span><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></div><h2 id="inspectorTitle">设计属性</h2><p id="inspectorSubtitle">选择图层，调整每一个细节。</p></div>
           <div id="fields"></div>
           <details id="advancedProperties" class="advanced-properties">
             <summary>高级属性 <span class="code-badge">JSON</span></summary>
@@ -98,18 +136,18 @@
         </aside>
       </div>
       <div id="source" class="tab source-grid" role="tabpanel" aria-labelledby="tabSource">
-        <p class="source-hint">切换 YAML 与设计视图时会保存并同步草稿。语法有误时会留在当前视图，保留你的修改。</p>
+        <div class="source-intro"><span class="eyebrow">UNDER THE CANVAS</span><h2>用代码，打磨每一个细节。</h2><p class="source-hint">切换 YAML 与设计视图时会保存并同步草稿。语法有误时会留在当前视图，保留你的修改。</p></div>
         <label class="editor-card"><span class="editor-card-heading"><svg class="icon"><use href="#i-code"/></svg><b>manifest.yml</b><span>模板配置</span></span><textarea id="manifestSource" spellcheck="false" aria-label="manifest.yml 源码" placeholder="选择模板后编辑配置…"></textarea></label>
         <label class="editor-card"><span class="editor-card-heading"><svg class="icon"><use href="#i-layers"/></svg><b>scene.yml</b><span>画布与图层</span></span><textarea id="sceneSource" spellcheck="false" aria-label="scene.yml 源码" placeholder="选择模板后编辑图层…"></textarea></label>
       </div>
       <div id="data" class="tab data-grid" role="tabpanel" aria-labelledby="tabData">
-        <div class="data-intro"><span class="eyebrow">PREVIEW DATA</span><h2>让模板带上真实内容</h2><p>填写预览上下文与数据覆盖值，或解析模板声明的数据提供器。</p></div>
+        <div class="data-intro"><span class="eyebrow">BRING IT TO LIFE</span><h2>让设计，带上真实的内容。</h2><p>填写预览上下文与数据覆盖值，或解析模板声明的数据提供器。</p></div>
         <label class="editor-card"><span class="editor-card-heading"><b>context</b><span>上下文 · JSON</span></span><textarea id="contextData" spellcheck="false" aria-label="预览上下文 JSON">{"title":"服务器状态","server-name":"Minecraft Server","player":"Steve"}</textarea></label>
         <label class="editor-card"><span class="editor-card-heading"><b>data</b><span>数据覆盖 · JSON</span></span><textarea id="overrideData" spellcheck="false" aria-label="数据覆盖 JSON">{}</textarea></label>
         <div class="editor-card resolved-card"><div class="editor-card-heading"><b>解析结果</b><button id="resolveData">解析数据提供器</button></div><pre id="resolvedData">解析后的数据将显示在这里。</pre></div>
       </div>
       <footer class="workspace-footer">
-        <span id="status" role="status" aria-live="polite">准备就绪</span><span class="spacer"></span>
+        <svg class="icon footer-symbol" aria-hidden="true"><use href="#i-sparkles"/></svg><span id="status" role="status" aria-live="polite">准备就绪</span><span class="spacer"></span>
         <div class="version-controls"><svg class="icon"><use href="#i-history"/></svg><label class="sr-only" for="versions">已发布版本</label><select id="versions" aria-label="已发布版本"></select><button id="rollback" class="text-button">回滚版本</button></div>
       </footer>
     </section>
