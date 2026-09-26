@@ -1,6 +1,6 @@
 schema-version: template-v1
 id: online-status
-name: Online status
+name: 在线状态 · 玩家名片
 suggested-file-name: online.png
 providers:
   - id: shitbot

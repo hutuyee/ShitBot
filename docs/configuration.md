@@ -242,9 +242,13 @@ image:
 custom-image-templates:
   enabled: false
   directory: "image-templates"
+  remote-images:
+    enabled: true
 ```
 
 只有 `custom-image-templates.enabled: true` 时，插件才加载同版本 `ShitBotRenderer`。正常模式会检查本地缓存并按需下载组件、checksum 和签名；`debug: true` 时只使用对应版本目录里的本地 JAR，不会下载。保持 `image.renderer: "java"` 时，默认在线图仍走内置路径，但高级编辑器、自定义群命令和插件 API 可以单独使用；设为 `custom` 时，`服务器状态` 和 `/shitbot image` 读取 `image.custom-template` 指定的发布版本。
+
+高级模板的 HTTPS 远程图片默认开启，默认在线模板会使用 `image.avatar.url-template` 获取玩家头像。总开关关闭时不会因这一设置加载高级组件。旧配置中显式设置的 `remote-images.enabled: false` 会保留，需要头像时改为 `true` 后重载。
 
 完整组件配置、场景 YAML、数据提供器、编辑器和 API 见[图片渲染与高级模板](image-templates.md)。
 
