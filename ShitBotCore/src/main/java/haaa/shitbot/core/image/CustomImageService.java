@@ -387,6 +387,7 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
 
     private Map<String, Object> onlineData(Map<String, List<String>> snapshot) {
         List<Map<String, Object>> servers = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> allPlayers = new ArrayList<Map<String, Object>>();
         int total = 0;
         if (snapshot != null) {
             for (Map.Entry<String, List<String>> entry : snapshot.entrySet()) {
@@ -400,9 +401,11 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
                             player.put("avatar", avatarUrl(name.trim()));
                         }
                         players.add(player);
+                        allPlayers.add(player);
                     }
                 }
                 Map<String, Object> server = new LinkedHashMap<String, Object>();
+                server.put("id", entry.getKey());
                 server.put("name", entry.getKey());
                 server.put("players", players);
                 server.put("count", Integer.valueOf(players.size()));
@@ -411,6 +414,8 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
             }
         }
         Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("group-by-server", Boolean.valueOf(platform.isProxy()));
+        data.put("players", allPlayers);
         data.put("servers", servers);
         data.put("total", Integer.valueOf(total));
         return data;

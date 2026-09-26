@@ -53,6 +53,11 @@ public final class BungeePlatformBridge implements PlatformBridge {
     }
 
     @Override
+    public boolean isProxy() {
+        return true;
+    }
+
+    @Override
     public String getPluginVersion() {
         return plugin.getDescription().getVersion();
     }

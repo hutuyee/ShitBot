@@ -17,6 +17,11 @@ public interface PlatformBridge {
 
     String getPlatformName();
 
+    /** Whether online-player snapshots are grouped by proxy backend server IDs. */
+    default boolean isProxy() {
+        return false;
+    }
+
     /** Version of the active platform plugin, used to select matching optional components. */
     default String getPluginVersion() {
         return "";

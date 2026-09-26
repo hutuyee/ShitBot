@@ -59,6 +59,11 @@ public final class VelocityPlatformBridge implements PlatformBridge {
     }
 
     @Override
+    public boolean isProxy() {
+        return true;
+    }
+
+    @Override
     public String getPluginVersion() {
         return plugin.getPluginVersion();
     }
