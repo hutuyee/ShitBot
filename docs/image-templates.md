@@ -108,9 +108,9 @@ image-templates/
 
 不要手工修改 `versions/` 或 `published.yml`。要修改模板，应编辑草稿后重新发布一个新版本。
 
-默认 `online-status` 使用 1200 × 960 的暖白、浅玫瑰与淡紫色卡片：顶部展示标题、服务器名和总在线人数，正文按两列排列服务器面板，每位玩家显示圆角方形的 Minecraft 像素头像与名字，页脚展示数据生成时间。头像直接读取 `online-players` 提供的 `${player.avatar}`，沿用 `image.avatar.url-template`；`image.avatar.enabled: false` 时不请求玩家头像。
+默认 `online-status` 使用 1200 × 960 的暖白、浅玫瑰与淡紫色卡片：顶部展示标题、配置的服务器名和总在线人数。Bukkit/Spigot、Nukkit 等单服平台直接排列玩家名片，不显示 `CraftBukkit` 等实现名称或子服分组框；BungeeCord、Velocity 从代理自身的在线快照取得玩家所在的服务器 ID，再按两列排列子服面板，即使只有一个子服也保留 ID。每位玩家显示圆角方形的 Minecraft 像素头像与名字，页脚只展示 ShitBot 标识和数据生成时间。头像直接读取 `online-players` 提供的 `${player.avatar}`，沿用 `image.avatar.url-template`；`image.avatar.enabled: false` 时不请求玩家头像。
 
-默认最多展示 4 个服务器，每服最多展示 8 位玩家，人数统计始终使用完整在线数据；超出展示范围时会显示对应提示。总在线人数为 0 时显示整页空状态，混合在线场景中的空子服也有独立提示。此布局沿用默认图层和画布限制，无需提高资源上限。
+单服按四列直接展示最多 40 位玩家；代理最多展示 4 个子服，每服最多展示 8 位玩家。人数统计始终使用完整在线数据，超出展示范围时会显示对应提示。总在线人数为 0 时显示整页空状态，代理数据中的空子服也有独立提示。两种布局沿用默认图层和画布限制，无需提高资源上限。
 
 升级不会覆盖已经生成或修改过的模板。编辑器中新建模板会使用新版默认布局；要更新原有 `online-status`，可把发行源码中 `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` 的内容放入该模板的 `scene.yml` 草稿，再通过编辑器保存、预览并发布。
 
@@ -142,9 +142,11 @@ providers:
 | ID | 输出位置 | 内容 |
 | --- | --- | --- |
 | `shitbot` | `${data.shitbot.*}` | 平台名、插件版本、生成时间 |
-| `online-players` | `${data.online-players.*}` | 总在线数、子服列表、玩家列表；头像配置开启时还提供头像 URL |
+| `online-players` | `${data.online-players.*}` | `total` 总在线数、`players` 平铺玩家列表、`servers` 分组列表及 `group-by-server` 代理分组标记；头像配置开启时还提供头像 URL |
 | `player-avatar` | `${data.player-avatar.*}` | 指定玩家的 `player`、`url`，以及头像服务地址模板 `url-template`；`template-only: true` 仅提供地址模板，供头像图层分别绑定玩家 |
 | `papi` | `${data.papi.*}` | 显式声明的 PlaceholderAPI 值、`values` 映射和逐项 `errors` 映射 |
+
+`online-players.group-by-server` 由运行平台决定：BungeeCord、Velocity 为 `true`，单服平台为 `false`。代理分组的 `servers[].id` 是代理提供的服务器 ID，`servers[].name` 保留原有名称字段；各分组仍提供 `players` 和 `count`。手写单服模板可直接循环 `${data.online-players.players}`，不必显示分组标题。
 
 `custom-image-templates.remote-images.enabled` 现在默认为 `true`，允许 `player-avatar` 和其他 HTTPS 图片 URL，同时仍支持模板自己的 `assets/`。旧配置中显式写出的 `false` 会继续生效；需要网络头像时，将它改为 `true` 后重载。HTTPS、地址、响应大小和像素限制仍然有效。
 

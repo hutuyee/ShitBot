@@ -102,213 +102,306 @@ layers:
     maximum-lines: 1
     color: "#655268"
   - type: condition
-    name: 服务器展示范围
-    condition: "${data.online-players.servers.4}"
+    name: 名单展示范围
+    condition: "${data.online-players.group-by-server}"
     then:
-      - type: text
-        x: 544
-        y: 195
-        width: 604
-        text: "展示前 4 个服务器 · 总人数包含全部服务器"
-        align: right
-        font-size: 11
-        maximum-lines: 1
-        color: "#9B8295"
+      - type: condition
+        name: 服务器展示范围
+        condition: "${data.online-players.servers.4}"
+        then:
+          - type: text
+            x: 544
+            y: 195
+            width: 604
+            text: "展示前 4 个服务器 · 总人数包含全部服务器"
+            align: right
+            font-size: 11
+            maximum-lines: 1
+            color: "#9B8295"
+        else:
+          - type: text
+            x: 744
+            y: 195
+            width: 404
+            text: "此刻，在同一个世界相遇"
+            align: right
+            font-size: 11
+            maximum-lines: 1
+            color: "#9B8295"
     else:
-      - type: text
-        x: 744
-        y: 195
-        width: 404
-        text: "此刻，在同一个世界相遇"
-        align: right
-        font-size: 11
-        maximum-lines: 1
-        color: "#9B8295"
-  # Two columns of server panels; each panel holds two columns of four player cards.
-  # The display limits keep the expanded scene within the default 256-layer budget.
+      - type: condition
+        name: 单服玩家展示范围
+        condition: "${data.online-players.players.40}"
+        then:
+          - type: text
+            x: 544
+            y: 195
+            width: 604
+            text: "展示前 40 位玩家 · 当前共 ${data.online-players.total} 人在线"
+            align: right
+            font-size: 11
+            maximum-lines: 1
+            color: "#9B8295"
+        else:
+          - type: text
+            x: 744
+            y: 195
+            width: 404
+            text: "此刻，在同一个世界相遇"
+            align: right
+            font-size: 11
+            maximum-lines: 1
+            color: "#9B8295"
+  # Proxies group players by backend ID; standalone servers show player cards directly.
+  # Both layouts stay within the default 256-layer budget.
   - type: condition
     name: 在线名单与空状态
     condition: "${data.online-players.total}"
     then:
-      - type: grid
-        name: 服务器卡片网格
-        x: 52
-        y: 224
-        columns: 2
-        cell-width: 538
-        cell-height: 316
-        column-gap: 20
-        row-gap: 20
-        children:
-          - type: loop
-            name: 服务器列表
-            items: "${data.online-players.servers}"
-            as: server
-            maximum-items: 4
+      - type: condition
+        name: 单服或代理布局
+        condition: "${data.online-players.group-by-server}"
+        then:
+          - type: grid
+            name: 服务器卡片网格
+            x: 52
+            y: 224
+            columns: 2
+            cell-width: 538
+            cell-height: 316
+            column-gap: 20
+            row-gap: 20
             children:
-              - type: group
-                name: 服务器卡片
-                width: 538
-                height: 316
+              - type: loop
+                name: 服务器列表
+                items: "${data.online-players.servers}"
+                as: server
+                maximum-items: 4
                 children:
-                  - type: rectangle
-                    name: 服务器底板
+                  - type: group
+                    name: 服务器卡片
                     width: 538
                     height: 316
-                    radius: 18
-                    fill: "#FFFEFF"
-                    stroke-color: "#E8DFE8"
-                    stroke-width: 1
-                  - type: condition
-                    name: 服务器人数指示
-                    condition: "${server.count}"
-                    then:
-                      - type: circle
-                        x: 18
-                        y: 26
-                        width: 8
-                        height: 8
-                        fill: "#78A892"
-                    else:
-                      - type: circle
-                        x: 18
-                        y: 26
-                        width: 8
-                        height: 8
-                        fill: "#C0B1BF"
-                  - type: text
-                    name: 子服名称
-                    x: 35
-                    y: 17
-                    width: 331
-                    text: "${server.name}"
-                    font-style: bold
-                    font-size: 18
-                    maximum-lines: 1
-                    color: "#514054"
-                  - type: rectangle
-                    name: 子服人数标签
-                    x: 382
-                    y: 17
-                    width: 138
-                    height: 27
-                    radius: 13
-                    fill: "#F8EDF3"
-                  - type: condition
-                    name: 子服人数与省略提示
-                    condition: "${server.players.8}"
-                    then:
+                    children:
+                      - type: rectangle
+                        name: 服务器底板
+                        width: 538
+                        height: 316
+                        radius: 18
+                        fill: "#FFFEFF"
+                        stroke-color: "#E8DFE8"
+                        stroke-width: 1
+                      - type: condition
+                        name: 服务器人数指示
+                        condition: "${server.count}"
+                        then:
+                          - type: circle
+                            x: 18
+                            y: 26
+                            width: 8
+                            height: 8
+                            fill: "#78A892"
+                        else:
+                          - type: circle
+                            x: 18
+                            y: 26
+                            width: 8
+                            height: 8
+                            fill: "#C0B1BF"
                       - type: text
-                        x: 389
-                        y: 22
-                        width: 124
-                        text: "${server.count} 人 · 展示 8 人"
-                        align: center
-                        font-size: 11
+                        name: 代理服务器 ID
+                        x: 35
+                        y: 17
+                        width: 331
+                        text: "${server.id}"
+                        font-style: bold
+                        font-size: 18
                         maximum-lines: 1
-                        color: "#A16C89"
-                    else:
-                      - type: text
-                        x: 389
-                        y: 22
-                        width: 124
-                        text: "${server.count} 人在线"
-                        align: center
-                        font-size: 11
-                        maximum-lines: 1
-                        color: "#A16C89"
-                  - type: line
-                    name: 子服分隔线
-                    x: 18
-                    y: 54
-                    width: 502
-                    height: 0
-                    color: "#F0E8EF"
-                    stroke-width: 1
-                  - type: condition
-                    name: 子服玩家与空状态
-                    condition: "${server.players}"
-                    then:
-                      - type: grid
-                        name: 玩家名片网格
+                        color: "#514054"
+                      - type: rectangle
+                        name: 子服人数标签
+                        x: 382
+                        y: 17
+                        width: 138
+                        height: 27
+                        radius: 13
+                        fill: "#F8EDF3"
+                      - type: condition
+                        name: 子服人数与省略提示
+                        condition: "${server.players.8}"
+                        then:
+                          - type: text
+                            x: 389
+                            y: 22
+                            width: 124
+                            text: "${server.count} 人 · 展示 8 人"
+                            align: center
+                            font-size: 11
+                            maximum-lines: 1
+                            color: "#A16C89"
+                        else:
+                          - type: text
+                            x: 389
+                            y: 22
+                            width: 124
+                            text: "${server.count} 人在线"
+                            align: center
+                            font-size: 11
+                            maximum-lines: 1
+                            color: "#A16C89"
+                      - type: line
+                        name: 子服分隔线
                         x: 18
-                        y: 66
-                        columns: 2
-                        cell-width: 244
-                        cell-height: 52
-                        column-gap: 14
-                        row-gap: 8
-                        children:
-                          - type: loop
-                            name: 玩家列表
-                            items: "${server.players}"
-                            as: player
-                            maximum-items: 8
+                        y: 54
+                        width: 502
+                        height: 0
+                        color: "#F0E8EF"
+                        stroke-width: 1
+                      - type: condition
+                        name: 子服玩家与空状态
+                        condition: "${server.players}"
+                        then:
+                          - type: grid
+                            name: 玩家名片网格
+                            x: 18
+                            y: 66
+                            columns: 2
+                            cell-width: 244
+                            cell-height: 52
+                            column-gap: 14
+                            row-gap: 8
                             children:
-                              - type: group
-                                name: 玩家名片
-                                width: 244
-                                height: 52
+                              - type: loop
+                                name: 玩家列表
+                                items: "${server.players}"
+                                as: player
+                                maximum-items: 8
                                 children:
-                                  - type: rectangle
-                                    name: 名片背景
+                                  - type: group
+                                    name: 玩家名片
                                     width: 244
                                     height: 52
-                                    radius: 10
-                                    fill: "#F7F3F8"
-                                    stroke-color: "#EEE5EF"
-                                    stroke-width: 1
-                                  - type: rectangle
-                                    name: 头像底色
-                                    x: 8
-                                    y: 8
-                                    width: 36
-                                    height: 36
-                                    radius: 7
-                                    fill: "#E7DBEB"
-                                  - type: avatar
-                                    name: 玩家皮肤头像
-                                    x: 8
-                                    y: 8
-                                    width: 36
-                                    height: 36
-                                    # online-players supplies this URL when image.avatar.enabled is true.
-                                    source: "${player.avatar}"
-                                    shape: square
-                                    radius: 7
-                                    fit: cover
-                                    pixelated: true
-                                    stroke-color: "#DBCADD"
-                                    stroke-width: 1
-                                  - type: text
-                                    name: 玩家名称
-                                    x: 54
-                                    y: 8
-                                    width: 181
-                                    text: "${player.name}"
-                                    font-size: 14
-                                    line-height: 18
-                                    maximum-lines: 2
-                                    color: "#65516A"
-                    else:
+                                    children:
+                                      - type: rectangle
+                                        name: 名片背景
+                                        width: 244
+                                        height: 52
+                                        radius: 10
+                                        fill: "#F7F3F8"
+                                        stroke-color: "#EEE5EF"
+                                        stroke-width: 1
+                                      - type: rectangle
+                                        name: 头像底色
+                                        x: 8
+                                        y: 8
+                                        width: 36
+                                        height: 36
+                                        radius: 7
+                                        fill: "#E7DBEB"
+                                      - type: avatar
+                                        name: 玩家皮肤头像
+                                        x: 8
+                                        y: 8
+                                        width: 36
+                                        height: 36
+                                        # online-players supplies this URL when image.avatar.enabled is true.
+                                        source: "${player.avatar}"
+                                        shape: square
+                                        radius: 7
+                                        fit: cover
+                                        pixelated: true
+                                        stroke-color: "#DBCADD"
+                                        stroke-width: 1
+                                      - type: text
+                                        name: 玩家名称
+                                        x: 54
+                                        y: 8
+                                        width: 181
+                                        text: "${player.name}"
+                                        font-size: 14
+                                        line-height: 18
+                                        maximum-lines: 2
+                                        color: "#65516A"
+                        else:
+                          - type: text
+                            x: 28
+                            y: 139
+                            width: 482
+                            text: "这里暂时还很安静"
+                            align: center
+                            font-size: 17
+                            maximum-lines: 1
+                            color: "#A38DA3"
+                          - type: text
+                            x: 28
+                            y: 171
+                            width: 482
+                            text: "等待下一位玩家加入"
+                            align: center
+                            font-size: 12
+                            maximum-lines: 1
+                            color: "#B29FB0"
+        else:
+          - type: grid
+            name: 单服玩家网格
+            x: 52
+            y: 224
+            columns: 4
+            cell-width: 256
+            cell-height: 52
+            column-gap: 24
+            row-gap: 12
+            children:
+              - type: loop
+                name: 单服玩家列表
+                items: "${data.online-players.players}"
+                as: player
+                maximum-items: 40
+                children:
+                  - type: group
+                    name: 玩家名片
+                    width: 256
+                    height: 52
+                    children:
+                      - type: rectangle
+                        name: 名片背景
+                        width: 256
+                        height: 52
+                        radius: 10
+                        fill: "#F7F3F8"
+                        stroke-color: "#EEE5EF"
+                        stroke-width: 1
+                      - type: rectangle
+                        name: 头像底色
+                        x: 8
+                        y: 8
+                        width: 36
+                        height: 36
+                        radius: 7
+                        fill: "#E7DBEB"
+                      - type: avatar
+                        name: 玩家皮肤头像
+                        x: 8
+                        y: 8
+                        width: 36
+                        height: 36
+                        source: "${player.avatar}"
+                        shape: square
+                        radius: 7
+                        fit: cover
+                        pixelated: true
+                        stroke-color: "#DBCADD"
+                        stroke-width: 1
                       - type: text
-                        x: 28
-                        y: 139
-                        width: 482
-                        text: "这里暂时还很安静"
-                        align: center
-                        font-size: 17
-                        maximum-lines: 1
-                        color: "#A38DA3"
-                      - type: text
-                        x: 28
-                        y: 171
-                        width: 482
-                        text: "等待下一位玩家加入"
-                        align: center
-                        font-size: 12
-                        maximum-lines: 1
-                        color: "#B29FB0"
+                        name: 玩家名称
+                        x: 54
+                        y: 8
+                        width: 193
+                        text: "${player.name}"
+                        font-size: 14
+                        line-height: 18
+                        maximum-lines: 2
+                        color: "#65516A"
     else:
       - type: rectangle
         name: 无人在线底板
@@ -377,7 +470,7 @@ layers:
     x: 52
     y: 913
     width: 480
-    text: "ShitBot · ${data.shitbot.platform}"
+    text: "ShitBot"
     font-size: 11
     maximum-lines: 1
     color: "#AB91A5"
