@@ -1,5 +1,7 @@
 # 常见问题
 
+**简体中文** | [English](en/troubleshooting.md)
+
 排错时先执行：
 
 ```text

@@ -1,5 +1,7 @@
 # 服务器启动提醒
 
+**简体中文** | [English](en/startup-notices.md)
+
 管理员可以选择本实例启动后通知，或由代理等待一个指定子服上线后通知。消息只发送到 `onebot.allowed-group-ids` 明确列出的群，`allow-all-groups: true` 不会自动扩大通知范围。
 
 ## 代理启动就通知

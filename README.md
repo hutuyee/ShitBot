@@ -1,5 +1,7 @@
 # ShitBot
 
+**简体中文** | [English](README.en.md)
+
 连接 Minecraft 服务器与 QQ 群的 OneBot v11 插件，提供账号绑定、群服互通、在线状态图片、背包查询、TPS 查询、受控的 QQ 快捷命令，以及可选的高级图片模板系统。
 
 支持 Spigot/Paper/Folia、BungeeCord、Velocity 和 Nukkit-MOT。OneBot 实现可以使用 [LuckyLilliaBot](https://github.com/LLOneBot/LuckyLilliaBot) 或其他兼容 OneBot v11 正向 WebSocket 的实现。

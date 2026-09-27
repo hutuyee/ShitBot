@@ -1,5 +1,7 @@
 # 生产环境安全清单
 
+**简体中文** | [English](en/security.md)
+
 ## OneBot
 
 - 生产环境设置非空且不可猜测的 Access Token；

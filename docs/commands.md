@@ -1,5 +1,7 @@
 # 命令与权限
 
+**简体中文** | [English](en/commands.md)
+
 白名单管理命令 `/shitbot whitelist` 适用于全部平台，需要 `shitbot.admin`。使用
 `/shitbot whitelist add - Steve` 添加无 QQ 白名单，使用
 `/shitbot whitelist add 123456789 Steve` 直接添加 QQ 绑定。

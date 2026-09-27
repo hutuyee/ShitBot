@@ -1,5 +1,7 @@
 # 插件 API 与白名单管理
 
+**简体中文** | [English](en/api.md)
+
 `ShitBotApi` 是 Java 8 的轻量公共模块，不依赖 Bukkit、代理 API、数据库驱动或高级渲染组件。绑定与白名单 API 在关闭高级图片模板时也可使用。
 
 ## 依赖与获取

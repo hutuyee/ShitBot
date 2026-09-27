@@ -1,5 +1,7 @@
 # 数据库与数据迁移
 
+**简体中文** | [English](en/database.md)
+
 ShitBot 支持 SQLite 和 MySQL，所有平台使用相同的数据表结构。
 
 ## 选择数据库

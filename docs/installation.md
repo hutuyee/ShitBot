@@ -1,5 +1,7 @@
 # 安装与部署
 
+**简体中文** | [English](en/installation.md)
+
 ## 运行要求
 
 ShitBot 需要一个支持 OneBot v11 正向 WebSocket 的 QQ 机器人实现。插件会主动连接 OneBot，不接受反向 WebSocket 连接。

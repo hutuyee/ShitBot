@@ -1,5 +1,7 @@
 # ShitBot 文档
 
+**简体中文** | [English](en/README.md)
+
 ## 安装和日常使用
 
 - [安装与部署](installation.md)：选择平台 JAR、首次启动和部署方式。

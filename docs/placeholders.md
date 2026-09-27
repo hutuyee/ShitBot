@@ -1,5 +1,7 @@
 # PlaceholderAPI 变量
 
+**简体中文** | [English](en/placeholders.md)
+
 ShitBot 有两个 PAPI 使用方向：向计分板、菜单等插件提供自己的状态变量，以及在高级图片模板中读取其他插件提供的变量。
 
 ## 在计分板或菜单显示 ShitBot 状态

@@ -1,5 +1,7 @@
 # 构建与开发
 
+**简体中文** | [English](en/development.md)
+
 本页面面向需要从源码构建或修改 ShitBot 的开发者。普通服主应从 [GitHub Releases](https://github.com/hutuyee/ShitBot/releases) 下载发布 JAR。
 
 ## 环境
@@ -126,3 +128,9 @@ GitHub Actions 在 push、pull request 和手动触发时：
 - 数据库是否发生迁移；
 - Java 或平台最低版本是否变化；
 - 是否新增权限、端口或外部网络依赖。
+
+## 双语文档维护
+
+中文文档保留在 `README.md` 和 `docs/*.md`，英文文档位于 `README.en.md` 和 `docs/en/*.md`，手册文件名一一对应。更新功能说明时同步维护两种语言，并保留每页顶部的语言链接。
+
+网站仓库通过 `npm run docs:sync -- ../ShitBot` 同时复制中英文手册到对应语言目录。通用模板示例仍放在 `docs/examples/`。

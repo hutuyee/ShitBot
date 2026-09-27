@@ -1,5 +1,7 @@
 # 平台兼容性
 
+**简体中文** | [English](en/compatibility.md)
+
 ## 平台与 Java
 
 | 平台模块 | 运行位置 | 插件最低 Java | 主要用途 |

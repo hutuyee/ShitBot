@@ -1,5 +1,7 @@
 # 背包查询与材质配置
 
+**简体中文** | [English](en/inventory.md)
+
 ## 开启背包查询
 
 在 `config.yml` 中确认：
@@ -17,7 +19,7 @@ inventory:
 
 保存后执行 `/shitbot reload`。Spigot 和 Nukkit-MOT 会定时保存在线玩家背包，并在玩家退出时再保存一次。
 
-命令别名和回复文本在所选 `lang/*.yml` 的 `commands.inventory` 与 `messages` 下修改。背包图片外观在 `templates/*.yml` 的 `inventory` 段修改；复制默认模板并通过 `inventory.template` 选择，详细格式见[配置说明](configuration.md#自定义图片模板)。
+命令别名和回复文本在所选 `lang/*.yml` 的 `commands.inventory` 与 `messages` 下修改。背包图片外观在 `templates/*.yml` 的 `inventory` 段修改；复制默认模板并通过 `inventory.template` 选择，详细格式见[配置说明](configuration.md#轻量主题文件)。
 
 ## 使用方式
 

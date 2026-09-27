@@ -1,5 +1,7 @@
 # 配置说明
 
+**简体中文** | [English](en/configuration.md)
+
 ShitBot 首次启动会在插件数据目录生成：
 
 - `config.yml`：语言选择、OneBot、转发、绑定、数据库、图片和背包配置；

@@ -1,5 +1,7 @@
 # 代理与后端子服
 
+**简体中文** | [English](en/proxy-backend.md)
+
 本模式用于让 BungeeCord 或 Velocity 接收 QQ 指令，并在指定 Spigot 子服执行 TPS 查询、权限校验、快捷命令或 PlaceholderAPI 数据查询。普通群聊转发不需要配置该通道。
 
 ## 部署要求

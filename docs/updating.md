@@ -1,5 +1,7 @@
 # 升级与自动更新
 
+**简体中文** | [English](en/updating.md)
+
 ## 升级前
 
 1. 阅读目标版本的 [Release Notes](https://github.com/hutuyee/ShitBot/releases)；
