@@ -224,6 +224,21 @@ inventory:
 
 `image.template` 选择在线列表使用的文件，`inventory.template` 选择背包图片使用的文件，两者可以不同。模板名只允许字母、数字、下划线和连字符。自定义文件缺少字段时会逐项读取 `templates/default.yml`，因此也可以只保留需要覆盖的段和字段。
 
+## 个人资料
+
+QQ 群发送 `个人资料` 或 `个人信息` 可生成内置个人资料图，也可以追加自己绑定的游戏 ID。`profile` 配置控制皮肤地址和可选字段：
+
+```yaml
+profile:
+  skin-url-template: "https://mc-heads.net/body/%player%/180"
+  permission-group-placeholder: "%luckperms_primary_group_name%"
+  points-placeholder: "%playerpoints_points%"
+  target-server: ""
+  output-file: "profile.png"
+```
+
+权限组和点券由 PlaceholderAPI（代理通过 `target-server` 转发到后端）解析；插件缺失、玩家离线、变量为空或解析失败时会隐藏该项，不影响图片生成。累计在线时长写入 `shitbot_player_stats`，外置模板可通过 `player-profile` 数据提供器读取。
+
 模板可调整主要布局尺寸、各类字号、圆角、描边、背景渐变、卡片、文字、状态、槽位和占位头像颜色。颜色支持以下格式：
 
 - `#RRGGBB`：不透明颜色；

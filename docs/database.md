@@ -2,7 +2,7 @@
 
 **简体中文** | [English](en/database.md)
 
-ShitBot 支持 SQLite 和 MySQL，所有平台使用相同的数据表结构。
+ShitBot 支持 SQLite 和 MySQL，所有平台使用相同的数据表结构。当前 schema 版本为 7；个人资料的累计在线时长保存在 `shitbot_player_stats` 表中。
 
 ## 选择数据库
 

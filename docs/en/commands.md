@@ -45,9 +45,12 @@ inventory
 my inventory
 inventory <Minecraft ID>
 my inventory <Minecraft ID>
+profile
+profile <Minecraft ID>
 ```
 
 When a Minecraft ID is supplied, ShitBot verifies that it belongs to the sender's QQ account. You cannot query another user's character.
+The profile command follows the same ownership rule and uses the newest binding when no ID is supplied. Its built-in card puts the skin on the left and optional permission group, points, and persisted online time on the right. Empty or unavailable PlaceholderAPI values are omitted.
 
 ## TPS
 

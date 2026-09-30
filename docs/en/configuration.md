@@ -223,6 +223,21 @@ inventory:
 
 `image.template` and `inventory.template` can select different files. Names may contain only letters, digits, underscores, and hyphens. Each missing field falls back to `templates/default.yml`, so a custom file can contain only the fields you want to override.
 
+## Personal profiles
+
+Group members can send `profile` or `personal profile`, optionally followed by one of their own bound Minecraft IDs. The built-in card is controlled by `profile`:
+
+```yaml
+profile:
+  skin-url-template: "https://mc-heads.net/body/%player%/180"
+  permission-group-placeholder: "%luckperms_primary_group_name%"
+  points-placeholder: "%playerpoints_points%"
+  target-server: ""
+  output-file: "profile.png"
+```
+
+Permission group and points use PlaceholderAPI (proxies forward through `target-server`). Missing plugins, offline players, empty values, and resolution failures hide the field without failing the image. ShitBot stores accumulated online time in `shitbot_player_stats`; external templates can read it through the `player-profile` provider.
+
 Themes control layout dimensions, font sizes, corner radii, strokes, background gradients, cards, text, status colors, slots, and placeholder avatars. Supported colors:
 
 - `#RRGGBB`: opaque.

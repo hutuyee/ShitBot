@@ -2,7 +2,7 @@
 
 [简体中文](../database.md) | **English**
 
-ShitBot supports SQLite and MySQL. All platforms share the same table schema.
+ShitBot supports SQLite and MySQL. All platforms share the same table schema. Schema version 7 adds `shitbot_player_stats` for persisted personal-profile online time.
 
 ## Choose a database
 

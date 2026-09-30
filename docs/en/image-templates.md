@@ -149,6 +149,7 @@ Built-in providers:
 | `online-players` | `${data.online-players.*}` | `total`, flat `players`, grouped `servers`, and the `group-by-server` flag; avatar URLs when enabled |
 | `player-avatar` | `${data.player-avatar.*}` | Selected `player`, `url`, and service `url-template`; `template-only: true` supplies only the URL template for independently bound avatar layers |
 | `papi` | `${data.papi.*}` | Explicitly declared PlaceholderAPI values, a `values` map, and per-item `errors` |
+| `player-profile` | `${data.player-profile.*}` | The player's skin URL, optional permission group and points, persisted online seconds/formatted duration, and online state; select the player with `options.player` or context `player` |
 
 `online-players.group-by-server` is `true` on BungeeCord/Velocity and `false` on standalone platforms. Proxy `servers[].id` is the server ID supplied by the proxy; `servers[].name` retains the existing name field. Groups also include `players` and `count`. Standalone templates can loop over `${data.online-players.players}` without group headings.
 

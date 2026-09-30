@@ -39,6 +39,7 @@ These records do not guarantee identical behavior for every server fork, plugin 
 | Chat forwarding | Yes | Handled by proxy | Yes | Text and URLs |
 | Save live inventory snapshots | Yes | Yes | Cannot read live inventories directly | Yes |
 | Render inventories from a shared database | Yes | Yes | Yes | Yes |
+| Built-in profile card and online time | Yes | Does not record backend sessions | Yes | Yes |
 | Proxy/backend command channel | Can act as backend | Listens for proxy requests | Dispatches to backends | Not used |
 | PictureBridge media markers | Yes | Depends on proxy message entry | Yes | Not used |
 | Advanced Java2D scenes | Yes | Can supply backend data | Yes | Yes, without Bukkit PAPI |

@@ -46,9 +46,12 @@ Spigot 和 Nukkit-MOT 默认仅 OP 拥有 `shitbot.admin`。BungeeCord 与 Veloc
 我的背包
 背包 <游戏ID>
 我的背包 <游戏ID>
+个人资料
+个人资料 <游戏ID>
 ```
 
 指定游戏 ID 查询背包时，ShitBot 会确认该角色已绑定到消息发送者的 QQ，不能查询他人的角色。
+个人资料同样只允许查询发送者自己绑定的角色；不带参数时使用最新绑定角色。个人资料图片左侧显示皮肤，右侧内置显示权限组、点券和累计在线时长。权限组和点券通过配置的 PlaceholderAPI 变量获取，变量不可用或为空时会自动隐藏；累计在线时长写入 `shitbot_player_stats` 表。
 
 ## TPS 指令
 

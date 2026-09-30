@@ -149,6 +149,7 @@ providers:
 | `online-players` | `${data.online-players.*}` | `total` 总在线数、`players` 平铺玩家列表、`servers` 分组列表及 `group-by-server` 代理分组标记；头像配置开启时还提供头像 URL |
 | `player-avatar` | `${data.player-avatar.*}` | 指定玩家的 `player`、`url`，以及头像服务地址模板 `url-template`；`template-only: true` 仅提供地址模板，供头像图层分别绑定玩家 |
 | `papi` | `${data.papi.*}` | 显式声明的 PlaceholderAPI 值、`values` 映射和逐项 `errors` 映射 |
+| `player-profile` | `${data.player-profile.*}` | 指定玩家的皮肤 URL、权限组、点券、累计在线秒数/格式化时长和在线状态；可用 `options.player` 或上下文 `player` 指定玩家 |
 
 `online-players.group-by-server` 由运行平台决定：BungeeCord、Velocity 为 `true`，单服平台为 `false`。代理分组的 `servers[].id` 是代理提供的服务器 ID，`servers[].name` 保留原有名称字段；各分组仍提供 `players` 和 `count`。手写单服模板可直接循环 `${data.online-players.players}`，不必显示分组标题。
 
