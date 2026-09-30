@@ -12,6 +12,9 @@ commands:
   inventory:
     aliases: ["背包", "我的背包"]
     usage: "用法: 背包 [游戏ID]（仅可查询自己绑定的角色）"
+  profile:
+    aliases: ["个人资料", "个人信息", "profile"]
+    usage: "用法: 个人资料 [游戏ID]（仅可查询自己绑定的角色）"
 
 notices:
   group-join-welcome: |
@@ -46,6 +49,10 @@ messages:
   inventory-unavailable: "%at% 暂无你的背包快照，请先进入一次服务器。"
   inventory-disabled: "%at% 背包查询当前未启用。"
   inventory-failed: "%at% 背包查询失败，请稍后重试。"
+  profile-not-bound: "%at% 你还没有绑定游戏ID。"
+  profile-player-not-bound: "%at% 游戏ID %player% 未绑定到你的QQ，无法查询。"
+  profile-disabled: "%at% 个人资料功能当前已关闭。"
+  profile-failed: "%at% 个人资料生成失败，请稍后重试。"
   no-permission: "&c你没有权限使用此命令。"
   reload-started: "&7正在重载 ShitBot..."
   reload-success: "&aShitBot 已完成热重载。"
@@ -65,6 +72,16 @@ image:
   footer-brand: "ShitBot  ·  OneBot 11"
   unknown-server: "未知服务器"
   no-backend: "未连接子服"
+
+profile:
+  skin-title: "玩家皮肤"
+  skin-unavailable: "皮肤暂不可用"
+  permission-group: "权限组"
+  points: "点券"
+  online-time: "累计在线"
+  online: "在线"
+  offline: "离线"
+  footer: "ShitBot · 个人资料"
 
 inventory:
   title: "%player% 的背包"

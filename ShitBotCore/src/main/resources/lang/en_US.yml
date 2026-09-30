@@ -12,6 +12,9 @@ commands:
   inventory:
     aliases: ["inventory", "my inventory"]
     usage: "Usage: inventory [Minecraft ID] (you may only query a character bound to your account)"
+  profile:
+    aliases: ["profile", "personal profile"]
+    usage: "Usage: profile [Minecraft ID] (you may only query a character bound to your account)"
 
 notices:
   group-join-welcome: |
@@ -46,6 +49,10 @@ messages:
   inventory-unavailable: "%at% No inventory snapshot is available. Join the server once first."
   inventory-disabled: "%at% Inventory lookup is currently disabled."
   inventory-failed: "%at% Inventory lookup failed. Please try again later."
+  profile-not-bound: "%at% You have not bound a Minecraft ID yet."
+  profile-player-not-bound: "%at% Minecraft ID %player% is not bound to your QQ account."
+  profile-disabled: "%at% Personal profiles are currently disabled."
+  profile-failed: "%at% The personal profile could not be generated. Please try again later."
   no-permission: "&cYou do not have permission to use this command."
   reload-started: "&7Reloading ShitBot..."
   reload-success: "&aShitBot was reloaded successfully."
@@ -65,6 +72,16 @@ image:
   footer-brand: "ShitBot  ·  OneBot 11"
   unknown-server: "Unknown Server"
   no-backend: "No Backend"
+
+profile:
+  skin-title: "Player Skin"
+  skin-unavailable: "Skin unavailable"
+  permission-group: "Permission Group"
+  points: "Points"
+  online-time: "Total Online"
+  online: "ONLINE"
+  offline: "OFFLINE"
+  footer: "ShitBot · Personal Profile"
 
 inventory:
   title: "%player%'s Inventory"

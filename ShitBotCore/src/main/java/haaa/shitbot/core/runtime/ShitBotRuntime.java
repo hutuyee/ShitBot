@@ -5,6 +5,7 @@ import haaa.shitbot.core.console.ConsoleSettings;
 import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.DatabaseManager;
 import haaa.shitbot.core.database.InventorySnapshotRepository;
+import haaa.shitbot.core.database.PlayerStatsRepository;
 import haaa.shitbot.core.image.CustomImageService;
 import haaa.shitbot.core.onebot.OneBotClient;
 import haaa.shitbot.core.onebot.OneBotCommandHandler;
@@ -17,6 +18,8 @@ import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.service.LoginDecision;
 import haaa.shitbot.core.service.MessageForwardingService;
 import haaa.shitbot.core.service.OnlineImageService;
+import haaa.shitbot.core.service.PlayerProfileImageService;
+import haaa.shitbot.core.service.PlayerProfileService;
 import haaa.shitbot.core.service.ServerStartupNotificationService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
@@ -35,11 +38,14 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final DatabaseManager database;
     private final BindingRepository repository;
     private final InventorySnapshotRepository inventorySnapshotRepository;
+    private final PlayerStatsRepository playerStatsRepository;
     private final BindingService bindingService;
     private final EasyBotMigrationService easyBotMigrationService;
     private final CustomImageService customImageService;
     private final haaa.shitbot.api.ShitBotApi api;
     private final OnlineImageService imageService;
+    private final PlayerProfileService profileService;
+    private final PlayerProfileImageService profileImageService;
     private final InventoryService inventoryService;
     private final OneBotClient oneBotClient;
     private final OneBotCommandHandler commandHandler;
@@ -69,13 +75,17 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.database = new DatabaseManager(settings.getDatabase(), platform);
         this.repository = new BindingRepository(database, settings.getBinding(), settings.getTranslations());
         this.inventorySnapshotRepository = new InventorySnapshotRepository(database);
+        this.playerStatsRepository = new PlayerStatsRepository(database);
         this.bindingService = new BindingService(settings, repository, platform);
         this.easyBotMigrationService = new EasyBotMigrationService(
                 platform, repository, settings.getTranslations());
-        this.customImageService = new CustomImageService(settings, platform);
+        this.profileService = new PlayerProfileService(settings, platform, playerStatsRepository);
+        this.customImageService = new CustomImageService(settings, platform, profileService);
         this.api = new RuntimeApi(this, customImageService);
         this.imageService = new OnlineImageService(
                 settings.getImage(), settings.getTranslations(), platform, customImageService);
+        this.profileImageService = new PlayerProfileImageService(
+                settings.getProfile(), settings.getTranslations(), platform);
         this.inventoryService = new InventoryService(
                 settings.getInventory(), settings.getTranslations(), platform,
                 repository, inventorySnapshotRepository);
@@ -83,7 +93,8 @@ public final class ShitBotRuntime implements AutoCloseable {
                 settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(),
                 settings.getTranslations(), settings.isDebug(), platform);
         this.commandHandler = new OneBotCommandHandler(
-                settings, platform, bindingService, imageService, inventoryService, oneBotClient);
+                settings, platform, bindingService, imageService, inventoryService,
+                profileService, profileImageService, oneBotClient);
         this.easyConsoleService = new EasyConsoleService(
                 consoleSettings, settings.getImage(), settings.getTranslations(), platform, repository,
                 customImageService, oneBotClient);
@@ -222,6 +233,30 @@ public final class ShitBotRuntime implements AutoCloseable {
         return inventoryService;
     }
 
+    public PlayerProfileService getProfileService() {
+        return profileService;
+    }
+
+    public void playerJoin(String playerName, String playerUuid) {
+        if (!closed.get() && isReady()) {
+            profileService.startSession(playerName, playerUuid).exceptionally(throwable -> {
+                platform.warn("Failed to record player session start: "
+                        + FutureUtil.unwrap(throwable).getMessage());
+                return null;
+            });
+        }
+    }
+
+    public void playerQuit(String playerName, String playerUuid) {
+        if (!closed.get() && isReady()) {
+            profileService.endSession(playerName, playerUuid).exceptionally(throwable -> {
+                platform.warn("Failed to record player session end: "
+                        + FutureUtil.unwrap(throwable).getMessage());
+                return null;
+            });
+        }
+    }
+
     public OneBotClient getOneBotClient() {
         return oneBotClient;
     }
@@ -268,6 +303,7 @@ public final class ShitBotRuntime implements AutoCloseable {
         startupNotificationService.close();
         oneBotClient.close();
         inventoryService.close();
+        profileImageService.close();
         imageService.close();
         customImageService.close();
         database.close();

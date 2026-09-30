@@ -5,6 +5,7 @@ import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
+import com.velocitypowered.api.event.connection.DisconnectEvent;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.util.TextUtil;
@@ -63,6 +64,10 @@ public final class PlayerLoginListener {
     @Subscribe
     public void onPostLogin(PostLoginEvent event) {
         final com.velocitypowered.api.proxy.Player player = event.getPlayer();
+        ShitBotRuntime runtime = plugin.getRuntime();
+        if (runtime != null) {
+            runtime.playerJoin(player.getUsername(), player.getUniqueId().toString());
+        }
         if (!player.hasPermission("shitbot.admin")) {
             return;
         }
@@ -80,6 +85,15 @@ public final class PlayerLoginListener {
                 }
             });
         });
+    }
+
+    @Subscribe
+    public void onDisconnect(DisconnectEvent event) {
+        ShitBotRuntime runtime = plugin.getRuntime();
+        if (runtime != null) {
+            com.velocitypowered.api.proxy.Player player = event.getPlayer();
+            runtime.playerQuit(player.getUsername(), player.getUniqueId().toString());
+        }
     }
 
     private String message(String key, String fallback) {

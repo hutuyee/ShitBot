@@ -11,6 +11,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.LoginEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
+import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
@@ -66,6 +67,10 @@ public final class PlayerLoginListener implements Listener {
     @EventHandler
     public void onPostLogin(PostLoginEvent event) {
         final ProxiedPlayer player = event.getPlayer();
+        ShitBotRuntime runtime = plugin.getRuntime();
+        if (runtime != null) {
+            runtime.playerJoin(player.getName(), player.getUniqueId().toString());
+        }
         if (!player.hasPermission("shitbot.admin")) {
             return;
         }
@@ -90,6 +95,15 @@ public final class PlayerLoginListener implements Listener {
                         });
                     }
                 });
+    }
+
+    @EventHandler
+    public void onDisconnect(PlayerDisconnectEvent event) {
+        ShitBotRuntime runtime = plugin.getRuntime();
+        if (runtime != null) {
+            ProxiedPlayer player = event.getPlayer();
+            runtime.playerQuit(player.getName(), player.getUniqueId().toString());
+        }
     }
 
     private String message(String key, String fallback) {

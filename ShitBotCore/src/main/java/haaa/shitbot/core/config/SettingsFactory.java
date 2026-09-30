@@ -23,6 +23,10 @@ public final class SettingsFactory {
                 source.getBoolean("onebot.commands.inventory.enabled", true),
                 listOrDefault(translations.getList("commands.inventory.aliases"), "inventory", "my inventory"),
                 translations.get("commands.inventory.usage"));
+        Settings.Command profileCommand = new Settings.Command(
+                source.getBoolean("onebot.commands.profile.enabled", true),
+                listOrDefault(translations.getList("commands.profile.aliases"), "profile", "个人资料"),
+                translations.get("commands.profile.usage"));
 
         Settings.GroupJoinWelcome groupJoinWelcome = new Settings.GroupJoinWelcome(
                 source.getBoolean("onebot.notices.group-join-welcome.enabled", true),
@@ -53,6 +57,7 @@ public final class SettingsFactory {
                 bindCommand,
                 onlineCommand,
                 inventoryCommand,
+                profileCommand,
                 groupJoinWelcome,
                 groupLeaveUnbind,
                 serverStartupNotice);
@@ -129,6 +134,18 @@ public final class SettingsFactory {
                 source.getInt("image.avatar.read-timeout-ms", 2500),
                 source.getInt("image.avatar.wait-timeout-ms", 2200));
 
+        Settings.Profile profile = new Settings.Profile(
+                source.getString("profile.skin-url-template", "https://mc-heads.net/body/%player%/180"),
+                source.getString("profile.permission-group-placeholder", "%luckperms_primary_group_name%"),
+                source.getString("profile.points-placeholder", "%playerpoints_points%"),
+                source.getString("profile.target-server", ""),
+                source.getString("profile.font-name", source.getString("image.font-name", "Microsoft YaHei")),
+                source.getInt("profile.width", 960),
+                source.getInt("profile.height", 600),
+                source.getString("profile.output-file", "profile.png"),
+                source.getInt("profile.skin-connect-timeout-ms", 2000),
+                source.getInt("profile.skin-read-timeout-ms", 4000));
+
         Settings.CustomImages customImages = new Settings.CustomImages(
                 source.getBoolean("custom-image-templates.enabled", false),
                 source.getString("custom-image-templates.component.version", ""),
@@ -203,6 +220,10 @@ public final class SettingsFactory {
                 translations.get("messages.inventory-unavailable"),
                 translations.get("messages.inventory-disabled"),
                 translations.get("messages.inventory-failed"),
+                translations.get("messages.profile-not-bound"),
+                translations.get("messages.profile-player-not-bound"),
+                translations.get("messages.profile-disabled"),
+                translations.get("messages.profile-failed"),
                 translations.get("messages.no-permission"),
                 translations.get("messages.reload-started"),
                 translations.get("messages.reload-success"),
@@ -210,7 +231,7 @@ public final class SettingsFactory {
 
         return new Settings(source.getInt("config-version", 2),
                 source.getBoolean("debug", false), translations, oneBot, forwarding, binding,
-                database, image, customImages, inventory, messages);
+                database, image, profile, customImages, inventory, messages);
     }
 
     private static List<String> listOrDefault(List<String> values, String... fallback) {

@@ -8,6 +8,9 @@ import haaa.shitbot.core.service.BindingService;
 import haaa.shitbot.core.service.InventoryQueryResult;
 import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.service.OnlineImageService;
+import haaa.shitbot.core.service.PlayerProfile;
+import haaa.shitbot.core.service.PlayerProfileImageService;
+import haaa.shitbot.core.service.PlayerProfileService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 
@@ -22,6 +25,8 @@ public final class OneBotCommandHandler {
     private final BindingService bindingService;
     private final OnlineImageService imageService;
     private final InventoryService inventoryService;
+    private final PlayerProfileService profileService;
+    private final PlayerProfileImageService profileImageService;
     private final OneBotClient client;
     private final ConcurrentHashMap<String, Long> cooldowns = new ConcurrentHashMap<String, Long>();
 
@@ -30,12 +35,16 @@ public final class OneBotCommandHandler {
                                 BindingService bindingService,
                                 OnlineImageService imageService,
                                 InventoryService inventoryService,
+                                PlayerProfileService profileService,
+                                PlayerProfileImageService profileImageService,
                                 OneBotClient client) {
         this.settings = settings;
         this.platform = platform;
         this.bindingService = bindingService;
         this.imageService = imageService;
         this.inventoryService = inventoryService;
+        this.profileService = profileService;
+        this.profileImageService = profileImageService;
         this.client = client;
     }
 
@@ -68,6 +77,19 @@ public final class OneBotCommandHandler {
                     reply(message, settings.getOneBot().getInventoryCommand().getUsage(), null, null);
                 } else if (!isCoolingDown(message, "inventory")) {
                     handleInventory(message, requestedPlayer.isEmpty() ? null : requestedPlayer);
+                }
+                return true;
+            }
+        }
+
+        if (settings.getOneBot().getProfileCommand().isEnabled()) {
+            Match profileMatch = matchPrefix(raw, settings.getOneBot().getProfileCommand().getAliases());
+            if (profileMatch != null) {
+                String requestedPlayer = profileMatch.remaining.trim();
+                if (!requestedPlayer.isEmpty() && !TextUtil.isValidPlayerName(requestedPlayer)) {
+                    reply(message, settings.getOneBot().getProfileCommand().getUsage(), null, null);
+                } else if (!isCoolingDown(message, "profile")) {
+                    handleProfile(message, requestedPlayer.isEmpty() ? null : requestedPlayer);
                 }
                 return true;
             }
@@ -185,6 +207,41 @@ public final class OneBotCommandHandler {
                         return null;
                     }
                 });
+    }
+
+    private void handleProfile(final GroupMessage message, final String requestedPlayer) {
+        final String qqId = String.valueOf(message.getUserId());
+        bindingService.findAllByQqId(qqId).thenCompose(bindings -> {
+            if (bindings == null || bindings.isEmpty()) {
+                reply(message, settings.getMessages().getProfileNotBound(), null, qqId);
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
+            }
+            String player = requestedPlayer;
+            if (player == null || player.trim().isEmpty()) {
+                player = bindings.get(0).getPlayerName();
+            } else {
+                boolean owned = false;
+                for (haaa.shitbot.core.database.BindingRecord binding : bindings) {
+                    if (binding != null && player.equals(binding.getPlayerName())) {
+                        owned = true;
+                        break;
+                    }
+                }
+                if (!owned) {
+                    reply(message, settings.getMessages().getProfilePlayerNotBound(), player, qqId);
+                    return java.util.concurrent.CompletableFuture.completedFuture(null);
+                }
+            }
+            final String target = player;
+            return profileService.find(target).thenCompose(profile ->
+                    profileImageService.renderAsync(profile).thenCompose(bytes ->
+                            client.sendGroupImage(message.getGroupId(), bytes,
+                                    settings.getProfile().getOutputFile())));
+        }).exceptionally(throwable -> {
+            platform.error("Failed to render/send player profile image", FutureUtil.unwrap(throwable));
+            reply(message, settings.getMessages().getProfileFailed(), requestedPlayer, qqId);
+            return null;
+        });
     }
 
     private void reply(GroupMessage message, String template, String playerName, String qqId) {

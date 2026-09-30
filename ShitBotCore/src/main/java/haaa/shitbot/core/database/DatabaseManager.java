@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * moved from Spigot to BungeeCord or Velocity without conversion.
  */
 public final class DatabaseManager implements AutoCloseable {
-    public static final int SCHEMA_VERSION = 6;
+    public static final int SCHEMA_VERSION = 7;
 
     private static final int MYSQL_MIGRATION_LOCK_TIMEOUT_SECONDS = 30;
 
@@ -37,6 +37,7 @@ public final class DatabaseManager implements AutoCloseable {
     private static final String CODES_TABLE = "shitbot_bind_codes";
     private static final String BIND_ATTEMPTS_TABLE = "shitbot_bind_attempts";
     private static final String INVENTORY_SNAPSHOTS_TABLE = "shitbot_inventory_snapshots";
+    private static final String PLAYER_STATS_TABLE = "shitbot_player_stats";
     private static final String LEGACY_PLAYER_KEY_COLUMN = "player_name_key";
 
     private final Settings.Database settings;
@@ -244,8 +245,8 @@ public final class DatabaseManager implements AutoCloseable {
             boolean bindingsExist = tableExists(connection, BINDINGS_TABLE);
             boolean codesExist = tableExists(connection, CODES_TABLE);
             if (!bindingsExist && !codesExist) {
-                createVersion6Schema(connection);
-                writeSchemaVersion(connection, 6);
+                createVersion7Schema(connection);
+                writeSchemaVersion(connection, 7);
                 return;
             }
             boolean legacySchema = columnExists(connection, BINDINGS_TABLE, LEGACY_PLAYER_KEY_COLUMN)
@@ -281,6 +282,11 @@ public final class DatabaseManager implements AutoCloseable {
         if (currentVersion < 6) {
             migrateToVersion6(connection);
             currentVersion = 6;
+            writeSchemaVersion(connection, currentVersion);
+        }
+        if (currentVersion < 7) {
+            migrateToVersion7(connection);
+            currentVersion = 7;
             writeSchemaVersion(connection, currentVersion);
         }
         enforceCaseSensitivePlayerColumns(connection);
@@ -373,6 +379,11 @@ public final class DatabaseManager implements AutoCloseable {
     }
 
     /** Creates the current schema. QQ numbers are indexed but intentionally not unique. */
+    private void createVersion7Schema(Connection connection) throws SQLException {
+        createVersion6Schema(connection);
+        createPlayerStatsTable(connection);
+    }
+
     private void createVersion6Schema(Connection connection) throws SQLException {
         createVersion5Schema(connection);
         ensureBindCodeCooldownColumn(connection);
@@ -443,6 +454,20 @@ public final class DatabaseManager implements AutoCloseable {
                     + "player_name " + playerNameColumn + ", qq_id VARCHAR(20) NOT NULL, "
                     + "attempts INTEGER NOT NULL, expires_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, "
                     + "PRIMARY KEY(player_name, qq_id))" + tableOptions);
+        }
+    }
+
+    private void createPlayerStatsTable(Connection connection) throws SQLException {
+        String playerNameColumn = settings.getType() == Settings.Database.Type.MYSQL
+                ? "VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL"
+                : "VARCHAR(16) NOT NULL";
+        String tableOptions = settings.getType() == Settings.Database.Type.MYSQL
+                ? " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci" : "";
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS " + PLAYER_STATS_TABLE + " ("
+                    + "player_name " + playerNameColumn + " PRIMARY KEY, "
+                    + "player_uuid VARCHAR(36) NULL, total_online_seconds BIGINT NOT NULL, "
+                    + "session_started_at BIGINT NULL, updated_at BIGINT NOT NULL)" + tableOptions);
         }
     }
 
@@ -637,6 +662,10 @@ public final class DatabaseManager implements AutoCloseable {
 
     private void migrateToVersion6(Connection connection) throws SQLException {
         ensureBindCodeCooldownColumn(connection);
+    }
+
+    private void migrateToVersion7(Connection connection) throws SQLException {
+        createPlayerStatsTable(connection);
     }
 
     private void ensureBindCodeCooldownColumn(Connection connection) throws SQLException {

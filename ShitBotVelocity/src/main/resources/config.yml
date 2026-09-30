@@ -60,6 +60,8 @@ onebot:
       enabled: true
     inventory:
       enabled: true
+    profile:
+      enabled: true
 
 forwarding:
   # 游戏聊天转发到 QQ 群，输出格式为 [MC] 玩家名: 内容。
@@ -179,6 +181,18 @@ image:
     read-timeout-ms: 2500
     # 单次生成最多等待头像的时间；超时先用默认头像，下载完成后下次生成自动使用。
     wait-timeout-ms: 2200
+
+profile:
+  skin-url-template: "https://mc-heads.net/body/%player%/180"
+  permission-group-placeholder: "%luckperms_primary_group_name%"
+  points-placeholder: "%playerpoints_points%"
+  target-server: ""
+  font-name: "Microsoft YaHei"
+  width: 960
+  height: 600
+  output-file: "profile.png"
+  skin-connect-timeout-ms: 2000
+  skin-read-timeout-ms: 4000
 
 # 高级自定义场景模板。关闭时不会创建渲染器、启动编辑器或访问组件下载地址。
 custom-image-templates:

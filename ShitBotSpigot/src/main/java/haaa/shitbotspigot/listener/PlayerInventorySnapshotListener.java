@@ -20,7 +20,13 @@ public final class PlayerInventorySnapshotListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         ShitBotRuntime runtime = plugin.getRuntime();
-        if (runtime == null || !runtime.getSettings().getInventory().isEnabled()) {
+        if (runtime == null) {
+            return;
+        }
+        if (!plugin.isBackendMode()) {
+            runtime.playerQuit(event.getPlayer().getName(), event.getPlayer().getUniqueId().toString());
+        }
+        if (!runtime.getSettings().getInventory().isEnabled()) {
             return;
         }
         final InventorySnapshot snapshot;

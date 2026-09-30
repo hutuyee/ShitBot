@@ -11,6 +11,7 @@ import haaa.shitbot.api.spi.ImageTemplateEngineHost;
 import haaa.shitbot.api.spi.ImageTemplateEngineSettings;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
+import haaa.shitbot.core.service.PlayerProfileService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 
@@ -41,6 +42,7 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
     private final Settings settings;
     private final Settings.CustomImages customSettings;
     private final PlatformBridge platform;
+    private final PlayerProfileService profileService;
     private final ConcurrentHashMap<String, ImageDataProvider> providers =
             new ConcurrentHashMap<String, ImageDataProvider>();
     private final Map<String, CachedProviderData> providerCache =
@@ -55,9 +57,16 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
     private CompletableFuture<Void> startFuture;
 
     public CustomImageService(Settings settings, PlatformBridge platform) {
+        this(settings, platform, null);
+    }
+
+    public CustomImageService(Settings settings,
+                              PlatformBridge platform,
+                              PlayerProfileService profileService) {
         this.settings = settings;
         this.customSettings = settings.getCustomImages();
         this.platform = platform;
+        this.profileService = profileService;
         registerBuiltInProviders();
     }
 
@@ -383,6 +392,29 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
                         });
             }
         });
+        providers.put("player-profile", new ImageDataProvider() {
+            @Override
+            public String getId() { return "player-profile"; }
+
+            @Override
+            public CompletableFuture<Map<String, Object>> provide(ImageDataRequest request) {
+                if (profileService == null) {
+                    return FutureUtil.failedFuture(new IllegalStateException(
+                            "Player profile provider is unavailable"));
+                }
+                String player = bindContext(option(request, "player", ""), request.getContext()).trim();
+                if (player.isEmpty()) {
+                    player = bindContext(String.valueOf(request.getContext().get("player")),
+                            request.getContext()).trim();
+                }
+                if (player.isEmpty() || "null".equalsIgnoreCase(player)) {
+                    return FutureUtil.failedFuture(new IllegalArgumentException(
+                            "Player profile provider requires a player"));
+                }
+                final String requestedPlayer = player;
+                return profileService.provideData(requestedPlayer);
+            }
+        });
     }
 
     private Map<String, Object> onlineData(Map<String, List<String>> snapshot) {
@@ -540,7 +572,8 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
 
     private boolean isBuiltInProvider(String id) {
         return "shitbot".equals(id) || "online-players".equals(id)
-                || "player-avatar".equals(id) || "papi".equals(id);
+                || "player-avatar".equals(id) || "papi".equals(id)
+                || "player-profile".equals(id);
     }
 
     @Override

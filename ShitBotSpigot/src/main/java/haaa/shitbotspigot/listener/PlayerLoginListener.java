@@ -55,6 +55,10 @@ public final class PlayerLoginListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onJoin(final PlayerJoinEvent event) {
         final Player player = event.getPlayer();
+        final ShitBotRuntime runtime = plugin.getRuntime();
+        if (runtime != null && !plugin.isBackendMode()) {
+            runtime.playerJoin(player.getName(), player.getUniqueId().toString());
+        }
         if (!player.hasPermission("shitbot.admin")) {
             return;
         }

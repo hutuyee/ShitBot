@@ -19,6 +19,7 @@ public final class Settings {
     private final Binding binding;
     private final Database database;
     private final Image image;
+    private final Profile profile;
     private final CustomImages customImages;
     private final Inventory inventory;
     private final Messages messages;
@@ -34,7 +35,8 @@ public final class Settings {
                     Inventory inventory,
                     Messages messages) {
         this(configVersion, false, translations, oneBot, forwarding, binding,
-                database, image, customImages, inventory, messages);
+                database, image, new Profile("", "", "", "", "Microsoft YaHei",
+                        960, 600, "profile.png", 2000, 4000), customImages, inventory, messages);
     }
 
     public Settings(int configVersion,
@@ -45,6 +47,7 @@ public final class Settings {
                     Binding binding,
                     Database database,
                     Image image,
+                    Profile profile,
                     CustomImages customImages,
                     Inventory inventory,
                     Messages messages) {
@@ -56,6 +59,7 @@ public final class Settings {
         this.binding = require(binding, "binding");
         this.database = require(database, "database");
         this.image = require(image, "image");
+        this.profile = require(profile, "profile");
         this.customImages = require(customImages, "customImages");
         this.inventory = require(inventory, "inventory");
         this.messages = require(messages, "messages");
@@ -91,6 +95,10 @@ public final class Settings {
 
     public Image getImage() {
         return image;
+    }
+
+    public Profile getProfile() {
+        return profile;
     }
 
     public CustomImages getCustomImages() {
@@ -151,6 +159,7 @@ public final class Settings {
         private final Command bindCommand;
         private final Command onlineImageCommand;
         private final Command inventoryCommand;
+        private final Command profileCommand;
         private final GroupJoinWelcome groupJoinWelcome;
         private final GroupLeaveUnbind groupLeaveUnbind;
         private final ServerStartupNotice serverStartupNotice;
@@ -175,6 +184,35 @@ public final class Settings {
                       GroupJoinWelcome groupJoinWelcome,
                       GroupLeaveUnbind groupLeaveUnbind,
                       ServerStartupNotice serverStartupNotice) {
+            this(enabled, websocketUrl, accessToken, allowInsecureRemoteWebsocket, allowedGroupIds,
+                    allowAllGroups, connectTimeoutSeconds, actionTimeoutSeconds, maximumPendingActions,
+                    heartbeatTimeoutSeconds, reconnectInitialSeconds, reconnectMaximumSeconds,
+                    commandCooldownSeconds, replyAtSender, bindCommand, onlineImageCommand,
+                    inventoryCommand, new Command(true, Arrays.asList("profile", "个人资料"), "profile"),
+                    groupJoinWelcome, groupLeaveUnbind, serverStartupNotice);
+        }
+
+        public OneBot(boolean enabled,
+                      String websocketUrl,
+                      String accessToken,
+                      boolean allowInsecureRemoteWebsocket,
+                      List<Long> allowedGroupIds,
+                      boolean allowAllGroups,
+                      int connectTimeoutSeconds,
+                      int actionTimeoutSeconds,
+                      int maximumPendingActions,
+                      int heartbeatTimeoutSeconds,
+                      int reconnectInitialSeconds,
+                      int reconnectMaximumSeconds,
+                      int commandCooldownSeconds,
+                      boolean replyAtSender,
+                      Command bindCommand,
+                      Command onlineImageCommand,
+                      Command inventoryCommand,
+                      Command profileCommand,
+                      GroupJoinWelcome groupJoinWelcome,
+                      GroupLeaveUnbind groupLeaveUnbind,
+                      ServerStartupNotice serverStartupNotice) {
             this.enabled = enabled;
             this.websocketUrl = text(websocketUrl, "ws://127.0.0.1:3001");
             this.accessToken = accessToken == null ? "" : accessToken.trim();
@@ -194,6 +232,7 @@ public final class Settings {
             this.bindCommand = require(bindCommand, "bindCommand");
             this.onlineImageCommand = require(onlineImageCommand, "onlineImageCommand");
             this.inventoryCommand = require(inventoryCommand, "inventoryCommand");
+            this.profileCommand = require(profileCommand, "profileCommand");
             this.groupJoinWelcome = require(groupJoinWelcome, "groupJoinWelcome");
             this.groupLeaveUnbind = require(groupLeaveUnbind, "groupLeaveUnbind");
             this.serverStartupNotice = require(serverStartupNotice, "serverStartupNotice");
@@ -265,6 +304,10 @@ public final class Settings {
 
         public Command getInventoryCommand() {
             return inventoryCommand;
+        }
+
+        public Command getProfileCommand() {
+            return profileCommand;
         }
 
         public GroupJoinWelcome getGroupJoinWelcome() {
@@ -878,6 +921,56 @@ public final class Settings {
         }
     }
 
+    public static final class Profile {
+        private final String skinUrlTemplate;
+        private final String permissionGroupPlaceholder;
+        private final String pointsPlaceholder;
+        private final String targetServer;
+        private final String fontName;
+        private final int width;
+        private final int height;
+        private final String outputFile;
+        private final int skinConnectTimeoutMs;
+        private final int skinReadTimeoutMs;
+
+        public Profile(String skinUrlTemplate,
+                       String permissionGroupPlaceholder,
+                       String pointsPlaceholder,
+                       String targetServer,
+                       String fontName,
+                       int width,
+                       int height,
+                       String outputFile,
+                       int skinConnectTimeoutMs,
+                       int skinReadTimeoutMs) {
+            this.skinUrlTemplate = text(skinUrlTemplate, "https://mc-heads.net/body/%player%/180");
+            this.permissionGroupPlaceholder = cleanPlaceholder(permissionGroupPlaceholder);
+            this.pointsPlaceholder = cleanPlaceholder(pointsPlaceholder);
+            this.targetServer = targetServer == null ? "" : targetServer.trim();
+            this.fontName = text(fontName, "Microsoft YaHei");
+            this.width = clamp(width, 720, 2400, 960);
+            this.height = clamp(height, 420, 1600, 600);
+            this.outputFile = Database.sanitizeFileName(outputFile, "profile.png");
+            this.skinConnectTimeoutMs = clamp(skinConnectTimeoutMs, 250, 10000, 2000);
+            this.skinReadTimeoutMs = clamp(skinReadTimeoutMs, 250, 15000, 4000);
+        }
+
+        public String getSkinUrlTemplate() { return skinUrlTemplate; }
+        public String getPermissionGroupPlaceholder() { return permissionGroupPlaceholder; }
+        public String getPointsPlaceholder() { return pointsPlaceholder; }
+        public String getTargetServer() { return targetServer; }
+        public String getFontName() { return fontName; }
+        public int getWidth() { return width; }
+        public int getHeight() { return height; }
+        public String getOutputFile() { return outputFile; }
+        public int getSkinConnectTimeoutMs() { return skinConnectTimeoutMs; }
+        public int getSkinReadTimeoutMs() { return skinReadTimeoutMs; }
+
+        private static String cleanPlaceholder(String value) {
+            return value == null ? "" : value.trim();
+        }
+    }
+
     public static final class CustomImages {
         private final boolean enabled;
         private final String componentVersion;
@@ -1117,6 +1210,10 @@ public final class Settings {
         private final String inventoryUnavailable;
         private final String inventoryDisabled;
         private final String inventoryFailed;
+        private final String profileNotBound;
+        private final String profilePlayerNotBound;
+        private final String profileDisabled;
+        private final String profileFailed;
         private final String noPermission;
         private final String reloadStarted;
         private final String reloadSuccess;
@@ -1139,6 +1236,10 @@ public final class Settings {
                         String inventoryUnavailable,
                         String inventoryDisabled,
                         String inventoryFailed,
+                        String profileNotBound,
+                        String profilePlayerNotBound,
+                        String profileDisabled,
+                        String profileFailed,
                         String noPermission,
                         String reloadStarted,
                         String reloadSuccess,
@@ -1160,6 +1261,10 @@ public final class Settings {
             this.inventoryUnavailable = text(inventoryUnavailable, "");
             this.inventoryDisabled = text(inventoryDisabled, "");
             this.inventoryFailed = text(inventoryFailed, "");
+            this.profileNotBound = text(profileNotBound, "");
+            this.profilePlayerNotBound = text(profilePlayerNotBound, "");
+            this.profileDisabled = text(profileDisabled, "");
+            this.profileFailed = text(profileFailed, "");
             this.noPermission = text(noPermission, "");
             this.reloadStarted = text(reloadStarted, "");
             this.reloadSuccess = text(reloadSuccess, "");
@@ -1183,6 +1288,10 @@ public final class Settings {
         public String getInventoryUnavailable() { return inventoryUnavailable; }
         public String getInventoryDisabled() { return inventoryDisabled; }
         public String getInventoryFailed() { return inventoryFailed; }
+        public String getProfileNotBound() { return profileNotBound; }
+        public String getProfilePlayerNotBound() { return profilePlayerNotBound; }
+        public String getProfileDisabled() { return profileDisabled; }
+        public String getProfileFailed() { return profileFailed; }
         public String getNoPermission() { return noPermission; }
         public String getReloadStarted() { return reloadStarted; }
         public String getReloadSuccess() { return reloadSuccess; }

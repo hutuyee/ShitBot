@@ -214,6 +214,10 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(final PlayerJoinEvent event) {
         final Player player = event.getPlayer();
+        final ShitBotRuntime runtime = runtimeReference.get();
+        if (runtime != null) {
+            runtime.playerJoin(player.getName(), player.getUniqueId().toString());
+        }
         if (!player.hasPermission("shitbot.admin") || updateChecker == null) {
             return;
         }
@@ -239,7 +243,11 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         final ShitBotRuntime runtime = runtimeReference.get();
-        if (runtime == null || !runtime.getSettings().getInventory().isEnabled()) {
+        if (runtime == null) {
+            return;
+        }
+        runtime.playerQuit(event.getPlayer().getName(), event.getPlayer().getUniqueId().toString());
+        if (!runtime.getSettings().getInventory().isEnabled()) {
             return;
         }
         final InventorySnapshot snapshot;
