@@ -86,10 +86,12 @@ custom-image-templates:
 
 ## 模板目录
 
-高级组件启动或随插件重载时会补全内置 `online-status` 模板，即使模板根目录中已有其他模板也会生成缺失的默认模板。首次生成时会发布示例：
+高级组件启动或随插件重载时会补全内置 `online-status`（在线状态）、`player-profile`（个人信息）和 `inventory`（背包）模板，即使模板根目录中已有其他模板也会生成缺失的默认模板。首次生成时会发布示例，三者的目录结构相同：
 
 ```text
 image-templates/
+├─ player-profile/
+├─ inventory/
 └─ online-status/
    ├─ manifest.yml
    ├─ scene.yml
@@ -110,7 +112,7 @@ image-templates/
 
 不要手工修改 `versions/` 或 `published.yml`。要修改模板，应编辑草稿后重新发布一个新版本。
 
-`online-status` 草稿缺少 `manifest.yml`、`scene.yml` 或 `assets/` 目录时会自动恢复。空 YAML 文件、缺失键和 `null` 值会按内置模板补齐并保存；已有画布设置、图层列表和提供器列表会保留，列表不会按位置合并。补全已有草稿不会改动历史快照或自动发布新版本，需通过编辑器发布后才能影响现有生产模板。`published.yml` 丢失且历史版本仍在时，会从最新历史版本恢复发布指针，该版本必须通过模板校验。
+这三个内置模板的草稿缺少 `manifest.yml`、`scene.yml` 或 `assets/` 目录时会自动恢复。空 YAML 文件、缺失键和 `null` 值会按内置模板补齐并保存；已有画布设置、图层列表和提供器列表会保留，列表不会按位置合并。补全已有草稿不会改动历史快照或自动发布新版本，需通过编辑器发布后才能影响现有生产模板。`published.yml` 丢失且历史版本仍在时，会从最新历史版本恢复发布指针，该版本必须通过模板校验。
 
 默认 `online-status` 使用 1200 × 960 的白灰色卡片：背景为纯浅灰 `#F3F4F6`，主卡片为不透明白色，标题与玩家名称使用深灰 `#20262E`，提示和页脚使用 `#59636E`。少量灰蓝色 `#355874` 配合浅蓝灰 `#EDF2F6`，只用于突出总在线人数；不再使用粉紫渐变和大面积装饰色块。顶部展示标题、配置的服务器名和总在线人数。Bukkit/Spigot、Nukkit 等单服平台直接排列玩家名片，不显示 `CraftBukkit` 等实现名称或子服分组框；BungeeCord、Velocity 从代理自身的在线快照取得玩家所在的服务器 ID，再按两列排列子服面板，即使只有一个子服也保留 ID。每位玩家显示圆角方形的 Minecraft 像素头像与名字，页脚只展示 ShitBot 标识和数据生成时间。头像直接读取 `online-players` 提供的 `${player.avatar}`，沿用 `image.avatar.url-template`；`image.avatar.enabled: false` 时不请求玩家头像。
 
@@ -121,6 +123,36 @@ image-templates/
 升级只补齐内置模板草稿中缺失的内容，保留已经生成或修改过的值和图层列表。编辑器中新建模板会使用新版默认布局；要更新原有 `online-status` 的完整布局，可把发行源码中 `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` 的内容放入该模板的 `scene.yml` 草稿，再通过编辑器保存、预览并发布。
 
 模板 ID 只能使用小写字母、数字、下划线和连字符，最长 64 个字符。所有文件必须位于插件数据目录内；绝对路径、目录穿越和符号链接越界都会被拒绝。
+
+### 个人信息与背包模板
+
+`player-profile` 是 960 × 600 的个人信息卡片，左侧展示玩家皮肤，右侧展示名字、在线状态、权限组、点券和累计在线时长。皮肤沿用 `profile.skin-url-template`，权限组和点券沿用 `profile` 中的占位符配置。没有值的可选字段会隐藏，点券为 `0` 时仍然显示。网络皮肤需要开启 `custom-image-templates.remote-images.enabled`。
+
+`inventory` 是 1000 × 840 的背包卡片，包含头盔、胸甲、护腿、靴子、副手、27 格主背包和 9 格快捷栏。物品图标、数量、附魔边框和耐久条都是可编辑图层。数据沿用现有背包服务：可在本服采集时读取在线背包，否则读取保留期内的最近快照；没有快照时显示提示。材质沿用 `inventory.icons` 与 `item-icons/`，具体部署见[背包说明](inventory.md)。
+
+启用编辑器，在 `config.yml` 中设置：
+
+```yaml
+custom-image-templates:
+  enabled: true
+  editor:
+    enabled: true
+```
+
+执行 `/shitbot reload`，再用 `/shitbot editor` 打开编辑器，选择 `player-profile` 或 `inventory`。在预览上下文的 `player` 中填入实际玩家名，保存、预览后发布即可应用草稿。背包模板要求 `inventory.enabled: true`；代理端需要能读取后端保存的共享快照。
+
+四个平台的 `commands.yml` 都提供以下群命令入口，默认关闭；要使用时将对应的 `enabled` 改为 `true` 后重载：
+
+```yaml
+image-templates:
+  commands:
+    player-profile:
+      enabled: true
+    inventory:
+      enabled: true
+```
+
+默认别名为 `自定义个人信息` / `custom profile` 和 `自定义背包` / `custom inventory`，使用发送者已绑定的角色。要通过参数指定角色，将该入口的 `player-source` 改为 `argument` 并调整 `usage`；指定角色仍必须属于发送者。内置的 `个人资料`、`背包` 指令继续使用原生图片，这些入口独立使用外置模板。其他插件可通过 API 渲染相同模板 ID，并在上下文传入 `player`。
 
 ## manifest.yml
 
@@ -151,7 +183,23 @@ providers:
 | `online-players` | `${data.online-players.*}` | `total` 总在线数、`players` 平铺玩家列表、`servers` 分组列表及 `group-by-server` 代理分组标记；头像配置开启时还提供头像 URL |
 | `player-avatar` | `${data.player-avatar.*}` | 指定玩家的 `player`、`url`，以及头像服务地址模板 `url-template`；`template-only: true` 仅提供地址模板，供头像图层分别绑定玩家 |
 | `papi` | `${data.papi.*}` | 显式声明的 PlaceholderAPI 值、`values` 映射和逐项 `errors` 映射 |
-| `player-profile` | `${data.player-profile.*}` | 指定玩家的皮肤 URL、权限组、点券、累计在线秒数/格式化时长和在线状态；可用 `options.player` 或上下文 `player` 指定玩家 |
+| `player-profile` | `${data.player-profile.*}` | 指定玩家的皮肤 URL、权限组、点券、累计在线秒数/格式化时长、在线状态和语言标签；可用 `options.player` 或上下文 `player` 指定玩家 |
+| `inventory` | `${data.inventory.*}` | 指定玩家的背包快照、分区物品列表、PNG 图标、统计和语言标签；可用 `options.player` 或上下文 `player` 指定玩家，QQ 请求会再次校验绑定归属 |
+
+个人信息提供器的 `has-permission-group` 和 `has-points` 表示对应字段是否有值，适合控制条件图层；`online` 是布尔值，`status` 是本地化状态，`labels` 提供 `skin-title`、`skin-unavailable`、`permission-group`、`points`、`online-time` 和 `footer`。
+
+背包提供器的常用字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `player`、`available`、`live` | 玩家名、是否有快照、是否为本次在线采集；没有快照时各物品列表为空 |
+| `title`、`status`、`unavailable`、`labels` | 本地化标题、数据状态、无快照提示及分区标题 |
+| `equipment`、`storage`、`hotbar` | 装备与副手 5 格、主背包 27 格、快捷栏 9 格；包含空格 |
+| `slots` | 按槽位编号排列的完整 41 格：0–8 快捷栏、9–35 主背包、36–39 靴子至头盔、40 副手 |
+| `occupied`、`total-items`、`summary` | 已用格数、物品总数、本地化摘要 |
+| `server`、`captured-at`、`captured-time`、`data-time` | 快照服务器、毫秒时间戳、格式化时间及带标签的时间 |
+
+每格包含 `slot`、`empty`、`icon`、`amount`、`amount-text`、`enchanted`、`border-color` 和 `has-durability`；非空格还包含 `registry-id`、`material-name`、`name`、`damage`、`maximum-durability`、`durability`（剩余耐久）。`icon` 是可直接绑定到 `image.source` 的 PNG data URI，空格为空字符串；数量不超过 1 时 `amount-text` 为空。渲染快照字段前应判断 `available`，显示耐久条前应判断 `has-durability`。
 
 `online-players.group-by-server` 由运行平台决定：BungeeCord、Velocity 为 `true`，单服平台为 `false`。代理分组的 `servers[].id` 是代理提供的服务器 ID，`servers[].name` 保留原有名称字段；各分组仍提供 `players` 和 `count`。手写单服模板可直接循环 `${data.online-players.players}`，不必显示分组标题。
 

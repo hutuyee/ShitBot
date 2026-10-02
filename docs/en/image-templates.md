@@ -86,10 +86,12 @@ A debug-mode local JAR is still checked for size and must contain `META-INF/serv
 
 ## Template directory
 
-When the advanced component starts or reloads with the plugin, it completes the built-in `online-status` template, even if other templates already exist. A newly created example is published:
+When the advanced component starts or reloads with the plugin, it completes the built-in `online-status`, `player-profile`, and `inventory` templates, even if other templates already exist. Newly created examples are published. All three use the same directory structure:
 
 ```text
 image-templates/
+├─ player-profile/
+├─ inventory/
 └─ online-status/
    ├─ manifest.yml
    ├─ scene.yml
@@ -110,7 +112,7 @@ image-templates/
 
 Do not edit `versions/` or `published.yml` manually. Edit the draft and publish a new version.
 
-Missing `manifest.yml`, `scene.yml`, or the `assets/` directory in the `online-status` draft are restored automatically. Empty YAML files, missing keys, and `null` values are completed from the bundled template and saved. Existing canvas settings, layer lists, and provider lists are retained; lists are never merged by position. Completing an existing draft does not alter historical snapshots or publish a new version. Publish through the editor to apply it to an existing production template. If `published.yml` is missing but historical versions remain, its pointer is restored from the newest historical version, which must pass template validation.
+Missing `manifest.yml`, `scene.yml`, or the `assets/` directory in any of these three bundled drafts are restored automatically. Empty YAML files, missing keys, and `null` values are completed from the bundled template and saved. Existing canvas settings, layer lists, and provider lists are retained; lists are never merged by position. Completing an existing draft does not alter historical snapshots or publish a new version. Publish through the editor to apply it to an existing production template. If `published.yml` is missing but historical versions remain, its pointer is restored from the newest historical version, which must pass template validation.
 
 The default `online-status` is a 1200 × 960 white/gray card. It uses a solid light gray `#F3F4F6` background, an opaque white main card, dark gray `#20262E` titles and names, and `#59636E` hints and footer text. Small areas of blue-gray `#355874` and pale blue-gray `#EDF2F6` emphasize the total online count, replacing pink/purple gradients and large decorative color blocks. The top shows the title, configured server name, and total count. Standalone Bukkit/Spigot and Nukkit servers lay out player cards directly, without implementation names such as CraftBukkit or backend group frames. BungeeCord/Velocity obtains each player's server ID from the proxy snapshot and arranges backend panels in two columns, retaining IDs even with one backend. Each player has a rounded-square pixel avatar and name. The footer shows only ShitBot branding and generation time. Avatars use `${player.avatar}` from `online-players`, following `image.avatar.url-template`. With `image.avatar.enabled: false`, player avatars are not requested.
 
@@ -121,6 +123,36 @@ Standalone layouts show up to 40 players in four columns. Proxy layouts show up 
 Upgrades fill missing content in the built-in template draft while retaining existing values and layer lists. New templates created in the editor use the new defaults. To replace the entire layout of an existing `online-status`, copy the release source's `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` into its scene draft, then save, preview, and publish through the editor.
 
 Template IDs allow lowercase letters, digits, underscores, and hyphens, up to 64 characters. Files must remain within the plugin data directory. Absolute paths, traversal, and symlinks escaping the directory are rejected.
+
+### Profile and inventory templates
+
+`player-profile` is a 960 × 600 card with the player's skin on the left and name, online status, permission group, points, and accumulated online time on the right. It uses `profile.skin-url-template` and the existing `profile` placeholder settings. Optional fields with no value are hidden; a points value of `0` remains visible. Network skins require `custom-image-templates.remote-images.enabled`.
+
+`inventory` is a 1000 × 840 card with helmet, chestplate, leggings, boots, offhand, 27 storage slots, and 9 hotbar slots. Icons, counts, enchanted borders, and durability bars are editable layers. It uses the existing inventory service: capture a live inventory when available locally, otherwise read the latest retained snapshot, or show a message when none exists. Textures use `inventory.icons` and `item-icons/`; see [Inventory](inventory.md) for deployment details.
+
+Enable the editor in `config.yml`:
+
+```yaml
+custom-image-templates:
+  enabled: true
+  editor:
+    enabled: true
+```
+
+Run `/shitbot reload`, open `/shitbot editor`, and select `player-profile` or `inventory`. Set `player` in the preview context to an actual player name, then save, preview, and publish the draft. Inventory templates require `inventory.enabled: true`; proxies need access to shared snapshots saved by their backends.
+
+All four platforms include the following group command entries in `commands.yml`, disabled by default. Enable the desired entries and reload:
+
+```yaml
+image-templates:
+  commands:
+    player-profile:
+      enabled: true
+    inventory:
+      enabled: true
+```
+
+Default aliases are `custom profile` / `自定义个人信息` and `custom inventory` / `自定义背包`. They select a character bound to the sender. To select a character through an argument, change the entry's `player-source` to `argument` and update `usage`; the selected character must still belong to the sender. Built-in `profile` and `inventory` commands retain their native images; these separate entries use external templates. Plugins can render the same template IDs through the API with `player` in the request context.
 
 ## manifest.yml
 
@@ -151,7 +183,23 @@ Built-in providers:
 | `online-players` | `${data.online-players.*}` | `total`, flat `players`, grouped `servers`, and the `group-by-server` flag; avatar URLs when enabled |
 | `player-avatar` | `${data.player-avatar.*}` | Selected `player`, `url`, and service `url-template`; `template-only: true` supplies only the URL template for independently bound avatar layers |
 | `papi` | `${data.papi.*}` | Explicitly declared PlaceholderAPI values, a `values` map, and per-item `errors` |
-| `player-profile` | `${data.player-profile.*}` | The player's skin URL, optional permission group and points, persisted online seconds/formatted duration, and online state; select the player with `options.player` or context `player` |
+| `player-profile` | `${data.player-profile.*}` | The player's skin URL, optional permission group and points, persisted online seconds/formatted duration, online state, and localized labels; select the player with `options.player` or context `player` |
+| `inventory` | `${data.inventory.*}` | The player's snapshot, grouped slots, PNG icons, totals, and localized labels; select the player with `options.player` or context `player`; QQ requests recheck binding ownership |
+
+Profile fields `has-permission-group` and `has-points` indicate whether the corresponding value exists, for use in conditional layers. `online` is a boolean, `status` is localized, and `labels` contains `skin-title`, `skin-unavailable`, `permission-group`, `points`, `online-time`, and `footer`.
+
+Common inventory fields:
+
+| Field | Content |
+| --- | --- |
+| `player`, `available`, `live` | Player name, snapshot availability, and whether captured live for this request; slot lists are empty when unavailable |
+| `title`, `status`, `unavailable`, `labels` | Localized title, snapshot status, missing-snapshot message, and section labels |
+| `equipment`, `storage`, `hotbar` | 5 equipment/offhand slots, 27 storage slots, and 9 hotbar slots, including empty slots |
+| `slots` | All 41 slots ordered by index: 0–8 hotbar, 9–35 storage, 36–39 boots through helmet, 40 offhand |
+| `occupied`, `total-items`, `summary` | Occupied slot count, total item count, and localized summary |
+| `server`, `captured-at`, `captured-time`, `data-time` | Snapshot server, timestamp in milliseconds, formatted time, and labeled time |
+
+Each slot contains `slot`, `empty`, `icon`, `amount`, `amount-text`, `enchanted`, `border-color`, and `has-durability`. Nonempty slots also contain `registry-id`, `material-name`, `name`, `damage`, `maximum-durability`, and `durability` (remaining durability). `icon` is a PNG data URI suitable for `image.source`, or an empty string for an empty slot. `amount-text` is empty for counts of 1 or less. Check `available` before displaying snapshot fields and `has-durability` before displaying a durability bar.
 
 `online-players.group-by-server` is `true` on BungeeCord/Velocity and `false` on standalone platforms. Proxy `servers[].id` is the server ID supplied by the proxy; `servers[].name` retains the existing name field. Groups also include `players` and `count`. Standalone templates can loop over `${data.online-players.players}` without group headings.
 

@@ -243,6 +243,8 @@ profile:
 
 权限组和点券由 PlaceholderAPI（代理通过 `target-server` 转发到后端）解析；插件缺失、玩家离线、变量为空或解析失败时会隐藏该项，不影响图片生成。累计在线时长写入 `shitbot_player_stats`，外置模板可通过 `player-profile` 数据提供器读取。
 
+高级模板还自带可在编辑器中修改的 `image-templates/player-profile/` 个人信息卡片。开启 `image-templates.commands.player-profile.enabled` 群命令入口后，可用 `自定义个人信息` 查询绑定角色；启用步骤见[个人信息与背包模板](image-templates.md#个人信息与背包模板)。
+
 模板可调整主要布局尺寸、各类字号、圆角、描边、背景渐变、卡片、文字、状态、槽位和占位头像颜色。颜色支持以下格式：
 
 - `#RRGGBB`：不透明颜色；

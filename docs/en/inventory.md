@@ -27,6 +27,12 @@ With `language: "en_US"`, group members send `inventory` or `my inventory` to se
 
 For multiple Minecraft IDs, use `inventory <Minecraft ID>` or `my inventory <Minecraft ID>`. The exact ID must belong to the sender's QQ before the snapshot is read and rendered. Other users' characters cannot be queried. The corresponding Chinese aliases are `背包` and `我的背包`.
 
+## External inventory template
+
+Enabling advanced templates creates `image-templates/inventory/`. Use `/shitbot editor` to edit equipment, storage, hotbar, counts, and durability layers. Set the preview context's `player` to an actual player name, then save and publish changes.
+
+Set `image-templates.commands.inventory.enabled` to `true` in `commands.yml` and reload to query a bound character with `custom inventory`. This entry uses the same snapshots, binding checks, and texture settings, and requires `inventory.enabled: true`. The original `inventory` command retains its native image. See [Profile and inventory templates](image-templates.md#profile-and-inventory-templates) for activation and data fields.
+
 ## Offline queries
 
 Online snapshots are saved every 60 seconds by default and immediately on logout. They are retained for 30 days by default, so QQ users can query the latest inventory while offline.

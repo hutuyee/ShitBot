@@ -242,6 +242,8 @@ profile:
 
 Permission group and points use PlaceholderAPI (proxies forward through `target-server`). Missing plugins, offline players, empty values, and resolution failures hide the field without failing the image. ShitBot stores accumulated online time in `shitbot_player_stats`; external templates can read it through the `player-profile` provider.
 
+Advanced templates include an editable profile card under `image-templates/player-profile/`. Enable `image-templates.commands.player-profile.enabled` in `commands.yml` to query a bound character with `custom profile`; see [Profile and inventory templates](image-templates.md#profile-and-inventory-templates) for setup.
+
 Themes control layout dimensions, font sizes, corner radii, strokes, background gradients, cards, text, status colors, slots, and placeholder avatars. Supported colors:
 
 - `#RRGGBB`: opaque.
