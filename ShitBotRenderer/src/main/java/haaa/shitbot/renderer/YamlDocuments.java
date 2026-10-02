@@ -38,18 +38,26 @@ final class YamlDocuments {
     }
 
     Map<String, Object> loadMap(Path file) throws IOException {
+        return loadMap(file, false);
+    }
+
+    Map<String, Object> loadMap(Path file, boolean allowEmpty) throws IOException {
         if (!Files.isRegularFile(file) || Files.isSymbolicLink(file)) {
             throw new IOException("YAML file does not exist or is a symbolic link: " + file);
         }
         long size = Files.size(file);
-        if (size <= 0L || size > MAX_DOCUMENT_BYTES) {
+        if ((!allowEmpty && size == 0L) || size > MAX_DOCUMENT_BYTES) {
             throw new IOException("YAML file has an invalid size: " + file.getFileName());
         }
-        return loadMap(new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
+        return loadMap(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), allowEmpty);
     }
 
     Map<String, Object> loadMap(String source) throws IOException {
-        if (source == null || source.isEmpty()
+        return loadMap(source, false);
+    }
+
+    private Map<String, Object> loadMap(String source, boolean allowEmpty) throws IOException {
+        if (source == null || (!allowEmpty && source.isEmpty())
                 || source.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_BYTES) {
             throw new IOException("YAML document has an invalid size");
         }
@@ -58,6 +66,9 @@ final class YamlDocuments {
             loaded = loader.load(source);
         } catch (RuntimeException exception) {
             throw new IOException("Invalid YAML document: " + exception.getMessage(), exception);
+        }
+        if (loaded == null && allowEmpty) {
+            return new LinkedHashMap<String, Object>();
         }
         if (!(loaded instanceof Map<?, ?>)) {
             throw new IOException("YAML document root must be a mapping");

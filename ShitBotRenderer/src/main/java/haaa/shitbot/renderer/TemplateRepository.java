@@ -60,9 +60,20 @@ final class TemplateRepository {
     synchronized void initialize() throws IOException {
         Files.createDirectories(root);
         requireDirectory(root);
-        if (isEmpty(root)) {
-            installExample();
-            publish("online-status");
+        installExample();
+        Path example = templateDirectory("online-status");
+        if (Files.isSymbolicLink(example.resolve("published.yml"))) {
+            throw new IOException("Published template pointer cannot be a symbolic link");
+        }
+        if (!Files.exists(example.resolve("published.yml"))) {
+            if (Files.exists(example.resolve("versions"))) requireDirectory(example.resolve("versions"));
+            List<Long> versions = listVersions("online-status");
+            if (versions.isEmpty()) {
+                publish("online-status");
+            } else {
+                // Recover the pointer without publishing possibly unfinished draft edits.
+                rollback("online-status", versions.get(0).longValue());
+            }
         }
         refresh();
     }
@@ -417,17 +428,44 @@ final class TemplateRepository {
     }
 
     private void installExample() throws IOException {
-        Path template = root.resolve("online-status");
-        Files.createDirectories(template.resolve("assets"));
-        copyResource("/defaults/online-status/manifest.yml", template.resolve("manifest.yml"));
-        copyResource("/defaults/online-status/scene.yml", template.resolve("scene.yml"));
+        Path template = templateDirectory("online-status");
+        Files.createDirectories(template);
+        requireDirectory(template);
+        Path assets = template.resolve("assets");
+        if (Files.isSymbolicLink(assets)) throw new IOException("Template assets cannot be a symbolic link");
+        Files.createDirectories(assets);
+        requireDirectory(assets);
+        completeResource("/defaults/online-status/manifest.yml", template.resolve("manifest.yml"));
+        completeResource("/defaults/online-status/scene.yml", template.resolve("scene.yml"));
     }
 
-    private void copyResource(String name, Path destination) throws IOException {
-        try (InputStream input = TemplateRepository.class.getResourceAsStream(name)) {
-            if (input == null) throw new IOException("Renderer is missing " + name);
-            Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING);
+    private void completeResource(String name, Path destination) throws IOException {
+        if (Files.isSymbolicLink(destination)) throw new IOException("Template file cannot be a symbolic link");
+        String source = resourceText(name);
+        if (!Files.exists(destination)) {
+            writeAtomic(destination, source.getBytes(StandardCharsets.UTF_8));
+            return;
         }
+        Map<String, Object> current = yaml.loadMap(destination, true);
+        if (mergeMissing(current, yaml.loadMap(source))) {
+            writeAtomic(destination, yaml.dump(current).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean mergeMissing(Map<String, Object> current, Map<String, Object> defaults) {
+        boolean changed = false;
+        for (Map.Entry<String, Object> entry : defaults.entrySet()) {
+            Object value = current.get(entry.getKey());
+            if (value == null && (!current.containsKey(entry.getKey()) || entry.getValue() != null)) {
+                current.put(entry.getKey(), entry.getValue());
+                changed = true;
+            } else if (value instanceof Map<?, ?> && entry.getValue() instanceof Map<?, ?>) {
+                changed |= mergeMissing((Map<String, Object>) value, (Map<String, Object>) entry.getValue());
+            }
+            // A customized layer/provider list is one value, not a list to merge by index.
+        }
+        return changed;
     }
 
     private String resourceText(String name) throws IOException {
@@ -639,12 +677,6 @@ final class TemplateRepository {
     private void requireWithin(Path parent, Path child) throws IOException {
         if (!child.toAbsolutePath().normalize().startsWith(parent.toAbsolutePath().normalize())) {
             throw new IOException("Template path escapes its allowed directory");
-        }
-    }
-
-    private boolean isEmpty(Path directory) throws IOException {
-        try (DirectoryStream<Path> entries = Files.newDirectoryStream(directory)) {
-            return !entries.iterator().hasNext();
         }
     }
 
