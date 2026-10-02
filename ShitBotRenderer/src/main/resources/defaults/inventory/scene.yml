@@ -1,0 +1,288 @@
+schema-version: scene-v1
+canvas:
+  width: 1000
+  height: 840
+  background: "#F3F4F6"
+layers:
+  - type: rectangle
+    name: 背包卡片
+    x: 24
+    y: 24
+    width: 952
+    height: 792
+    radius: 24
+    fill: "#FFFFFF"
+    stroke-color: "#D8DEE5"
+    stroke-width: 1
+  - type: text
+    name: 背包标题
+    x: 56
+    y: 54
+    width: 680
+    text: "${data.inventory.title}"
+    font-size: 32
+    font-style: bold
+    maximum-lines: 1
+    color: "#20262E"
+  - type: text
+    name: 数据状态
+    when: "${data.inventory.available}"
+    x: 744
+    y: 64
+    width: 200
+    text: "${data.inventory.status}"
+    align: right
+    font-size: 16
+    color: "#355874"
+  - type: text
+    name: 装备标题
+    when: "${data.inventory.available}"
+    x: 56
+    y: 119
+    width: 500
+    text: "${data.inventory.labels.equipment}"
+    font-size: 18
+    font-style: bold
+    color: "#59636E"
+  - type: grid
+    name: 装备与副手
+    when: "${data.inventory.available}"
+    x: 56
+    y: 154
+    columns: 5
+    cell-width: 88
+    cell-height: 88
+    column-gap: 12
+    row-gap: 12
+    children:
+      - type: loop
+        items: "${data.inventory.equipment}"
+        as: slot
+        maximum-items: 5
+        children:
+          - type: group
+            name: 物品槽
+            width: 88
+            height: 88
+            children:
+              - type: rectangle
+                width: 88
+                height: 88
+                radius: 12
+                fill: "#F6F8FA"
+                stroke-color: "${slot.border-color}"
+                stroke-width: 1.5
+              - type: image
+                name: 物品图标
+                x: 16
+                y: 7
+                width: 56
+                height: 56
+                source: "${slot.icon}"
+                fit: contain
+                pixelated: true
+              - type: text
+                name: 物品数量
+                x: 8
+                y: 59
+                width: 72
+                text: "${slot.amount-text}"
+                font-size: 16
+                font-style: bold
+                align: right
+                maximum-lines: 1
+                color: "#20262E"
+              - type: progress
+                name: 耐久条
+                visible: "${slot.has-durability}"
+                x: 10
+                y: 80
+                width: 68
+                height: 4
+                radius: 2
+                value: "${slot.durability}"
+                maximum: "${slot.maximum-durability}"
+                background: "#DCE3E8"
+                fill: "#429474"
+  - type: text
+    name: 物品统计
+    when: "${data.inventory.available}"
+    x: 580
+    y: 172
+    width: 364
+    text: "${data.inventory.summary}"
+    font-size: 17
+    line-height: 28
+    maximum-lines: 2
+    color: "#59636E"
+  - type: text
+    name: 主背包标题
+    when: "${data.inventory.available}"
+    x: 56
+    y: 278
+    width: 888
+    text: "${data.inventory.labels.storage}"
+    font-size: 18
+    font-style: bold
+    color: "#59636E"
+  - type: grid
+    name: 主背包
+    when: "${data.inventory.available}"
+    x: 56
+    y: 312
+    columns: 9
+    cell-width: 88
+    cell-height: 88
+    column-gap: 12
+    row-gap: 12
+    children:
+      - type: loop
+        items: "${data.inventory.storage}"
+        as: slot
+        maximum-items: 27
+        children:
+          - type: group
+            name: 物品槽
+            width: 88
+            height: 88
+            children:
+              - type: rectangle
+                width: 88
+                height: 88
+                radius: 12
+                fill: "#F6F8FA"
+                stroke-color: "${slot.border-color}"
+                stroke-width: 1.5
+              - type: image
+                name: 物品图标
+                x: 16
+                y: 7
+                width: 56
+                height: 56
+                source: "${slot.icon}"
+                fit: contain
+                pixelated: true
+              - type: text
+                name: 物品数量
+                x: 8
+                y: 59
+                width: 72
+                text: "${slot.amount-text}"
+                font-size: 16
+                font-style: bold
+                align: right
+                maximum-lines: 1
+                color: "#20262E"
+              - type: progress
+                name: 耐久条
+                visible: "${slot.has-durability}"
+                x: 10
+                y: 80
+                width: 68
+                height: 4
+                radius: 2
+                value: "${slot.durability}"
+                maximum: "${slot.maximum-durability}"
+                background: "#DCE3E8"
+                fill: "#429474"
+  - type: text
+    name: 快捷栏标题
+    when: "${data.inventory.available}"
+    x: 56
+    y: 615
+    width: 888
+    text: "${data.inventory.labels.hotbar}"
+    font-size: 18
+    font-style: bold
+    color: "#59636E"
+  - type: grid
+    name: 快捷栏
+    when: "${data.inventory.available}"
+    x: 56
+    y: 649
+    columns: 9
+    cell-width: 88
+    cell-height: 88
+    column-gap: 12
+    row-gap: 12
+    children:
+      - type: loop
+        items: "${data.inventory.hotbar}"
+        as: slot
+        maximum-items: 9
+        children:
+          - type: group
+            name: 物品槽
+            width: 88
+            height: 88
+            children:
+              - type: rectangle
+                width: 88
+                height: 88
+                radius: 12
+                fill: "#F6F8FA"
+                stroke-color: "${slot.border-color}"
+                stroke-width: 1.5
+              - type: image
+                name: 物品图标
+                x: 16
+                y: 7
+                width: 56
+                height: 56
+                source: "${slot.icon}"
+                fit: contain
+                pixelated: true
+              - type: text
+                name: 物品数量
+                x: 8
+                y: 59
+                width: 72
+                text: "${slot.amount-text}"
+                font-size: 16
+                font-style: bold
+                align: right
+                maximum-lines: 1
+                color: "#20262E"
+              - type: progress
+                name: 耐久条
+                visible: "${slot.has-durability}"
+                x: 10
+                y: 80
+                width: 68
+                height: 4
+                radius: 2
+                value: "${slot.durability}"
+                maximum: "${slot.maximum-durability}"
+                background: "#DCE3E8"
+                fill: "#429474"
+  - type: condition
+    name: 无快照提示
+    condition: "${data.inventory.available}"
+    else:
+      - type: text
+        x: 80
+        y: 360
+        width: 840
+        text: "${data.inventory.unavailable}"
+        align: center
+        font-size: 24
+        color: "#59636E"
+  - type: text
+    name: 品牌
+    x: 56
+    y: 773
+    width: 250
+    text: "SHITBOT / INVENTORY"
+    font-size: 12
+    font-style: bold
+    color: "#59636E"
+  - type: text
+    name: 快照时间
+    when: "${data.inventory.available}"
+    x: 340
+    y: 769
+    width: 604
+    text: "${data.inventory.data-time}"
+    align: right
+    font-size: 13
+    color: "#59636E"

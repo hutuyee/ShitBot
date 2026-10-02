@@ -1,0 +1,7 @@
+schema-version: template-v1
+id: inventory
+name: 背包
+suggested-file-name: inventory.png
+providers:
+  - id: inventory
+    player: "${context.player}"

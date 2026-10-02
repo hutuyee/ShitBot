@@ -1,0 +1,7 @@
+schema-version: template-v1
+id: player-profile
+name: 个人信息
+suggested-file-name: profile.png
+providers:
+  - id: player-profile
+    player: "${context.player}"

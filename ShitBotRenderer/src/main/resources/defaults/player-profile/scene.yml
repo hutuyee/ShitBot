@@ -1,0 +1,160 @@
+schema-version: scene-v1
+canvas:
+  width: 960
+  height: 600
+  background: "#F3F4F6"
+layers:
+  - type: rectangle
+    name: 皮肤卡片
+    x: 24
+    y: 24
+    width: 292
+    height: 552
+    radius: 24
+    fill: "#FFFFFF"
+    stroke-color: "#D8DEE5"
+    stroke-width: 1
+  - type: text
+    name: 皮肤标题
+    x: 52
+    y: 52
+    width: 236
+    text: "${data.player-profile.labels.skin-title}"
+    font-size: 24
+    font-style: bold
+    color: "#20262E"
+  - type: text
+    name: 皮肤玩家名
+    x: 52
+    y: 87
+    width: 236
+    text: "${data.player-profile.player}"
+    font-size: 16
+    maximum-lines: 1
+    color: "#59636E"
+  - type: image
+    name: 玩家皮肤
+    x: 65
+    y: 136
+    width: 210
+    height: 380
+    source: "${data.player-profile.skin-url}"
+    fit: contain
+    pixelated: true
+  - type: rectangle
+    name: 资料卡片
+    x: 336
+    y: 24
+    width: 600
+    height: 552
+    radius: 24
+    fill: "#FFFFFF"
+    stroke-color: "#D8DEE5"
+    stroke-width: 1
+  - type: text
+    name: 顶部标识
+    x: 368
+    y: 52
+    width: 536
+    text: "SHITBOT / PLAYER PROFILE"
+    font-size: 12
+    font-style: bold
+    color: "#59636E"
+  - type: text
+    name: 玩家名
+    x: 368
+    y: 79
+    width: 536
+    text: "${data.player-profile.player}"
+    font-size: 36
+    font-style: bold
+    maximum-lines: 1
+    color: "#20262E"
+  - type: text
+    name: 在线状态
+    x: 370
+    y: 132
+    width: 532
+    text: "${data.player-profile.status}"
+    font-size: 16
+    color: "#355874"
+  - type: line
+    name: 分隔线
+    x: 368
+    y: 171
+    width: 536
+    height: 0
+    color: "#E1E6EB"
+    stroke-width: 1
+  - type: stack
+    name: 资料字段
+    x: 368
+    y: 199
+    direction: vertical
+    gap: 16
+    children:
+      - type: condition
+        condition: "${data.player-profile.has-permission-group}"
+        then:
+          - type: group
+            name: 权限组
+            width: 536
+            height: 70
+            children:
+              - type: text
+                text: "${data.player-profile.labels.permission-group}"
+                font-size: 14
+                color: "#59636E"
+              - type: text
+                y: 27
+                width: 536
+                text: "${data.player-profile.permission-group}"
+                font-size: 24
+                font-style: bold
+                maximum-lines: 1
+                color: "#20262E"
+      - type: condition
+        condition: "${data.player-profile.has-points}"
+        then:
+          - type: group
+            name: 点券
+            width: 536
+            height: 70
+            children:
+              - type: text
+                text: "${data.player-profile.labels.points}"
+                font-size: 14
+                color: "#59636E"
+              - type: text
+                y: 27
+                width: 536
+                text: "${data.player-profile.points}"
+                font-size: 24
+                font-style: bold
+                maximum-lines: 1
+                color: "#20262E"
+      - type: group
+        name: 累计在线时长
+        width: 536
+        height: 70
+        children:
+          - type: text
+            text: "${data.player-profile.labels.online-time}"
+            font-size: 14
+            color: "#59636E"
+          - type: text
+            y: 27
+            width: 536
+            text: "${data.player-profile.online-time}"
+            font-size: 24
+            font-style: bold
+            maximum-lines: 1
+            color: "#20262E"
+  - type: text
+    name: 页脚
+    x: 368
+    y: 536
+    width: 536
+    text: "${data.player-profile.labels.footer}"
+    font-size: 13
+    color: "#59636E"

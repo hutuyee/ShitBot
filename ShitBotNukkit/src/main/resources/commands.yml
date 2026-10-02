@@ -21,6 +21,30 @@ image-templates:
       cooldown-seconds: 10
       usage: "%at% 用法：自定义在线 [已绑定角色名]"
       failed: "%at% 图片生成失败：%result%"
+    player-profile:
+      enabled: false
+      aliases:
+        - "自定义个人信息"
+        - "custom profile"
+      template: "player-profile"
+      player-source: "bound"
+      target-server: ""
+      permission: ""
+      cooldown-seconds: 10
+      usage: "%at% 用法：自定义个人信息"
+      failed: "%at% 个人信息图片生成失败：%result%"
+    inventory:
+      enabled: false
+      aliases:
+        - "自定义背包"
+        - "custom inventory"
+      template: "inventory"
+      player-source: "bound"
+      target-server: ""
+      permission: ""
+      cooldown-seconds: 10
+      usage: "%at% 用法：自定义背包"
+      failed: "%at% 背包图片生成失败：%result%"
 
 # Nukkit-MOT 为单服平台，不需要代理端后端传输配置。
 

@@ -42,6 +42,8 @@ final class TemplateRepository {
                     "line", "progress", "group", "stack", "grid", "condition", "loop")));
     private static final int MAX_PROVIDER_DECLARATIONS = 64;
     private static final int MAX_TREE_DEPTH = 32;
+    private static final List<String> BUNDLED_TEMPLATES = Collections.unmodifiableList(
+            Arrays.asList("online-status", "player-profile", "inventory"));
 
     private final ImageTemplateEngineSettings settings;
     private final ImageTemplateEngineHost host;
@@ -60,19 +62,21 @@ final class TemplateRepository {
     synchronized void initialize() throws IOException {
         Files.createDirectories(root);
         requireDirectory(root);
-        installExample();
-        Path example = templateDirectory("online-status");
-        if (Files.isSymbolicLink(example.resolve("published.yml"))) {
-            throw new IOException("Published template pointer cannot be a symbolic link");
-        }
-        if (!Files.exists(example.resolve("published.yml"))) {
-            if (Files.exists(example.resolve("versions"))) requireDirectory(example.resolve("versions"));
-            List<Long> versions = listVersions("online-status");
-            if (versions.isEmpty()) {
-                publish("online-status");
-            } else {
-                // Recover the pointer without publishing possibly unfinished draft edits.
-                rollback("online-status", versions.get(0).longValue());
+        for (String id : BUNDLED_TEMPLATES) {
+            installBundledTemplate(id);
+            Path template = templateDirectory(id);
+            if (Files.isSymbolicLink(template.resolve("published.yml"))) {
+                throw new IOException("Published template pointer cannot be a symbolic link");
+            }
+            if (!Files.exists(template.resolve("published.yml"))) {
+                if (Files.exists(template.resolve("versions"))) requireDirectory(template.resolve("versions"));
+                List<Long> versions = listVersions(id);
+                if (versions.isEmpty()) {
+                    publish(id);
+                } else {
+                    // Recover the pointer without publishing possibly unfinished draft edits.
+                    rollback(id, versions.get(0).longValue());
+                }
             }
         }
         refresh();
@@ -427,16 +431,16 @@ final class TemplateRepository {
         return result;
     }
 
-    private void installExample() throws IOException {
-        Path template = templateDirectory("online-status");
+    private void installBundledTemplate(String id) throws IOException {
+        Path template = templateDirectory(id);
         Files.createDirectories(template);
         requireDirectory(template);
         Path assets = template.resolve("assets");
         if (Files.isSymbolicLink(assets)) throw new IOException("Template assets cannot be a symbolic link");
         Files.createDirectories(assets);
         requireDirectory(assets);
-        completeResource("/defaults/online-status/manifest.yml", template.resolve("manifest.yml"));
-        completeResource("/defaults/online-status/scene.yml", template.resolve("scene.yml"));
+        completeResource("/defaults/" + id + "/manifest.yml", template.resolve("manifest.yml"));
+        completeResource("/defaults/" + id + "/scene.yml", template.resolve("scene.yml"));
     }
 
     private void completeResource(String name, Path destination) throws IOException {
