@@ -139,6 +139,10 @@
                     <createDependencyReducedPom>false</createDependencyReducedPom>
                     <relocations>
                         <relocation>
+                            <pattern>org.yaml.snakeyaml</pattern>
+                            <shadedPattern>haaa.shitbot.lib.snakeyaml</shadedPattern>
+                        </relocation>
+                        <relocation>
                             <pattern>org.java_websocket</pattern>
                             <shadedPattern>haaa.shitbot.lib.websocket</shadedPattern>
                         </relocation>
@@ -201,12 +205,6 @@
             <groupId>org.bstats</groupId>
             <artifactId>bstats-velocity</artifactId>
             <version>${bstats.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
-            <version>1.33</version>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

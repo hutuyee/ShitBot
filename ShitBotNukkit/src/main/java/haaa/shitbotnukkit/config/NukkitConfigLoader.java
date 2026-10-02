@@ -2,6 +2,7 @@ package haaa.shitbotnukkit.config;
 
 import cn.nukkit.utils.Config;
 import cn.nukkit.utils.ConfigSection;
+import haaa.shitbot.core.config.ConfigResources;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.LegacyLanguageMigration;
@@ -13,6 +14,7 @@ import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import haaa.shitbotnukkit.ShitBotNukkit;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -22,14 +24,15 @@ import java.util.Set;
 
 public final class NukkitConfigLoader {
     private final ShitBotNukkit plugin;
+    private final ConfigResources resources;
 
     public NukkitConfigLoader(ShitBotNukkit plugin) {
         this.plugin = plugin;
+        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource);
     }
 
     public Settings load() {
-        plugin.saveDefaultConfig();
-        plugin.reloadConfig();
+        reloadMainConfig();
         Config configuration = plugin.getConfig();
         if (!configuration.isCorrect()) {
             throw new IllegalStateException("config.yml is not a valid YAML configuration");
@@ -43,12 +46,8 @@ public final class NukkitConfigLoader {
     }
 
     public ConsoleSettings loadConsoleSettings() {
-        File file = new File(plugin.getDataFolder(), "commands.yml");
-        if (!file.isFile()) {
-            if (!plugin.saveResource("commands.yml", false)) {
-                throw new IllegalStateException("Unable to create commands.yml");
-            }
-        }
+        reloadMainConfig();
+        File file = completeFile("commands.yml");
         Config configuration = new Config(file, Config.YAML);
         if (!configuration.isCorrect()) {
             throw new IllegalStateException("commands.yml is not a valid YAML configuration");
@@ -58,15 +57,35 @@ public final class NukkitConfigLoader {
                 loadTranslations(new Source(plugin.getConfig())));
     }
 
+    private void reloadMainConfig() {
+        try {
+            File file = resources.ensure("config.yml").toFile();
+            Config legacy = new Config(file, Config.YAML);
+            if (!legacy.isCorrect()) {
+                throw new IllegalStateException("config.yml is not a valid YAML configuration");
+            }
+            migrateLegacyLanguage(new Source(legacy), ensureLanguageFile(Translations.DEFAULT_LANGUAGE));
+            resources.complete("config.yml");
+            plugin.reloadConfig();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to complete config.yml", exception);
+        }
+    }
+
+    private File completeFile(String resource) {
+        try {
+            return resources.complete(resource).toFile();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to complete " + resource, exception);
+        }
+    }
+
     private Translations loadTranslations(Source config) {
         File fallbackFile = ensureLanguageFile(Translations.DEFAULT_LANGUAGE);
         ensureLanguageFile("en_US");
         migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
-        File selectedFile = languageFile(language);
-        if (!selectedFile.isFile()) {
-            selectedFile = ensureLanguageFile(language);
-        }
+        File selectedFile = ensureLanguageFile(language);
         return new Translations(
                 language,
                 loadLanguageSource(selectedFile),
@@ -93,10 +112,7 @@ public final class NukkitConfigLoader {
     private ImageTemplate loadImageTemplate(String configuredName) {
         File fallbackFile = ensureImageTemplateFile(ImageTemplate.DEFAULT_TEMPLATE);
         String name = ImageTemplate.normalizeName(configuredName);
-        File selectedFile = imageTemplateFile(name);
-        if (!selectedFile.isFile()) {
-            selectedFile = ensureImageTemplateFile(name);
-        }
+        File selectedFile = ensureImageTemplateFile(name);
         return new ImageTemplate(name, loadImageTemplateSource(selectedFile), loadImageTemplateSource(fallbackFile));
     }
 
@@ -109,18 +125,7 @@ public final class NukkitConfigLoader {
     }
 
     private File ensureImageTemplateFile(String name) {
-        File file = imageTemplateFile(name);
-        if (file.isFile()) {
-            return file;
-        }
-        if (!plugin.saveResource(ImageTemplate.resourcePath(name), false) || !file.isFile()) {
-            throw new IllegalStateException("Image template file does not exist: " + file);
-        }
-        return file;
-    }
-
-    private File imageTemplateFile(String name) {
-        return new File(plugin.getDataFolder(), ImageTemplate.resourcePath(name));
+        return completeFile(ImageTemplate.resourcePath(name));
     }
 
     private Source loadLanguageSource(File file) {
@@ -132,19 +137,7 @@ public final class NukkitConfigLoader {
     }
 
     private File ensureLanguageFile(String language) {
-        File file = languageFile(language);
-        if (file.isFile()) {
-            return file;
-        }
-        String resourcePath = Translations.resourcePath(language);
-        if (!plugin.saveResource(resourcePath, false) || !file.isFile()) {
-            throw new IllegalStateException("Language file does not exist: " + file);
-        }
-        return file;
-    }
-
-    private File languageFile(String language) {
-        return new File(plugin.getDataFolder(), Translations.resourcePath(language));
+        return completeFile(Translations.resourcePath(language));
     }
 
     private static final class Source implements ConfigSource {

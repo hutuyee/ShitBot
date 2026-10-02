@@ -1,5 +1,6 @@
 package haaa.shitbotbungee.config;
 
+import haaa.shitbot.core.config.ConfigResources;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.LegacyLanguageMigration;
@@ -15,9 +16,6 @@ import net.md_5.bungee.config.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,10 +25,10 @@ import java.util.Map;
 import java.util.Set;
 
 public final class BungeeConfigLoader {
-    private final Plugin plugin;
+    private final ConfigResources resources;
 
     public BungeeConfigLoader(Plugin plugin) {
-        this.plugin = plugin;
+        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResourceAsStream);
     }
 
     public Settings load() throws IOException {
@@ -61,28 +59,14 @@ public final class BungeeConfigLoader {
     }
 
     private File ensureConfigFile() throws IOException {
+        File file = resources.ensure("config.yml").toFile();
+        Configuration legacy = ConfigurationProvider.getProvider(YamlConfiguration.class).load(file);
+        migrateLegacyLanguage(new Source(legacy), ensureFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE)));
         return ensureFile("config.yml");
     }
 
     private File ensureFile(String resourceName) throws IOException {
-        if (!plugin.getDataFolder().exists() && !plugin.getDataFolder().mkdirs()) {
-            throw new IOException("Cannot create plugin data directory: " + plugin.getDataFolder());
-        }
-        File file = new File(plugin.getDataFolder(), resourceName);
-        if (file.isFile()) {
-            return file;
-        }
-        File parent = file.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("Cannot create resource directory: " + parent);
-        }
-        try (InputStream input = plugin.getResourceAsStream(resourceName)) {
-            if (input == null) {
-                throw new IOException("Embedded " + resourceName + " is missing");
-            }
-            Files.copy(input, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        }
-        return file;
+        return resources.complete(resourceName).toFile();
     }
 
     private Translations loadTranslations(Source config) throws IOException {
@@ -90,10 +74,7 @@ public final class BungeeConfigLoader {
         ensureFile(Translations.resourcePath("en_US"));
         migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
-        File selectedFile = languageFile(language);
-        if (!selectedFile.isFile()) {
-            selectedFile = ensureFile(Translations.resourcePath(language));
-        }
+        File selectedFile = ensureFile(Translations.resourcePath(language));
         ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
         return new Translations(
                 language,
@@ -117,19 +98,12 @@ public final class BungeeConfigLoader {
     private ImageTemplate loadImageTemplate(String configuredName) throws IOException {
         File fallbackFile = ensureFile(ImageTemplate.resourcePath(ImageTemplate.DEFAULT_TEMPLATE));
         String name = ImageTemplate.normalizeName(configuredName);
-        File selectedFile = new File(plugin.getDataFolder(), ImageTemplate.resourcePath(name));
-        if (!selectedFile.isFile()) {
-            selectedFile = ensureFile(ImageTemplate.resourcePath(name));
-        }
+        File selectedFile = ensureFile(ImageTemplate.resourcePath(name));
         ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
         return new ImageTemplate(
                 name,
                 new Source(provider.load(selectedFile)),
                 new Source(provider.load(fallbackFile)));
-    }
-
-    private File languageFile(String language) {
-        return new File(plugin.getDataFolder(), Translations.resourcePath(language));
     }
 
     private static final class Source implements ConfigSource {

@@ -1,5 +1,6 @@
 package haaa.shitbotvelocity.config;
 
+import haaa.shitbot.core.config.ConfigResources;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.LegacyLanguageMigration;
@@ -14,7 +15,6 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -30,12 +30,10 @@ import java.util.Map;
 import java.util.Set;
 
 public final class VelocityConfigLoader {
-    private final Path dataDirectory;
-    private final ClassLoader classLoader;
+    private final ConfigResources resources;
 
     public VelocityConfigLoader(Path dataDirectory, ClassLoader classLoader) {
-        this.dataDirectory = dataDirectory;
-        this.classLoader = classLoader;
+        this.resources = new ConfigResources(dataDirectory, classLoader::getResourceAsStream);
     }
 
     public Settings load() throws IOException {
@@ -57,36 +55,15 @@ public final class VelocityConfigLoader {
     }
 
     private Source loadSource(String resourceName) throws IOException {
-        Path configFile = ensureFile(resourceName);
-        LoaderOptions loaderOptions = new LoaderOptions();
-        loaderOptions.setAllowDuplicateKeys(false);
-        loaderOptions.setMaxAliasesForCollections(50);
-        Yaml yaml = new Yaml(new SafeConstructor(loaderOptions));
-        Object loaded;
-        try (Reader reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
-            loaded = yaml.load(reader);
+        if ("config.yml".equals(resourceName)) {
+            Source legacy = loadSource(resources.ensure(resourceName));
+            migrateLegacyLanguage(legacy, ensureFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE)));
         }
-        Map<?, ?> root = loaded instanceof Map ? (Map<?, ?>) loaded : Collections.emptyMap();
-        return new Source(root);
+        return loadSource(ensureFile(resourceName));
     }
 
     private Path ensureFile(String resourceName) throws IOException {
-        Files.createDirectories(dataDirectory);
-        Path file = dataDirectory.resolve(resourceName);
-        if (Files.isRegularFile(file)) {
-            return file;
-        }
-        Path parent = file.getParent();
-        if (parent != null) {
-            Files.createDirectories(parent);
-        }
-        try (InputStream input = classLoader.getResourceAsStream(resourceName)) {
-            if (input == null) {
-                throw new IOException("Embedded " + resourceName + " is missing");
-            }
-            Files.copy(input, file, StandardCopyOption.REPLACE_EXISTING);
-        }
-        return file;
+        return resources.complete(resourceName);
     }
 
     private Translations loadTranslations(Source config) throws IOException {
@@ -94,10 +71,7 @@ public final class VelocityConfigLoader {
         ensureFile(Translations.resourcePath("en_US"));
         migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
-        Path selectedFile = dataDirectory.resolve(Translations.resourcePath(language));
-        if (!Files.isRegularFile(selectedFile)) {
-            selectedFile = ensureFile(Translations.resourcePath(language));
-        }
+        Path selectedFile = ensureFile(Translations.resourcePath(language));
         return new Translations(language, loadSource(selectedFile), loadSource(fallbackFile));
     }
 
@@ -152,10 +126,7 @@ public final class VelocityConfigLoader {
     private ImageTemplate loadImageTemplate(String configuredName) throws IOException {
         Path fallbackFile = ensureFile(ImageTemplate.resourcePath(ImageTemplate.DEFAULT_TEMPLATE));
         String name = ImageTemplate.normalizeName(configuredName);
-        Path selectedFile = dataDirectory.resolve(ImageTemplate.resourcePath(name));
-        if (!Files.isRegularFile(selectedFile)) {
-            selectedFile = ensureFile(ImageTemplate.resourcePath(name));
-        }
+        Path selectedFile = ensureFile(ImageTemplate.resourcePath(name));
         return new ImageTemplate(name, loadSource(selectedFile), loadSource(fallbackFile));
     }
 

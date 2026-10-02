@@ -1,5 +1,6 @@
 package haaa.shitbotspigot.config;
 
+import haaa.shitbot.core.config.ConfigResources;
 import haaa.shitbot.core.config.ConfigSource;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.LegacyLanguageMigration;
@@ -11,6 +12,7 @@ import haaa.shitbot.core.console.ConsoleSettingsFactory;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -24,14 +26,15 @@ import java.util.Set;
 
 public final class SpigotConfigLoader {
     private final JavaPlugin plugin;
+    private final ConfigResources resources;
 
     public SpigotConfigLoader(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource);
     }
 
     public Settings load() {
-        plugin.saveDefaultConfig();
-        plugin.reloadConfig();
+        reloadMainConfig();
         Source source = new Source(plugin.getConfig());
         return SettingsFactory.create(
                 source,
@@ -41,24 +44,52 @@ public final class SpigotConfigLoader {
     }
 
     public boolean isBStatsEnabled() {
-        plugin.saveDefaultConfig();
-        plugin.reloadConfig();
+        reloadMainConfig();
         return plugin.getConfig().getBoolean("bstats.enabled", true);
     }
 
     public ConsoleSettings loadConsoleSettings() {
-        File file = new File(plugin.getDataFolder(), "commands.yml");
-        if (!file.isFile()) {
-            plugin.saveResource("commands.yml", false);
-        }
+        reloadMainConfig();
+        File file = completeFile("commands.yml");
         Source config = new Source(plugin.getConfig());
         return ConsoleSettingsFactory.create(
-                new Source(YamlConfiguration.loadConfiguration(file)),
+                new Source(loadYaml(file)),
                 loadTranslations(config));
     }
 
     public boolean isBackendMode() {
         return "backend".equalsIgnoreCase(plugin.getConfig().getString("deployment.role", "standalone"));
+    }
+
+    private void reloadMainConfig() {
+        try {
+            File file = resources.ensure("config.yml").toFile();
+            // Read the actual file before defaults can introduce config-version: 2.
+            Source legacy = new Source(loadYaml(file));
+            migrateLegacyLanguage(legacy, completeFile(Translations.resourcePath(Translations.DEFAULT_LANGUAGE)));
+            resources.complete("config.yml");
+            plugin.reloadConfig();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to complete config.yml", exception);
+        }
+    }
+
+    private File completeFile(String resource) {
+        try {
+            return resources.complete(resource).toFile();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to complete " + resource, exception);
+        }
+    }
+
+    private YamlConfiguration loadYaml(File file) {
+        YamlConfiguration configuration = new YamlConfiguration();
+        try {
+            configuration.load(file);
+            return configuration;
+        } catch (IOException | InvalidConfigurationException exception) {
+            throw new IllegalStateException("Unable to load " + file, exception);
+        }
     }
 
     private Translations loadTranslations(Source config) {
@@ -68,16 +99,14 @@ public final class SpigotConfigLoader {
         migrateLegacyLanguage(config, fallbackFile);
         String language = Translations.normalizeLanguage(config.getString("language", Translations.DEFAULT_LANGUAGE));
         File selectedFile = languageFile(language);
-        if (!selectedFile.isFile()) {
-            ensureLanguageFile(language);
-        }
-        Source selected = new Source(YamlConfiguration.loadConfiguration(selectedFile));
-        Source fallback = new Source(YamlConfiguration.loadConfiguration(fallbackFile));
+        ensureLanguageFile(language);
+        Source selected = new Source(loadYaml(selectedFile));
+        Source fallback = new Source(loadYaml(fallbackFile));
         return new Translations(language, selected, fallback);
     }
 
     private void migrateLegacyLanguage(Source config, File fallbackFile) {
-        YamlConfiguration language = YamlConfiguration.loadConfiguration(fallbackFile);
+        YamlConfiguration language = loadYaml(fallbackFile);
         if (!LegacyLanguageMigration.isRequired(config, new Source(language))) {
             return;
         }
@@ -96,26 +125,16 @@ public final class SpigotConfigLoader {
         ensureImageTemplateFile(ImageTemplate.DEFAULT_TEMPLATE);
         String name = ImageTemplate.normalizeName(configuredName);
         File selectedFile = imageTemplateFile(name);
-        if (!selectedFile.isFile()) {
-            ensureImageTemplateFile(name);
-        }
+        ensureImageTemplateFile(name);
         return new ImageTemplate(
                 name,
-                new Source(YamlConfiguration.loadConfiguration(selectedFile)),
-                new Source(YamlConfiguration.loadConfiguration(
+                new Source(loadYaml(selectedFile)),
+                new Source(loadYaml(
                         imageTemplateFile(ImageTemplate.DEFAULT_TEMPLATE))));
     }
 
     private void ensureImageTemplateFile(String name) {
-        File file = imageTemplateFile(name);
-        if (file.isFile()) {
-            return;
-        }
-        try {
-            plugin.saveResource(ImageTemplate.resourcePath(name), false);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("Image template file does not exist: " + file, exception);
-        }
+        completeFile(ImageTemplate.resourcePath(name));
     }
 
     private File imageTemplateFile(String name) {
@@ -123,16 +142,7 @@ public final class SpigotConfigLoader {
     }
 
     private void ensureLanguageFile(String language) {
-        File file = languageFile(language);
-        if (file.isFile()) {
-            return;
-        }
-        String resourcePath = Translations.resourcePath(language);
-        try {
-            plugin.saveResource(resourcePath, false);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("Language file does not exist: " + file, exception);
-        }
+        completeFile(Translations.resourcePath(language));
     }
 
     private File languageFile(String language) {
