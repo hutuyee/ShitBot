@@ -21,13 +21,13 @@
 3. 移走旧 JAR，只保留一个 ShitBot 平台 JAR；
 4. 放入新 JAR；
 5. 启动并观察配置迁移与数据库迁移日志；
-6. 对照新版本默认配置补充新增配置项；
+6. 查看自动写入配置、语言文件和图片主题的新增字段，并按需修改；
 7. 执行 `/shitbot status`；
 8. 验证 OneBot、绑定、转发和快捷命令。
 
 不要通过插件管理器热卸载旧 JAR 再加载新 JAR。
 
-从 `config-version: 1` 升级时，首次加载会把旧 `config.yml` 的回复、通知、内置别名/用法和图片标题自动导入 `lang/zh_CN.yml`，但不会改写旧配置。确认导入结果后，再自行清理旧配置中的废弃文本项。迁移完成状态记录在 `zh_CN.yml` 的 `_migration.legacy-config-v1`，因此后续 reload 不会重复覆盖。
+启动和重载会自动补齐配置、语言文件和图片主题中的缺失键或 `null` 值，并保存到磁盘；已有值会保留，具体规则见[配置说明](configuration.md)。从 `config-version: 1` 升级时，首次加载会先把旧 `config.yml` 的回复、通知、内置别名/用法和图片标题自动导入 `lang/zh_CN.yml`，再补齐主配置。确认导入结果后，再自行清理旧配置中的废弃文本项。迁移完成状态记录在 `zh_CN.yml` 的 `_migration.legacy-config-v1`，因此后续 reload 不会重复覆盖。
 
 ## `/shitbot update`
 

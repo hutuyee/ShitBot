@@ -21,13 +21,13 @@ Instances using advanced templates also need the matching ShitBotRenderer in the
 3. Move the old JAR out, leaving only one ShitBot platform JAR.
 4. Put the new JAR in place.
 5. Start and inspect configuration/database migration logs.
-6. Add new settings by comparing with the new defaults.
+6. Review newly added fields saved automatically to configuration, language files, and image themes, and adjust as needed.
 7. Run `/shitbot status`.
 8. Verify OneBot, binding, forwarding, and shortcuts.
 
 Do not hot-unload the old JAR and hot-load the new one with a plugin manager.
 
-When upgrading from `config-version: 1`, the first load imports replies, notices, built-in aliases/usage, and image titles from the old `config.yml` into `lang/zh_CN.yml` without rewriting the old configuration. Review the import before removing obsolete text settings yourself. Completion is recorded in `_migration.legacy-config-v1`, preventing repeated overwrites on reload.
+Startup and reload save missing keys and `null` values in configuration, language files, and image themes while retaining existing values; see [Configuration](configuration.md). When upgrading from `config-version: 1`, the first load imports replies, notices, built-in aliases/usage, and image titles from the old `config.yml` into `lang/zh_CN.yml` before completing the main configuration. Review the import before removing obsolete text settings yourself. Completion is recorded in `_migration.legacy-config-v1`, preventing repeated overwrites on reload.
 
 ## /shitbot update
 

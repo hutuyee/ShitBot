@@ -86,7 +86,7 @@ A debug-mode local JAR is still checked for size and must contain `META-INF/serv
 
 ## Template directory
 
-On the first successful advanced startup, an empty template root receives a published `online-status` example:
+When the advanced component starts or reloads with the plugin, it completes the built-in `online-status` template, even if other templates already exist. A newly created example is published:
 
 ```text
 image-templates/
@@ -110,13 +110,15 @@ image-templates/
 
 Do not edit `versions/` or `published.yml` manually. Edit the draft and publish a new version.
 
+Missing `manifest.yml`, `scene.yml`, or the `assets/` directory in the `online-status` draft are restored automatically. Empty YAML files, missing keys, and `null` values are completed from the bundled template and saved. Existing canvas settings, layer lists, and provider lists are retained; lists are never merged by position. Completing an existing draft does not alter historical snapshots or publish a new version. Publish through the editor to apply it to an existing production template. If `published.yml` is missing but historical versions remain, its pointer is restored from the newest historical version, which must pass template validation.
+
 The default `online-status` is a 1200 × 960 white/gray card. It uses a solid light gray `#F3F4F6` background, an opaque white main card, dark gray `#20262E` titles and names, and `#59636E` hints and footer text. Small areas of blue-gray `#355874` and pale blue-gray `#EDF2F6` emphasize the total online count, replacing pink/purple gradients and large decorative color blocks. The top shows the title, configured server name, and total count. Standalone Bukkit/Spigot and Nukkit servers lay out player cards directly, without implementation names such as CraftBukkit or backend group frames. BungeeCord/Velocity obtains each player's server ID from the proxy snapshot and arranges backend panels in two columns, retaining IDs even with one backend. Each player has a rounded-square pixel avatar and name. The footer shows only ShitBot branding and generation time. Avatars use `${player.avatar}` from `online-players`, following `image.avatar.url-template`. With `image.avatar.enabled: false`, player avatars are not requested.
 
 The colors reference WCAG 2.2 [text contrast requirements](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html): at least 4.5:1 for normal text and 3:1 for large text. Using the template's sRGB values, secondary text on white is approximately 6.11:1, backend counts on light gray labels 5.45:1, and the total count and its label 6.66:1. Count indicators on white exceed the [3:1 requirement for meaningful graphics](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html) and always accompany count text to avoid [using color alone](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html). Large white/gray areas with small accents are a visual choice, not a WCAG rule about color proportions. These calculations are not a full accessibility assessment.
 
 Standalone layouts show up to 40 players in four columns. Proxy layouts show up to 4 backends with up to 8 players each. Counts always use the full online data, and overflow hints indicate omitted players/backends. A zero total shows a full-page empty state; empty proxy backends have their own hints. Both layouts fit the default layer and canvas limits.
 
-Upgrades do not overwrite existing or customized templates. New templates created in the editor use the new defaults. To update an existing `online-status`, copy the release source's `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` into its scene draft, then save, preview, and publish through the editor.
+Upgrades fill missing content in the built-in template draft while retaining existing values and layer lists. New templates created in the editor use the new defaults. To replace the entire layout of an existing `online-status`, copy the release source's `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` into its scene draft, then save, preview, and publish through the editor.
 
 Template IDs allow lowercase letters, digits, underscores, and hyphens, up to 64 characters. Files must remain within the plugin data directory. Absolute paths, traversal, and symlinks escaping the directory are rejected.
 

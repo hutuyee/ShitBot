@@ -86,7 +86,7 @@ custom-image-templates:
 
 ## 模板目录
 
-首次成功启动高级组件且模板根目录为空时，会创建并发布一个 `online-status` 示例：
+高级组件启动或随插件重载时会补全内置 `online-status` 模板，即使模板根目录中已有其他模板也会生成缺失的默认模板。首次生成时会发布示例：
 
 ```text
 image-templates/
@@ -110,13 +110,15 @@ image-templates/
 
 不要手工修改 `versions/` 或 `published.yml`。要修改模板，应编辑草稿后重新发布一个新版本。
 
+`online-status` 草稿缺少 `manifest.yml`、`scene.yml` 或 `assets/` 目录时会自动恢复。空 YAML 文件、缺失键和 `null` 值会按内置模板补齐并保存；已有画布设置、图层列表和提供器列表会保留，列表不会按位置合并。补全已有草稿不会改动历史快照或自动发布新版本，需通过编辑器发布后才能影响现有生产模板。`published.yml` 丢失且历史版本仍在时，会从最新历史版本恢复发布指针，该版本必须通过模板校验。
+
 默认 `online-status` 使用 1200 × 960 的白灰色卡片：背景为纯浅灰 `#F3F4F6`，主卡片为不透明白色，标题与玩家名称使用深灰 `#20262E`，提示和页脚使用 `#59636E`。少量灰蓝色 `#355874` 配合浅蓝灰 `#EDF2F6`，只用于突出总在线人数；不再使用粉紫渐变和大面积装饰色块。顶部展示标题、配置的服务器名和总在线人数。Bukkit/Spigot、Nukkit 等单服平台直接排列玩家名片，不显示 `CraftBukkit` 等实现名称或子服分组框；BungeeCord、Velocity 从代理自身的在线快照取得玩家所在的服务器 ID，再按两列排列子服面板，即使只有一个子服也保留 ID。每位玩家显示圆角方形的 Minecraft 像素头像与名字，页脚只展示 ShitBot 标识和数据生成时间。头像直接读取 `online-players` 提供的 `${player.avatar}`，沿用 `image.avatar.url-template`；`image.avatar.enabled: false` 时不请求玩家头像。
 
 默认配色参考 WCAG 2.2 的[文字对比度要求](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)：普通文字至少为 4.5:1，大字至少为 3:1。按模板指定的 sRGB 色值计算，次要文字在白底上约为 6.11:1，子服人数文字在浅灰标签上约为 5.45:1，总在线人数及其说明约为 6.66:1。人数指示点在白底上的对比度高于[有意义图形的 3:1 要求](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)，并始终配有人数文字，避免[仅用颜色传递信息](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html)。白灰大面积、强调色小面积是本模板的视觉选择，WCAG 不规定颜色面积比例；这些色值计算也不代表完整的无障碍评估。
 
 单服按四列直接展示最多 40 位玩家；代理最多展示 4 个子服，每服最多展示 8 位玩家。人数统计始终使用完整在线数据，超出展示范围时会显示对应提示。总在线人数为 0 时显示整页空状态，代理数据中的空子服也有独立提示。两种布局沿用默认图层和画布限制，无需提高资源上限。
 
-升级不会覆盖已经生成或修改过的模板。编辑器中新建模板会使用新版默认布局；要更新原有 `online-status`，可把发行源码中 `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` 的内容放入该模板的 `scene.yml` 草稿，再通过编辑器保存、预览并发布。
+升级只补齐内置模板草稿中缺失的内容，保留已经生成或修改过的值和图层列表。编辑器中新建模板会使用新版默认布局；要更新原有 `online-status` 的完整布局，可把发行源码中 `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` 的内容放入该模板的 `scene.yml` 草稿，再通过编辑器保存、预览并发布。
 
 模板 ID 只能使用小写字母、数字、下划线和连字符，最长 64 个字符。所有文件必须位于插件数据目录内；绝对路径、目录穿越和符号链接越界都会被拒绝。
 

@@ -1,7 +1,7 @@
 # ShitBot 图片主题模板。
 # 复制本文件并改名（例如 ocean.yml），再把 config.yml 中对应的 template 改为 ocean。
 # 颜色支持 #RRGGBB 和 #AARRGGBB；八位颜色的前两位是透明度。
-# 数值超出安全范围时会被限制；自定义文件缺少的字段会回退到本文件。
+# 数值超出安全范围时会被限制；选用的自定义文件缺少字段时会从本文件补齐并保存。
 
 online:
   layout:
