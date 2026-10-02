@@ -38,11 +38,13 @@ public final class ConfigResources {
         this.resources = resources;
     }
 
-    /** Creates a missing file without merging, so legacy values can be migrated first. */
+    /** Restores missing/empty files, leaving nonempty legacy files ready for migration. */
     public Path ensure(String resource) throws IOException {
         Path file = resolve(resource);
         if (!Files.exists(file)) {
             writeAtomically(file, defaults(resource));
+        } else if (readMapping(Files.readAllBytes(file), file.toString()).getValue().isEmpty()) {
+            return complete(resource);
         }
         return file;
     }
@@ -111,7 +113,6 @@ public final class ConfigResources {
         options.setAllowDuplicateKeys(false);
         options.setMaxAliasesForCollections(50);
         options.setNestingDepthLimit(64);
-        options.setProcessComments(true);
         Yaml yaml = new Yaml(new SafeConstructor(options));
         String source = new String(bytes, StandardCharsets.UTF_8);
         try {
@@ -120,8 +121,9 @@ public final class ConfigResources {
             if (loaded != null && !(loaded instanceof Map<?, ?>)) {
                 throw new IOException("YAML root must be a mapping: " + name);
             }
-            Node node = yaml.compose(new StringReader(source));
-            if (node instanceof MappingNode) {
+            options.setProcessComments(true);
+            Node node = new Yaml(new SafeConstructor(options)).compose(new StringReader(source));
+            if (node instanceof MappingNode && Tag.MAP.equals(node.getTag())) {
                 return (MappingNode) node;
             }
             MappingNode empty = new MappingNode(Tag.MAP, new ArrayList<NodeTuple>(), DumperOptions.FlowStyle.BLOCK);

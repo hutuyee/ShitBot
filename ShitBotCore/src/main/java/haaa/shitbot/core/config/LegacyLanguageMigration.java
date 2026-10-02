@@ -53,7 +53,8 @@ public final class LegacyLanguageMigration {
 
     public static boolean isRequired(ConfigSource legacyConfig, ConfigSource zhCnLanguage) {
         return legacyConfig.getInt("config-version", 1) < LANGUAGE_CONFIG_VERSION
-                && !zhCnLanguage.getBoolean(MARKER_PATH, false);
+                && !zhCnLanguage.getBoolean(MARKER_PATH, false)
+                && !collect(legacyConfig).isEmpty();
     }
 
     public static Map<String, Object> collect(ConfigSource legacyConfig) {
