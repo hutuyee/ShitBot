@@ -82,11 +82,19 @@ public final class PlayerProfileService {
                 values.put("permission-group", profile.getPermissionGroup());
                 values.put("group", profile.getPermissionGroup());
                 values.put("points", profile.getPoints());
+                values.put("has-permission-group", Boolean.valueOf(!profile.getPermissionGroup().isEmpty()));
+                values.put("has-points", Boolean.valueOf(!profile.getPoints().isEmpty()));
                 values.put("total-online-seconds", Long.valueOf(profile.getTotalOnlineSeconds()));
                 values.put("online-time-seconds", Long.valueOf(profile.getTotalOnlineSeconds()));
                 values.put("total-online", formatDuration(profile.getTotalOnlineSeconds()));
                 values.put("online-time", formatDuration(profile.getTotalOnlineSeconds()));
                 values.put("online", Boolean.valueOf(profile.isOnline()));
+                values.put("status", settings.getTranslations().get(profile.isOnline() ? "profile.online" : "profile.offline"));
+                Map<String, Object> labels = new LinkedHashMap<String, Object>();
+                for (String key : new String[]{"skin-title", "skin-unavailable", "permission-group", "points", "online-time", "footer"}) {
+                    labels.put(key, settings.getTranslations().get("profile." + key));
+                }
+                values.put("labels", labels);
                 return values;
             }
         });

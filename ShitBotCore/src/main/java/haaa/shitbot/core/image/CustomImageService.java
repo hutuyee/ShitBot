@@ -12,6 +12,7 @@ import haaa.shitbot.api.spi.ImageTemplateEngineSettings;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.service.PlayerProfileService;
+import haaa.shitbot.core.service.InventoryService;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 
@@ -43,6 +44,7 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
     private final Settings.CustomImages customSettings;
     private final PlatformBridge platform;
     private final PlayerProfileService profileService;
+    private final InventoryService inventoryService;
     private final ConcurrentHashMap<String, ImageDataProvider> providers =
             new ConcurrentHashMap<String, ImageDataProvider>();
     private final Map<String, CachedProviderData> providerCache =
@@ -63,10 +65,18 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
     public CustomImageService(Settings settings,
                               PlatformBridge platform,
                               PlayerProfileService profileService) {
+        this(settings, platform, profileService, null);
+    }
+
+    public CustomImageService(Settings settings,
+                              PlatformBridge platform,
+                              PlayerProfileService profileService,
+                              InventoryService inventoryService) {
         this.settings = settings;
         this.customSettings = settings.getCustomImages();
         this.platform = platform;
         this.profileService = profileService;
+        this.inventoryService = inventoryService;
         registerBuiltInProviders();
     }
 
@@ -210,7 +220,9 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
                         "Template data provider is unavailable: " + id));
             }
             String cacheKey = cacheKey(templateId, spec, request);
-            Map<String, Object> cached = readProviderCache(cacheKey);
+            // Inventory data includes item PNGs and must recheck the requesting QQ's ownership.
+            final boolean cacheable = !"inventory".equals(id);
+            Map<String, Object> cached = cacheable ? readProviderCache(cacheKey) : null;
             if (cached != null) {
                 resolved.put(id, cached);
                 continue;
@@ -233,7 +245,7 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
                 public void accept(Map<String, Object> values) {
                     Map<String, Object> safe = immutableMap(values);
                     resolved.put(id, safe);
-                    writeProviderCache(providerCacheKey, safe);
+                    if (cacheable) writeProviderCache(providerCacheKey, safe);
                 }
             }));
         }
@@ -415,6 +427,20 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
                 return profileService.provideData(requestedPlayer);
             }
         });
+        providers.put("inventory", new ImageDataProvider() {
+            @Override
+            public String getId() { return "inventory"; }
+
+            @Override
+            public CompletableFuture<Map<String, Object>> provide(ImageDataRequest request) {
+                if (inventoryService == null) {
+                    return FutureUtil.failedFuture(new IllegalStateException("Inventory provider is unavailable"));
+                }
+                String player = bindContext(option(request, "player", "${context.player}"), request.getContext()).trim();
+                Object qq = request.getContext().get("qq");
+                return inventoryService.provideTemplateData(player, qq == null ? "" : String.valueOf(qq));
+            }
+        });
     }
 
     private Map<String, Object> onlineData(Map<String, List<String>> snapshot) {
@@ -573,7 +599,7 @@ public final class CustomImageService implements ImageTemplateEngineHost, AutoCl
     private boolean isBuiltInProvider(String id) {
         return "shitbot".equals(id) || "online-players".equals(id)
                 || "player-avatar".equals(id) || "papi".equals(id)
-                || "player-profile".equals(id);
+                || "player-profile".equals(id) || "inventory".equals(id);
     }
 
     @Override

@@ -84,6 +84,7 @@ profile:
   footer: "ShitBot · Personal Profile"
 
 inventory:
+  no-snapshot: "No inventory snapshot yet. Join the server first."
   title: "%player%'s Inventory"
   equipment-labels: ["Head", "Chest", "Legs", "Feet", "Off"]
   live: "Live"

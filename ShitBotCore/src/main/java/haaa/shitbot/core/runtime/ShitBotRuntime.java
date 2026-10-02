@@ -80,15 +80,15 @@ public final class ShitBotRuntime implements AutoCloseable {
         this.easyBotMigrationService = new EasyBotMigrationService(
                 platform, repository, settings.getTranslations());
         this.profileService = new PlayerProfileService(settings, platform, playerStatsRepository);
-        this.customImageService = new CustomImageService(settings, platform, profileService);
+        this.inventoryService = new InventoryService(
+                settings.getInventory(), settings.getTranslations(), platform,
+                repository, inventorySnapshotRepository);
+        this.customImageService = new CustomImageService(settings, platform, profileService, inventoryService);
         this.api = new RuntimeApi(this, customImageService);
         this.imageService = new OnlineImageService(
                 settings.getImage(), settings.getTranslations(), platform, customImageService);
         this.profileImageService = new PlayerProfileImageService(
                 settings.getProfile(), settings.getTranslations(), platform);
-        this.inventoryService = new InventoryService(
-                settings.getInventory(), settings.getTranslations(), platform,
-                repository, inventorySnapshotRepository);
         this.oneBotClient = new OneBotClient(
                 settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(),
                 settings.getTranslations(), settings.isDebug(), platform);

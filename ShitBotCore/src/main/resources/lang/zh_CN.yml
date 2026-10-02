@@ -85,6 +85,7 @@ profile:
 
 inventory:
   title: "%player% 的背包"
+  no-snapshot: "暂无背包快照，请先进入一次服务器。"
   equipment-labels: ["头", "胸", "腿", "靴", "副"]
   live: "实时"
   snapshot: "离线快照"

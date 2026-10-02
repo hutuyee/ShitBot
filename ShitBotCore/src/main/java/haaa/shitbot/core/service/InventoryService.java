@@ -7,10 +7,12 @@ import haaa.shitbot.core.database.BindingRepository;
 import haaa.shitbot.core.database.InventorySnapshotRepository;
 import haaa.shitbot.core.inventory.InventoryImageRenderer;
 import haaa.shitbot.core.inventory.InventorySnapshot;
+import haaa.shitbot.core.inventory.InventoryTemplateData;
 import haaa.shitbot.core.inventory.ItemIconResolver;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
+import haaa.shitbot.core.util.TextUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,6 +39,7 @@ public final class InventoryService implements AutoCloseable {
     private final InventorySnapshotRepository snapshotRepository;
     private final ItemIconResolver iconResolver;
     private final InventoryImageRenderer renderer;
+    private final InventoryTemplateData templateData;
     private final ExecutorService renderExecutor;
     private final ExecutorService resourceExecutor;
     private final ConcurrentHashMap<String, SnapshotHolder> memorySnapshots =
@@ -59,6 +62,7 @@ public final class InventoryService implements AutoCloseable {
         this.snapshotRepository = snapshotRepository;
         this.iconResolver = new ItemIconResolver(settings, platform);
         this.renderer = new InventoryImageRenderer(settings, translations, iconResolver);
+        this.templateData = new InventoryTemplateData(translations, iconResolver);
         int renderThreads = settings.getMaximumConcurrentRenders();
         this.renderExecutor = new ThreadPoolExecutor(
                 renderThreads,
@@ -145,6 +149,54 @@ public final class InventoryService implements AutoCloseable {
             }
         });
         return created;
+    }
+
+    /** Supplies scene data without rendering a native PNG; QQ requests retain binding checks. */
+    public CompletableFuture<Map<String, Object>> provideTemplateData(String playerName, String qqId) {
+        if (!settings.isEnabled() || closed.get()) {
+            return FutureUtil.failedFuture(new IllegalStateException("Inventory service is disabled or closed"));
+        }
+        if (!TextUtil.isValidPlayerName(playerName)) {
+            return FutureUtil.failedFuture(new IllegalArgumentException("Inventory provider requires a valid player"));
+        }
+        final String player = playerName.trim();
+        CompletableFuture<Void> authorized;
+        if (qqId == null || qqId.trim().isEmpty()) {
+            authorized = CompletableFuture.completedFuture(null);
+        } else {
+            authorized = bindingRepository.findAllByQqId(qqId.trim()).thenAccept(bindings -> {
+                if (bindings != null) {
+                    for (BindingRecord binding : bindings) {
+                        if (binding != null && player.equals(binding.getPlayerName())) return;
+                    }
+                }
+                throw new IllegalArgumentException("Inventory player is not bound to the requesting QQ account");
+            });
+        }
+        final List<String> names = Collections.singletonList(player);
+        return authorized.thenCompose(ignored -> captureBoundPlayers(names)).thenCompose(live -> {
+            InventorySnapshot snapshot = live.get(player);
+            if (snapshot != null) {
+                persistSnapshot(snapshot).exceptionally(failure -> {
+                    platform.warn("Failed to cache live inventory snapshot: " + FutureUtil.unwrap(failure).getMessage());
+                    return null;
+                });
+                return templateDataAsync(player, snapshot, true);
+            }
+            return findBestOffline(names).thenCompose(offline -> templateDataAsync(player, offline.orElse(null), false));
+        });
+    }
+
+    private CompletableFuture<Map<String, Object>> templateDataAsync(String player, InventorySnapshot snapshot, boolean live) {
+        final CompletableFuture<Void> resourcesReady = iconResolver.prepareAsync(resourceExecutor);
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                if (snapshot != null) awaitResources(resourcesReady);
+                return templateData.create(player, snapshot, live);
+            } catch (Exception exception) {
+                throw new java.util.concurrent.CompletionException(exception);
+            }
+        }, renderExecutor);
     }
 
     /** Persists a platform-thread snapshot without doing compression or SQL on that thread. */
@@ -290,23 +342,28 @@ public final class InventoryService implements AutoCloseable {
             @Override
             public InventoryQueryResult get() {
                 try {
-                    int waitMs = settings.getResourceIndexWaitMs();
-                    if (waitMs > 0) {
-                        try {
-                            resourcesReady.get(waitMs, TimeUnit.MILLISECONDS);
-                        } catch (java.util.concurrent.TimeoutException timeout) {
-                            platform.warn("Inventory resource index is still loading; rendering available icons only");
-                        } catch (java.util.concurrent.ExecutionException failure) {
-                            platform.warn("Inventory resource index is unavailable: "
-                                    + FutureUtil.unwrap(failure).getMessage());
-                        }
-                    }
+                    awaitResources(resourcesReady);
                     return InventoryQueryResult.success(renderer.render(snapshot, live), snapshot, live);
                 } catch (Exception exception) {
                     throw new java.util.concurrent.CompletionException(exception);
                 }
             }
         }, renderExecutor);
+    }
+
+    private void awaitResources(CompletableFuture<Void> resourcesReady) throws InterruptedException {
+        int waitMs = settings.getResourceIndexWaitMs();
+        if (waitMs <= 0) return;
+        try {
+            resourcesReady.get(waitMs, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException timeout) {
+            platform.warn("Inventory resource index is still loading; rendering available icons only");
+        } catch (java.util.concurrent.ExecutionException failure) {
+            platform.warn("Inventory resource index is unavailable: " + FutureUtil.unwrap(failure).getMessage());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw exception;
+        }
     }
 
     private CompletableFuture<Void> rememberAndPersist(List<InventorySnapshot> snapshots) {
