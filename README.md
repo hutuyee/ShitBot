@@ -98,12 +98,12 @@ inventory:
 
 ## 选择部署方式
 
-| 场景 | 安装方式 | 数据库 |
-| --- | --- | --- |
-| 单个 Bukkit 服务端 | 只安装 Spigot 版，保持 `deployment.role: "standalone"` | SQLite 或 MySQL |
-| BungeeCord/Velocity 群组服 | 在代理安装对应代理版 | 推荐 MySQL |
-| 代理接收 QQ 命令并在子服执行 | 代理安装对应版本，每个目标子服安装 Spigot 版并设为 `deployment.role: "backend"` | 必须共用 MySQL |
-| Nukkit-MOT 单服 | 只安装 Nukkit 版 | SQLite 或 MySQL |
+| 场景             | 安装方式 | 数据库 |
+|----------------| --- | --- |
+| 单个 Bukkit 服务端  | 只安装 Spigot 版，保持 `deployment.role: "standalone"` | SQLite 或 MySQL |
+| Proxy          | 在代理安装对应代理版 | 推荐 MySQL |
+| Proxy + Bukkit | 代理安装对应版本，每个目标子服安装 Spigot 版并设为 `deployment.role: "backend"` | 必须共用 MySQL |
+| Nukkit-MOT 单服  | 只安装 Nukkit 版 | SQLite 或 MySQL |
 
 代理与后端模式还需要配置 `commands.yml` 中的 `backend-transport`。不要让多个插件实例同时使用同一个 SQLite 文件。
 
