@@ -101,8 +101,8 @@ Apply your changes with:
 | Scenario | Installation | Database |
 | --- | --- | --- |
 | One Bukkit server | Spigot edition only, with `deployment.role: "standalone"` | SQLite or MySQL |
-| BungeeCord/Velocity network | Matching edition on the proxy | MySQL recommended |
-| QQ commands received by a proxy and executed on backends | Matching proxy edition plus Spigot edition on each target backend with `deployment.role: "backend"` | Shared MySQL required |
+| Proxy | Matching edition on the proxy | MySQL recommended |
+| Proxy + Bukkit | Matching proxy edition plus Spigot edition on each target backend with `deployment.role: "backend"` | Shared MySQL required |
 | One Nukkit-MOT server | Nukkit edition only | SQLite or MySQL |
 
 Proxy/backend deployments also need `backend-transport` in `commands.yml`. Never let multiple plugin instances use the same SQLite file.
