@@ -49,6 +49,37 @@ mvn -pl ShitBotNukkit -am package
 
 最终插件 JAR 位于对应模块的 `target/`。不要发布 `original-*.jar`、sources、javadoc 或 test JAR。
 
+## 测试
+
+测试使用 JUnit 4.13.2 和 Maven Surefire 3.5.2，位于各模块的 `src/test/java/`。带测试的模块要求至少发现一个测试，避免测试目录或命名错误导致构建空跑。
+
+只运行 API、Core 和 Renderer 的共享逻辑测试，无需服务端 API 仓库：
+
+```powershell
+mvn -pl ShitBotApi,ShitBotCore,ShitBotRenderer -am test
+```
+
+使用 JDK 21 运行全部测试并检查所有平台的打包：
+
+```powershell
+mvn clean verify
+```
+
+当前用例覆盖：
+
+- API 输入副本、只读集合、渲染结果字节隔离和数据提供器 ID 校验；
+- 控制台消息序列化、协议版本、非法枚举/长度/列表、HMAC 认证和挑战值绑定；
+- 占位符 Unicode 往返、重复键、损坏数据和大小限制；
+- 语言回退、语言文件路径、快捷命令别名冲突与超时配置；
+- 背包格式 1/2/3 兼容、物品组件、槽位归一化和 GZIP 解压大小限制；
+- 模板绑定、YAML 校验、发布快照、回滚、资源路径和资源大小限制；
+- 无界面 PNG 渲染、条件/循环、渲染超时和展开图层数量限制；
+- Folia 调度方法签名的兼容与拒绝路径。
+
+这些测试使用内存数据和临时目录，不启动 Minecraft、OneBot、数据库或编辑器服务，也不访问远程图片。渲染测试只断言简单形状的内部像素，避免依赖系统字体。真实平台行为和外部服务联调仍需单独验证。
+
+Surefire 的 XML 和文本报告位于各模块的 `target/surefire-reports/`。
+
 ## 模块结构
 
 ```text
@@ -106,16 +137,23 @@ PictureBridge 的构建说明见其独立仓库文档。
 
 GitHub Actions 在 push、pull request 和手动触发时：
 
-1. 使用 JDK 21 执行 `mvn clean package`；
-2. 收集四个平台 JAR、一个 `ShitBotApi` JAR 和一个独立 `ShitBotRenderer` JAR；
-3. 为各个 JAR 生成 SHA-256 文件；
-4. 上传工作流 Artifact。
+1. 在 Linux JDK 8、17 和 Windows JDK 21 上运行 API、Core、Renderer 的 `clean verify`；
+2. 在 Linux JDK 21 上执行全工程 `mvn clean verify`，包含 Spigot 调度适配器测试和四个平台打包；
+3. 无论成功或失败，都汇总测试结果并上传已有的 Surefire 报告，保留 14 天；预期模块没有报告、没有执行任何测试或全部跳过时会失败；
+4. 收集四个平台 JAR、一个 `ShitBotApi` JAR 和一个独立 `ShitBotRenderer` JAR，生成并校验 SHA-256 文件；
+5. 检查项目类的 Java 字节码目标、入口和共享资源、Renderer SPI 与版本信息，以及平台 API、测试依赖和可选 Renderer 的打包隔离；
+6. 上传发布构件 Artifact，保留 30 天。
+
+矩阵任务不会因其他环境失败而提前取消；同一分支或 PR 的过期 CI 运行会被新运行取消。所有测试和构建统一汇总为 `CI checks`，可将它设为分支保护的必需检查。工作流使用只读仓库权限，只有 Release 上传任务获得写权限。
 
 发布 GitHub Release 时，工作流还会：
 
-1. 使用仓库 Secret 中的 RSA 私钥签署四个平台 JAR、公开 API JAR 和可选渲染器 JAR；
-2. 检查六个 JAR、六个 checksum 和六个签名；
-3. 将 JAR、`.sha256` 和 `.sig` 上传到 Release。
+1. 执行相同的测试矩阵和全平台构建，不跳过测试；只有 `CI checks` 成功才允许上传；
+2. 使用仓库 Secret 中的 RSA 私钥签署四个平台 JAR、公开 API JAR 和可选渲染器 JAR；
+3. 检查六个 JAR、六个 checksum 和六个签名，并使用当前 Release 源码中的内置公钥逐个验签；
+4. 将 JAR、`.sha256` 和 `.sig` 上传到 Release。Release 工作流不会被新运行自动取消。
+
+工作流在 `.github/workflows/release.yml` 中维护；测试报告汇总和发布构件检查位于 `.github/scripts/`，只依赖 Python 3 标准库。PictureBridge 保持独立 CI，不参与上述 Maven 测试与打包。
 
 签名密钥管理见[升级与自动更新](updating.md)。
 
