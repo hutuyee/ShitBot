@@ -43,6 +43,36 @@ public final class AdapterLogicTest {
         Object execute(Plugin plugin, Runnable run);
     }
 
+    interface CompatibleSchedulerSim {
+        Object execute(Object plugin, Object run);
+    }
+
+    interface BoxedDelaySchedulerSim {
+        boolean execute(Plugin plugin, Runnable run, Runnable retired, Long delay);
+    }
+
+    interface InvalidPluginSchedulerSim {
+        Object execute(String plugin, Runnable run);
+    }
+
+    interface InvalidTaskSchedulerSim {
+        Object execute(Plugin plugin, String run);
+    }
+
+    interface InvalidRetiredSchedulerSim {
+        boolean execute(Plugin plugin, Runnable run, String retired, long delay);
+    }
+
+    interface InvalidDelaySchedulerSim {
+        boolean execute(Plugin plugin, Runnable run, Runnable retired, int delay);
+    }
+
+    interface OtherMethodSchedulerSim {
+        Object schedule(Plugin plugin, Runnable run);
+    }
+
+    interface InheritedSchedulerSim extends GlobalSchedulerSim { }
+
     private static Method finder() throws Exception {
         Method finder = SchedulerAdapter.class.getDeclaredMethod("executeMethod", Class.class, int.class);
         finder.setAccessible(true);
@@ -79,6 +109,32 @@ public final class AdapterLogicTest {
     @Test
     public void noCrossParamCountMatches() throws Exception {
         assertNull(finder().invoke(null, GlobalSchedulerSim.class, Integer.valueOf(4)));
+    }
+
+    @Test
+    public void acceptsCompatibleSupertypesAndInheritedMethods() throws Exception {
+        assertNotNull(finder().invoke(null, CompatibleSchedulerSim.class, Integer.valueOf(2)));
+        assertNotNull(finder().invoke(null, InheritedSchedulerSim.class, Integer.valueOf(2)));
+    }
+
+    @Test
+    public void acceptsBoxedLongDelay() throws Exception {
+        Method matched = (Method) finder().invoke(null, BoxedDelaySchedulerSim.class, Integer.valueOf(4));
+        assertNotNull(matched);
+        assertEquals(Long.class, matched.getParameterTypes()[3]);
+    }
+
+    @Test
+    public void rejectsIncompatiblePluginTaskAndMethodName() throws Exception {
+        assertNull(finder().invoke(null, InvalidPluginSchedulerSim.class, Integer.valueOf(2)));
+        assertNull(finder().invoke(null, InvalidTaskSchedulerSim.class, Integer.valueOf(2)));
+        assertNull(finder().invoke(null, OtherMethodSchedulerSim.class, Integer.valueOf(2)));
+    }
+
+    @Test
+    public void rejectsIncompatibleRetiredCallbackAndDelay() throws Exception {
+        assertNull(finder().invoke(null, InvalidRetiredSchedulerSim.class, Integer.valueOf(4)));
+        assertNull(finder().invoke(null, InvalidDelaySchedulerSim.class, Integer.valueOf(4)));
     }
 
     @Test
