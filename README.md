@@ -172,6 +172,10 @@ ShitBot 不与 EasyBot 竞争
 - [bStats Velocity](https://bstats.org/plugin/velocity/ShitBot/33868)
 - ![bStats Bukkit](https://bstats.org/signatures/bukkit/ShitBot.svg)
 
+## Spark
+
+![spark](image/spark.png)
+
 ## License
 
 [MIT](LICENSE)
