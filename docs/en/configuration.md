@@ -35,9 +35,9 @@ For local debugging, enable this top-level setting:
 debug: true
 ```
 
-This logs the OneBot authentication token, outgoing QQ request JSON, and raw incoming JSON. When advanced templates are enabled, it loads only `components/image-renderer/<version>/ShitBotRenderer-<version>.jar` in the plugin data directory and does not download the component. The version comes from `custom-image-templates.component.version`, or the current platform plugin version if empty.
+This logs whether a OneBot token is configured, outgoing QQ request JSON, and raw incoming JSON. The configured token is redacted, and connection logs omit URL paths, user information, and query parameters. When advanced templates are enabled, it loads only `components/image-renderer/<version>/ShitBotRenderer-<version>.jar` in the plugin data directory and does not download the component. The version comes from `custom-image-templates.component.version`, or the current platform plugin version if empty.
 
-Local JARs still undergo size, service entry point, and embedded version checks, but SHA-256, `.sig`, and public key verification are skipped. A missing or invalid local JAR fails immediately without falling back to a release download. Disable debug mode afterward because the logs contain sensitive tokens and message content.
+Local JARs still undergo size, service entry point, and embedded version checks, but SHA-256, `.sig`, and public key verification are skipped. A missing or invalid local JAR fails immediately without falling back to a release download. Disable debug mode afterward because message content can still contain sensitive information such as binding codes.
 
 ### Migrating text from an old configuration
 

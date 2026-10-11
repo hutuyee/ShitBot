@@ -35,9 +35,9 @@ language: "zh_CN"
 debug: true
 ```
 
-开启后会输出 OneBot 鉴权 token、发送给 QQ 的请求 JSON 和 QQ 返回的原始 JSON。启用高级图片模板时，只加载插件数据目录下的 `components/image-renderer/<版本>/ShitBotRenderer-<版本>.jar`，不会下载渲染组件。`<版本>` 取自 `custom-image-templates.component.version`，留空时使用当前平台插件版本。
+开启后会输出 OneBot token 是否已配置、发送给 QQ 的请求 JSON 和 QQ 返回的原始 JSON；日志会隐藏已配置的 token，连接日志不输出 URL 路径、用户信息或查询参数。启用高级图片模板时，只加载插件数据目录下的 `components/image-renderer/<版本>/ShitBotRenderer-<版本>.jar`，不会下载渲染组件。`<版本>` 取自 `custom-image-templates.component.version`，留空时使用当前平台插件版本。
 
-本地 JAR 仍会检查大小、组件服务入口和内嵌版本，但会跳过 SHA-256、`.sig` 和公钥校验；本地 JAR 缺失或无效时直接报错，不会回退到 Release 下载。调试结束后请关闭此选项，因为日志包含敏感 token 和消息内容。
+本地 JAR 仍会检查大小、组件服务入口和内嵌版本，但会跳过 SHA-256、`.sig` 和公钥校验；本地 JAR 缺失或无效时直接报错，不会回退到 Release 下载。调试结束后请关闭此选项，因为消息内容仍可能包含绑定验证码等敏感信息。
 
 ### 从旧配置迁移文本
 

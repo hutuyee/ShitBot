@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
@@ -15,6 +16,7 @@ import haaa.shitbot.core.util.NetworkUtil;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.enums.ReadyState;
+import org.java_websocket.extensions.IExtension;
 import org.java_websocket.handshake.ServerHandshake;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,7 +101,7 @@ public final class OneBotClient implements AutoCloseable {
     }
 
     public void start() {
-        debug("OneBot access token: " + settings.getAccessToken());
+        debug("OneBot access token configured: " + !settings.getAccessToken().isEmpty());
         if (!settings.isEnabled() || closed.get()) {
             return;
         }
@@ -128,12 +130,12 @@ public final class OneBotClient implements AutoCloseable {
             }
             if (!settings.isAllowInsecureRemoteWebsocket()) {
                 platform.warn("Refused remote unencrypted OneBot ws:// connection; use wss:// or explicitly set "
-                        + "onebot.allow-insecure-remote-websocket=true: " + uri);
+                        + "onebot.allow-insecure-remote-websocket=true: " + safeEndpoint());
                 return false;
             }
             platform.warn("Remote OneBot plaintext was explicitly allowed; messages"
                     + (settings.getAccessToken().isEmpty() ? "" : " and the Bearer token")
-                    + " are exposed in transit: " + uri);
+                    + " are exposed in transit: " + safeEndpoint());
             return true;
         } catch (IllegalArgumentException ignored) {
             // connectNow reports malformed URLs through the normal connection error path.
@@ -161,13 +163,14 @@ public final class OneBotClient implements AutoCloseable {
             client = created;
             boolean connected = created.connectBlocking(settings.getConnectTimeoutSeconds(), TimeUnit.SECONDS);
             if (!connected) {
-                platform.warn("OneBot WebSocket connection timed out: " + settings.getWebsocketUrl());
+                platform.warn("OneBot WebSocket connection timed out: " + safeEndpoint());
                 scheduleReconnect();
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
         } catch (Throwable throwable) {
-            platform.warn("OneBot WebSocket connection failed: " + FutureUtil.unwrap(throwable).getMessage());
+            platform.warn("OneBot WebSocket connection failed: "
+                    + redactSecrets(FutureUtil.unwrap(throwable).getMessage()));
             scheduleReconnect();
         }
     }
@@ -322,14 +325,37 @@ public final class OneBotClient implements AutoCloseable {
             }
             handleEvent(root);
         } catch (Throwable throwable) {
-            platform.warn("Failed to parse OneBot message: " + FutureUtil.unwrap(throwable).getMessage());
+            platform.warn("Failed to parse OneBot message: "
+                    + redactSecrets(FutureUtil.unwrap(throwable).getMessage()));
         }
     }
 
     private void debug(String message) {
         if (debug) {
-            platform.info("[debug] " + message);
+            platform.info("[debug] " + redactSecrets(message));
         }
+    }
+
+    private String safeEndpoint() {
+        try {
+            URI uri = URI.create(settings.getWebsocketUrl());
+            if (uri.getHost() == null || uri.getScheme() == null) return "<invalid URL>";
+            // Paths, user info and query strings may contain connection credentials.
+            return uri.getScheme() + "://" + uri.getHost()
+                    + (uri.getPort() < 0 ? "" : ":" + uri.getPort());
+        } catch (IllegalArgumentException ignored) {
+            return "<invalid URL>";
+        }
+    }
+
+    private String redactSecrets(String message) {
+        if (message == null) return "unknown";
+        String clean = message.replace(settings.getWebsocketUrl(), safeEndpoint());
+        String token = settings.getAccessToken();
+        if (token.isEmpty()) return clean;
+        String encoded = JsonUtil.toJson(new JsonPrimitive(token));
+        clean = clean.replace(encoded.substring(1, encoded.length() - 1), "[redacted]");
+        return clean.replace(token, "[redacted]");
     }
 
     private void handleActionResponse(JsonElement root, String echo) {
@@ -826,7 +852,8 @@ public final class OneBotClient implements AutoCloseable {
 
     private final class Client extends WebSocketClient {
         private Client(URI serverUri, Map<String, String> headers, int connectTimeoutMs) {
-            super(serverUri, new Draft_6455(), headers == null ? Collections.<String, String>emptyMap() : headers,
+            super(serverUri, new Draft_6455(Collections.<IExtension>emptyList(), MAX_INBOUND_MESSAGE_LENGTH),
+                    headers == null ? Collections.<String, String>emptyMap() : headers,
                     connectTimeoutMs);
             setConnectionLostTimeout(Math.max(15, settings.getHeartbeatTimeoutSeconds() / 2));
         }
@@ -836,14 +863,14 @@ public final class OneBotClient implements AutoCloseable {
             reconnectDelaySeconds.set(settings.getReconnectInitialSeconds());
             reconnectScheduled.set(false);
             lastReceivedAt.set(System.currentTimeMillis());
-            platform.info("OneBot WebSocket connected: " + getURI());
+            platform.info("OneBot WebSocket connected: " + safeEndpoint());
             Runnable listener = connectedListener;
             if (listener != null) {
                 try {
                     listener.run();
                 } catch (Throwable throwable) {
                     platform.warn("OneBot connected listener failed: "
-                            + FutureUtil.unwrap(throwable).getMessage());
+                            + redactSecrets(FutureUtil.unwrap(throwable).getMessage()));
                 }
             }
         }
@@ -857,7 +884,7 @@ public final class OneBotClient implements AutoCloseable {
         public void onClose(int code, String reason, boolean remote) {
             if (!closed.get()) {
                 platform.warn("OneBot WebSocket closed (code=" + code + ", remote=" + remote + "): "
-                        + (reason == null ? "" : reason));
+                        + redactSecrets(reason == null ? "" : reason));
                 failAllPending(new IllegalStateException("OneBot WebSocket disconnected"));
                 scheduleReconnect();
             }
@@ -867,7 +894,7 @@ public final class OneBotClient implements AutoCloseable {
         public void onError(Exception exception) {
             if (!closed.get()) {
                 platform.warn("OneBot WebSocket error: "
-                        + (exception == null ? "unknown" : exception.getMessage()));
+                        + redactSecrets(exception == null ? "unknown" : exception.getMessage()));
             }
         }
     }
