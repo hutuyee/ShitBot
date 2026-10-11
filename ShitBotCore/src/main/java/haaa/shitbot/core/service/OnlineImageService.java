@@ -1,5 +1,6 @@
 package haaa.shitbot.core.service;
 
+import haaa.shitbot.api.ImageRenderResult;
 import haaa.shitbot.core.config.ImageTemplate;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
@@ -29,6 +30,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -79,8 +81,8 @@ public final class OnlineImageService implements AutoCloseable {
     private final ConcurrentHashMap<String, AvatarEntry> avatarMemory = new ConcurrentHashMap<String, AvatarEntry>();
     private final ConcurrentHashMap<String, CompletableFuture<BufferedImage>> avatarRequests =
             new ConcurrentHashMap<String, CompletableFuture<BufferedImage>>();
-    private CompletableFuture<byte[]> inFlight;
-    private volatile byte[] cachedBytes;
+    private CompletableFuture<ImageRenderResult> inFlight;
+    private volatile ImageRenderResult cachedImage;
     private volatile long cacheExpiresAt;
 
     public OnlineImageService(Settings.Image settings, Translations translations, PlatformBridge platform) {
@@ -115,47 +117,53 @@ public final class OnlineImageService implements AutoCloseable {
         }, imageExecutor);
     }
 
-    public synchronized CompletableFuture<byte[]> renderOnlineImageAsync() {
+    public CompletableFuture<byte[]> renderOnlineImageAsync() {
+        return renderOnlineImageResultAsync().thenApply(ImageRenderResult::getBytes);
+    }
+
+    /** Shares immutable results with API callers without copying cached PNG arrays. */
+    public synchronized CompletableFuture<ImageRenderResult> renderOnlineImageResultAsync() {
         long now = System.currentTimeMillis();
-        byte[] currentCache = cachedBytes;
+        ImageRenderResult currentCache = cachedImage;
         if (currentCache != null && now < cacheExpiresAt) {
-            return CompletableFuture.completedFuture(currentCache.clone());
+            return CompletableFuture.completedFuture(currentCache);
         }
 
-        CompletableFuture<byte[]> existing = inFlight;
+        CompletableFuture<ImageRenderResult> existing = inFlight;
         if (existing != null && !existing.isDone()) {
-            return existing.thenApply(new java.util.function.Function<byte[], byte[]>() {
-                @Override
-                public byte[] apply(byte[] bytes) {
-                    return bytes.clone();
-                }
-            });
+            return existing.thenApply(image -> image);
         }
 
-        final CompletableFuture<byte[]> created = settings.getRenderer() == Settings.Image.Renderer.CUSTOM
+        final CompletableFuture<ImageRenderResult> rendered = settings.getRenderer() == Settings.Image.Renderer.CUSTOM
                 ? renderCustomImage()
                 : platform.captureOnlinePlayers().thenApplyAsync(
-                new java.util.function.Function<Map<String, List<String>>, byte[]>() {
+                new java.util.function.Function<Map<String, List<String>>, ImageRenderResult>() {
                     @Override
-                    public byte[] apply(Map<String, List<String>> snapshot) {
+                    public ImageRenderResult apply(Map<String, List<String>> snapshot) {
                         try {
-                            byte[] bytes = render(snapshot == null
+                            return render(snapshot == null
                                     ? Collections.<String, List<String>>emptyMap()
                                     : snapshot);
-                            cachedBytes = bytes;
-                            cacheExpiresAt = System.currentTimeMillis() + settings.getCacheSeconds() * 1000L;
-                            writeAtomically(bytes);
-                            return bytes;
                         } catch (IOException exception) {
                             throw new java.util.concurrent.CompletionException(exception);
                         }
                     }
                 }, imageExecutor);
+        final CompletableFuture<ImageRenderResult> created = rendered.thenApplyAsync(image -> {
+            try {
+                writeAtomically(image);
+                cachedImage = image;
+                cacheExpiresAt = System.currentTimeMillis() + settings.getCacheSeconds() * 1000L;
+                return image;
+            } catch (IOException exception) {
+                throw new java.util.concurrent.CompletionException(exception);
+            }
+        }, imageExecutor);
 
         inFlight = created;
-        created.whenComplete(new java.util.function.BiConsumer<byte[], Throwable>() {
+        created.whenComplete(new java.util.function.BiConsumer<ImageRenderResult, Throwable>() {
             @Override
-            public void accept(byte[] bytes, Throwable throwable) {
+            public void accept(ImageRenderResult image, Throwable throwable) {
                 synchronized (OnlineImageService.this) {
                     if (inFlight == created) {
                         inFlight = null;
@@ -163,21 +171,16 @@ public final class OnlineImageService implements AutoCloseable {
                 }
             }
         });
-        return created.thenApply(new java.util.function.Function<byte[], byte[]>() {
-            @Override
-            public byte[] apply(byte[] bytes) {
-                return bytes.clone();
-            }
-        });
+        return created.thenApply(image -> image);
     }
 
     public Path getOutputPath() {
         return platform.getDataDirectory().resolve("images").resolve(settings.getOutputFile());
     }
 
-    private CompletableFuture<byte[]> renderCustomImage() {
+    private CompletableFuture<ImageRenderResult> renderCustomImage() {
         if (customImages == null) {
-            CompletableFuture<byte[]> failed = new CompletableFuture<byte[]>();
+            CompletableFuture<ImageRenderResult> failed = new CompletableFuture<ImageRenderResult>();
             failed.completeExceptionally(new IllegalStateException("Custom image renderer is unavailable"));
             return failed;
         }
@@ -186,24 +189,10 @@ public final class OnlineImageService implements AutoCloseable {
         context.put("server-name", settings.getServerName());
         context.put("platform", platform.getPlatformName());
         return customImages.renderImage(settings.getCustomTemplateId(),
-                        haaa.shitbot.api.ImageRenderRequest.of(context))
-                .thenApplyAsync(new java.util.function.Function<haaa.shitbot.api.ImageRenderResult, byte[]>() {
-                    @Override
-                    public byte[] apply(haaa.shitbot.api.ImageRenderResult result) {
-                        byte[] bytes = result.getBytes();
-                        try {
-                            cachedBytes = bytes;
-                            cacheExpiresAt = System.currentTimeMillis() + settings.getCacheSeconds() * 1000L;
-                            writeAtomically(bytes);
-                            return bytes;
-                        } catch (IOException exception) {
-                            throw new java.util.concurrent.CompletionException(exception);
-                        }
-                    }
-                }, imageExecutor);
+                haaa.shitbot.api.ImageRenderRequest.of(context));
     }
 
-    private byte[] render(Map<String, List<String>> originalSnapshot) throws IOException {
+    private ImageRenderResult render(Map<String, List<String>> originalSnapshot) throws IOException {
         Map<String, List<String>> snapshot = normalizeSnapshot(originalSnapshot);
         Map<String, BufferedImage> avatars = loadAvatars(snapshot);
         RenderLayout layout = measureLayout(snapshot);
@@ -231,7 +220,8 @@ public final class OnlineImageService implements AutoCloseable {
         if (!ImageIO.write(image, "png", output)) {
             throw new IOException("No PNG writer is available");
         }
-        return output.toByteArray();
+        return new ImageRenderResult(output.toByteArray(), image.getWidth(), image.getHeight(),
+                "image/png", settings.getOutputFile(), "builtin:online", 1L);
     }
 
     private String baseKey(RenderLayout layout) {
@@ -974,11 +964,13 @@ public final class OnlineImageService implements AutoCloseable {
         return playerName == null ? "" : playerName.trim().toLowerCase(Locale.ROOT);
     }
 
-    private void writeAtomically(byte[] bytes) throws IOException {
+    private void writeAtomically(ImageRenderResult image) throws IOException {
         Path output = getOutputPath();
         Files.createDirectories(output.getParent());
         Path temporary = output.resolveSibling(output.getFileName().toString() + ".tmp");
-        Files.write(temporary, bytes);
+        try (OutputStream outputStream = Files.newOutputStream(temporary)) {
+            image.writeTo(outputStream);
+        }
         try {
             Files.move(temporary, output, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
@@ -1001,7 +993,7 @@ public final class OnlineImageService implements AutoCloseable {
             imageExecutor.shutdownNow();
         }
         baseCache.clear();
-        cachedBytes = null;
+        cachedImage = null;
     }
 
     private static final class RenderLayout {

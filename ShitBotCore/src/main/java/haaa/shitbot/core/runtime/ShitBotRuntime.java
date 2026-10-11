@@ -42,7 +42,7 @@ public final class ShitBotRuntime implements AutoCloseable {
     private final BindingService bindingService;
     private final EasyBotMigrationService easyBotMigrationService;
     private final CustomImageService customImageService;
-    private final haaa.shitbot.api.ShitBotApi api;
+    private final RuntimeApi api;
     private final OnlineImageService imageService;
     private final PlayerProfileService profileService;
     private final PlayerProfileImageService profileImageService;
@@ -84,11 +84,11 @@ public final class ShitBotRuntime implements AutoCloseable {
                 settings.getInventory(), settings.getTranslations(), platform,
                 repository, inventorySnapshotRepository);
         this.customImageService = new CustomImageService(settings, platform, profileService, inventoryService);
-        this.api = new RuntimeApi(this, customImageService);
         this.imageService = new OnlineImageService(
                 settings.getImage(), settings.getTranslations(), platform, customImageService);
         this.profileImageService = new PlayerProfileImageService(
                 settings.getProfile(), settings.getTranslations(), platform);
+        this.api = new RuntimeApi(this, customImageService);
         this.oneBotClient = new OneBotClient(
                 settings.getOneBot(), settings.getForwarding().getGroupToGameMediaMode(),
                 settings.getTranslations(), settings.isDebug(), platform);
@@ -237,6 +237,10 @@ public final class ShitBotRuntime implements AutoCloseable {
         return profileService;
     }
 
+    PlayerProfileImageService getProfileImageService() {
+        return profileImageService;
+    }
+
     public void playerJoin(String playerName, String playerUuid) {
         if (!closed.get() && isReady()) {
             profileService.startSession(playerName, playerUuid).exceptionally(throwable -> {
@@ -300,6 +304,7 @@ public final class ShitBotRuntime implements AutoCloseable {
             return;
         }
         maintenanceExecutor.shutdownNow();
+        api.close();
         startupNotificationService.close();
         oneBotClient.close();
         inventoryService.close();

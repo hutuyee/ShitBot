@@ -30,6 +30,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /** Coordinates live capture, durable offline snapshots, bounded caches and PNG rendering. */
 public final class InventoryService implements AutoCloseable {
@@ -120,6 +121,40 @@ public final class InventoryService implements AutoCloseable {
      */
     public CompletableFuture<InventoryQueryResult> queryForQq(final String qqId,
                                                                final String playerName) {
+        final String cleanQq = qqId == null ? "" : qqId.trim();
+        final String cleanPlayer = playerName == null ? "" : playerName.trim();
+        return queryOnce("qq\u0000" + cleanQq + '\u0000' + cleanPlayer,
+                () -> doQuery(cleanQq, cleanPlayer));
+    }
+
+    /** Administrative exact-player query; callers must authorize access before invoking it. */
+    public CompletableFuture<InventoryQueryResult> queryForPlayer(String playerName) {
+        if (!TextUtil.isValidPlayerName(playerName) || playerName.trim().isEmpty()) {
+            return FutureUtil.failedFuture(new IllegalArgumentException("Invalid player name"));
+        }
+        final String player = playerName.trim();
+        return queryOnce("player\u0000" + player, () -> {
+            final List<String> names = Collections.singletonList(player);
+            return captureBoundPlayers(names).thenCompose(live -> {
+                InventorySnapshot snapshot = live.get(player);
+                if (snapshot != null) {
+                    persistSnapshot(snapshot).exceptionally(failure -> {
+                        platform.warn("Failed to cache live inventory snapshot: "
+                                + FutureUtil.unwrap(failure).getMessage());
+                        return null;
+                    });
+                    return render(snapshot, true);
+                }
+                return findBestOffline(names).thenCompose(offline -> offline.isPresent()
+                        ? render(offline.get(), false)
+                        : CompletableFuture.completedFuture(
+                                InventoryQueryResult.status(InventoryQueryResult.Status.NO_SNAPSHOT)));
+            });
+        });
+    }
+
+    private CompletableFuture<InventoryQueryResult> queryOnce(
+            String queryKey, Supplier<CompletableFuture<InventoryQueryResult>> query) {
         if (!settings.isEnabled()) {
             return CompletableFuture.completedFuture(
                     InventoryQueryResult.status(InventoryQueryResult.Status.DISABLED));
@@ -127,9 +162,6 @@ public final class InventoryService implements AutoCloseable {
         if (closed.get()) {
             return FutureUtil.failedFuture(new IllegalStateException("Inventory service is closed"));
         }
-        final String cleanQq = qqId == null ? "" : qqId.trim();
-        final String cleanPlayer = playerName == null ? "" : playerName.trim();
-        final String queryKey = cleanQq + '\u0000' + cleanPlayer;
         final CompletableFuture<InventoryQueryResult> created;
         synchronized (inFlightQueries) {
             if (closed.get()) {
@@ -137,9 +169,13 @@ public final class InventoryService implements AutoCloseable {
             }
             CompletableFuture<InventoryQueryResult> existing = inFlightQueries.get(queryKey);
             if (existing != null) {
-                return existing;
+                return existing.thenApply(result -> result);
             }
-            created = doQuery(cleanQq, cleanPlayer);
+            try {
+                created = query.get();
+            } catch (RuntimeException exception) {
+                return FutureUtil.failedFuture(exception);
+            }
             inFlightQueries.put(queryKey, created);
         }
         created.whenComplete(new java.util.function.BiConsumer<InventoryQueryResult, Throwable>() {
@@ -148,7 +184,7 @@ public final class InventoryService implements AutoCloseable {
                 inFlightQueries.remove(queryKey, created);
             }
         });
-        return created;
+        return created.thenApply(result -> result);
     }
 
     /** Supplies scene data without rendering a native PNG; QQ requests retain binding checks. */

@@ -1,5 +1,6 @@
 package haaa.shitbot.api;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +40,35 @@ public interface ShitBotApi {
 
     boolean isCustomImageTemplatesEnabled();
 
+    /** Uses image.renderer and the existing online-image cache, including custom templates. */
+    CompletableFuture<ImageRenderResult> renderOnlineImage();
+
+    /** Native profile card. The calling plugin is responsible for authorizing player access. */
+    CompletableFuture<ImageRenderResult> renderPlayerProfileImage(String playerName);
+
+    boolean isInventoryEnabled();
+
+    /** Administrative native inventory image; does not require a QQ binding. */
+    CompletableFuture<InventoryImageResult> renderInventoryImage(String playerName);
+
+    /** Selects an owned character using the same rules as the QQ inventory command. */
+    default CompletableFuture<InventoryImageResult> renderInventoryImageForQq(String qqId) {
+        return renderInventoryImageForQq(qqId, null);
+    }
+
+    /** Verifies QQ ownership. Null/blank player names select an owned character automatically. */
+    CompletableFuture<InventoryImageResult> renderInventoryImageForQq(String qqId, String playerName);
+
+    /** Renders a published advanced template; requires custom-image-templates.enabled. */
     CompletableFuture<ImageRenderResult> renderImage(String templateId, ImageRenderRequest request);
+
+    /**
+     * Saves this exact result asynchronously, creates parent directories and replaces the target file.
+     * Returns an absolute normalized local path; path.toUri() is a file URI, not a hosted HTTP URL.
+     * The calling plugin owns destination selection, authorization and file retention.
+     * The bounded writer rejects excess work and releases pending futures when the runtime closes.
+     */
+    CompletableFuture<Path> saveImage(ImageRenderResult image, Path target);
 
     List<ImageTemplateInfo> getImageTemplates();
 

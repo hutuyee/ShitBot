@@ -1,8 +1,10 @@
 package haaa.shitbot.core.service;
 
+import haaa.shitbot.api.ImageRenderResult;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
 import haaa.shitbot.core.platform.PlatformBridge;
+import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 
 import javax.imageio.ImageIO;
@@ -24,9 +26,12 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Renders the built-in two-column personal profile card. */
 public final class PlayerProfileImageService implements AutoCloseable {
@@ -35,8 +40,9 @@ public final class PlayerProfileImageService implements AutoCloseable {
     private final Settings.Profile settings;
     private final Translations translations;
     private final PlatformBridge platform;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(
-            new NamedThreadFactory("shitbot-profile-image", true));
+    private final ExecutorService executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<Runnable>(16), new NamedThreadFactory("shitbot-profile-image", true),
+            new ThreadPoolExecutor.AbortPolicy());
 
     public PlayerProfileImageService(Settings.Profile settings,
                                      Translations translations,
@@ -48,13 +54,10 @@ public final class PlayerProfileImageService implements AutoCloseable {
 
     public CompletableFuture<byte[]> renderAsync(final PlayerProfile profile) {
         if (profile == null) {
-            CompletableFuture<byte[]> failed = new CompletableFuture<byte[]>();
-            failed.completeExceptionally(new IllegalArgumentException("Profile cannot be null"));
-            return failed;
+            return FutureUtil.failedFuture(new IllegalArgumentException("Profile cannot be null"));
         }
-        return CompletableFuture.supplyAsync(new java.util.function.Supplier<byte[]>() {
-            @Override
-            public byte[] get() {
+        try {
+            return CompletableFuture.supplyAsync(() -> {
                 try {
                     byte[] bytes = render(profile);
                     writeAtomically(bytes);
@@ -62,8 +65,16 @@ public final class PlayerProfileImageService implements AutoCloseable {
                 } catch (IOException exception) {
                     throw new java.util.concurrent.CompletionException(exception);
                 }
-            }
-        }, executor);
+            }, executor);
+        } catch (RejectedExecutionException exception) {
+            return FutureUtil.failedFuture(exception);
+        }
+    }
+
+    public CompletableFuture<ImageRenderResult> renderResultAsync(final PlayerProfile profile) {
+        return renderAsync(profile).thenApply(bytes -> new ImageRenderResult(bytes,
+                settings.getWidth(), settings.getHeight(), "image/png",
+                "profile-" + profile.getPlayerName() + ".png", "builtin:profile", 1L));
     }
 
     public Path getOutputPath() {
