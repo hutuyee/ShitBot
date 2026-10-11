@@ -5,6 +5,8 @@ import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbot.core.util.NetworkUtil;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -14,7 +16,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLRecoverableException;
 import java.sql.Statement;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -109,14 +113,7 @@ public final class DatabaseManager implements AutoCloseable {
                 || NetworkUtil.isLoopbackHost(settings.getMysqlHost())) {
             return;
         }
-        String parameters = settings.getMysqlParameters().toLowerCase(Locale.ROOT);
-        boolean tlsRequired = parameters.contains("requiressl=true")
-                || parameters.contains("sslmode=required")
-                || parameters.contains("sslmode=verify_ca")
-                || parameters.contains("sslmode=verify_identity")
-                || (parameters.contains("usessl=true")
-                && parameters.contains("verifyservercertificate=true"));
-        if (tlsRequired) {
+        if (requiresMysqlTls(settings.getMysqlParameters())) {
             return;
         }
         String endpoint = settings.getMysqlHost() + ":" + settings.getMysqlPort();
@@ -127,6 +124,40 @@ public final class DatabaseManager implements AutoCloseable {
         }
         platform.warn("Remote MySQL TLS protection is explicitly disabled; credentials and data may be exposed: "
                 + endpoint);
+    }
+
+    private boolean requiresMysqlTls(String parameters) {
+        Map<String, String> security = new HashMap<String, String>();
+        String query = parameters.startsWith("?") ? parameters.substring(1) : parameters;
+        try {
+            for (String parameter : query.split("&")) {
+                int equals = parameter.indexOf('=');
+                String rawKey = equals < 0 ? parameter : parameter.substring(0, equals);
+                String key = URLDecoder.decode(rawKey, "UTF-8").trim();
+                String canonical;
+                if ("sslMode".equalsIgnoreCase(key)) canonical = "sslMode";
+                else if ("useSSL".equalsIgnoreCase(key)) canonical = "useSSL";
+                else if ("requireSSL".equalsIgnoreCase(key)) canonical = "requireSSL";
+                else if ("verifyServerCertificate".equalsIgnoreCase(key)) canonical = "verifyServerCertificate";
+                else continue;
+                // Older driver adaptation reads raw keys. Reject ambiguous spellings,
+                // missing values and duplicates instead of relying on driver precedence.
+                if (equals < 0 || !canonical.equals(rawKey) || security.containsKey(canonical)) return false;
+                security.put(canonical, URLDecoder.decode(parameter.substring(equals + 1), "UTF-8"));
+            }
+        } catch (IllegalArgumentException | UnsupportedEncodingException invalid) {
+            return false;
+        }
+        String mode = security.get("sslMode");
+        if (mode != null) {
+            // Connector/J ignores legacy SSL flags when sslMode is explicitly set.
+            return "REQUIRED".equalsIgnoreCase(mode) || "VERIFY_CA".equalsIgnoreCase(mode)
+                    || "VERIFY_IDENTITY".equalsIgnoreCase(mode);
+        }
+        // Legacy drivers have different defaults, so require an explicit TLS configuration.
+        return "true".equalsIgnoreCase(security.get("useSSL"))
+                && ("true".equalsIgnoreCase(security.get("requireSSL"))
+                || "true".equalsIgnoreCase(security.get("verifyServerCertificate")));
     }
 
     /**

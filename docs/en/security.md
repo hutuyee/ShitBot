@@ -12,6 +12,8 @@
 - Restrict access to the OneBot port with a firewall.
 - Do not expose tokens in logs, screenshots, or issues.
 
+OneBot limits incoming messages to 2 MiB during WebSocket decoding, before oversized messages are fully allocated. The plaintext loopback exemption accepts only `localhost`, explicit IPv6 loopback addresses, or canonical `127.x.x.x` IPv4 literals, never domain names beginning with `127.`.
+
 ## Database
 
 - Create a dedicated ShitBot database account.
@@ -21,6 +23,8 @@
 - Never share SQLite files between processes.
 - Back up before upgrades, migrations, or platform changes.
 - Do not expose database URLs, usernames, or passwords.
+
+Remote MySQL TLS checks parse individual parameters and give `sslMode` precedence over legacy SSL flags. Duplicate security parameters or noncanonical key casing do not satisfy the check. Legacy-only configurations must explicitly set `useSSL=true` together with either `requireSSL=true` or `verifyServerCertificate=true`. The existing explicit `allow-insecure-remote-mysql` override remains available.
 
 ## Proxy/backend channel
 
@@ -59,6 +63,10 @@ An empty `permission` only skips the game permission check. `allow-unbound: true
 - Custom providers must switch to the correct thread before accessing platform APIs and return only needed rendering data.
 
 The template engine does not execute uploaded HTML, JavaScript, or arbitrary server commands and contains no browser engine. Image commands and console shortcuts in `commands.yml` are separate mechanisms.
+
+Remote template images connect directly over HTTPS port 443 to a checked public address. Each redirect is checked again, and the connection is pinned to the checked address while retaining TLS verification for the original hostname. This path bypasses JVM HTTP/SOCKS proxies so proxy-side DNS cannot bypass the address checks. Downloads use two workers and 16 queue slots; the cache is limited to 128 entries and a total of 16 Mi pixels, and network reads are bounded by the render timeout. Base64 size and image dimensions are checked before decoding.
+
+Template YAML normalization rejects recursive aliases and enforces a maximum depth of 64 and 65,536 expanded nodes, counting alias expansion. Asset uploads use randomly named, exclusively created temporary files and reject symbolic-link destinations. Source reads also reject symbolic-link files.
 
 ## Account binding
 
