@@ -427,6 +427,8 @@ custom-image-templates:
 
 ## 插件 API
 
+在线状态、原生个人信息、原生背包和高级模板均有公共渲染入口，并统一支持 PNG、流式读取、按需 Base64 / data URI 与异步本地保存。完整方法、返回状态、文件地址和并发约定见[图片接口](api.md#图片接口)。本节介绍高级模板和数据提供器。
+
 第三方插件以 `provided` 方式依赖轻量模块：
 
 ```xml
@@ -462,7 +464,7 @@ api.renderImage("player-card", ImageRenderRequest.of(context))
         });
 ```
 
-`ImageRenderResult` 包含 PNG 字节、宽、高、内容类型、建议文件名、模板 ID 和模板版本。所有调用都是异步的；不要在完成回调里直接访问要求主线程/区域线程的平台 API。
+`ImageRenderResult` 包含 PNG 字节、宽、高、内容类型、建议文件名、模板 ID 和模板版本。渲染返回 Future，字节复制、流式输出和 Base64 编码辅助方法是同步的；缓存命中时回调可能在调用线程运行。访问平台 API 时应切换到平台要求的主线程/区域线程，大图编码和上传则使用调用插件自己的有界执行器。
 
 注册自定义提供器：
 

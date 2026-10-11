@@ -425,6 +425,8 @@ The layer limit also counts nodes after loop expansion. Workers and waiting queu
 
 ## Plugin API
 
+Online status, native profiles, native inventories, and advanced templates have public render entry points with shared PNG, streaming, on-demand Base64 / data URI, and asynchronous local saving support. See [Image methods](api.md#image-methods) for signatures, outcomes, file addresses, and concurrency contracts. This section covers advanced templates and data providers.
+
 Third-party plugins depend on the lightweight module with `provided` scope:
 
 ```xml
@@ -460,7 +462,7 @@ api.renderImage("player-card", ImageRenderRequest.of(context))
         });
 ```
 
-`ImageRenderResult` contains PNG bytes, width, height, content type, suggested filename, template ID, and version. Calls are asynchronous; do not directly access main-thread/region-thread platform APIs from completion callbacks.
+`ImageRenderResult` contains PNG bytes, width, height, content type, suggested filename, template ID, and version. Rendering returns a Future, while byte-copying, streaming, and Base64 helpers are synchronous. Cache hits may invoke callbacks on the calling thread. Schedule platform API access on its required main/region thread and use your plugin's own bounded executor for large encodes and uploads.
 
 Register a custom provider:
 
