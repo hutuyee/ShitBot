@@ -8,6 +8,8 @@ import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -26,6 +28,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -221,17 +224,34 @@ public final class PlayerProfileImageService implements AutoCloseable {
             if (length > MAX_SKIN_BYTES) return null;
             try (InputStream input = connection.getInputStream()) {
                 byte[] bytes = readLimited(input);
-                BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
-                if (image == null || image.getWidth() > 2048 || image.getHeight() > 2048
-                        || (long) image.getWidth() * image.getHeight() > 4L * 1024L * 1024L) {
-                    return null;
-                }
-                return image;
+                return decodeSkin(bytes);
             }
         } catch (Throwable ignored) {
             return null;
         } finally {
             if (connection != null) connection.disconnect();
+        }
+    }
+
+    private BufferedImage decodeSkin(byte[] bytes) throws IOException {
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (input == null) return null;
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) return null;
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                // Inspect the header before the decoder allocates the pixel buffer.
+                if (width <= 0 || height <= 0 || width > 2048 || height > 2048
+                        || (long) width * height > 4L * 1024L * 1024L) {
+                    return null;
+                }
+                return reader.read(0);
+            } finally {
+                reader.dispose();
+            }
         }
     }
 

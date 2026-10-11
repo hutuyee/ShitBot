@@ -255,8 +255,8 @@ final class TemplateRepository {
         Path template = templateDirectory(id);
         Path assets = template.resolve("assets").normalize();
         Files.createDirectories(assets);
+        requireDirectory(assets);
         Path destination = safeAssetPath(assets, name);
-        Files.createDirectories(destination.getParent());
         for (Path current = destination.getParent(); current != null && current.startsWith(assets);
              current = current.getParent()) {
             if (Files.isSymbolicLink(current)) throw new IOException("Asset path contains a symbolic link");
@@ -264,18 +264,13 @@ final class TemplateRepository {
         if (Files.isSymbolicLink(destination)) {
             throw new IOException("Asset path contains a symbolic link");
         }
+        Files.createDirectories(destination.getParent());
         long previousBytes = Files.isRegularFile(destination) ? Files.size(destination) : 0L;
         if (treeBytes(assets) - previousBytes + bytes.length
                 > settings.getMaximumTemplateAssetBytes()) {
             throw new IOException("Template assets exceed the configured total size limit");
         }
-        Path temporary = destination.resolveSibling("." + destination.getFileName() + ".tmp");
-        Files.write(temporary, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        try {
-            moveReplacing(temporary, destination);
-        } finally {
-            Files.deleteIfExists(temporary);
-        }
+        writeAtomic(destination, bytes);
     }
 
     synchronized List<Long> listVersions(String id) throws IOException {
@@ -641,6 +636,9 @@ final class TemplateRepository {
     }
 
     private String readText(Path file) throws IOException {
+        if (!Files.isRegularFile(file) || Files.isSymbolicLink(file)) {
+            throw new IOException("Template source is unavailable or unsafe");
+        }
         if (Files.size(file) > 512L * 1024L) throw new IOException("Template source is too large");
         return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
     }

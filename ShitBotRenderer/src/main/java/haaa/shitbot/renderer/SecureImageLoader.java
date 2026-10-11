@@ -5,14 +5,15 @@ import haaa.shitbot.api.spi.ImageTemplateEngineSettings;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import javax.net.ssl.HttpsURLConnection;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.Proxy;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,19 +22,24 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 final class SecureImageLoader implements AutoCloseable {
     private static final int MAX_REDIRECTS = 3;
     private static final int MAX_CACHE_ENTRIES = 128;
+    private static final long MAX_CACHE_PIXELS = 16L * 1024L * 1024L;
 
     private final ImageTemplateEngineSettings settings;
-    private final ExecutorService executor = Executors.newFixedThreadPool(2, new RendererThreadFactory("assets"));
+    private final ExecutorService executor = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<Runnable>(16), new RendererThreadFactory("assets"),
+            new ThreadPoolExecutor.AbortPolicy());
     private final Map<String, CompletableFuture<BufferedImage>> remoteCache =
             new LinkedHashMap<String, CompletableFuture<BufferedImage>>(16, 0.75F, true);
 
@@ -89,6 +95,10 @@ final class SecureImageLoader implements AutoCloseable {
                 && !mediaType.equals("image/gif")) {
             throw new IOException("Unsupported image data URI type");
         }
+        long maximumEncodedLength = ((settings.getMaximumAssetBytes() + 2L) / 3L) * 4L;
+        if ((long) value.length() - marker - 8L > maximumEncodedLength) {
+            throw new IOException("Image asset has an invalid size");
+        }
         try {
             byte[] bytes = Base64.getDecoder().decode(value.substring(marker + 8));
             return decode(bytes);
@@ -107,16 +117,22 @@ final class SecureImageLoader implements AutoCloseable {
             if (existing != null) {
                 future = existing;
             } else {
-                future = CompletableFuture.supplyAsync(new java.util.function.Supplier<BufferedImage>() {
-                    @Override
-                    public BufferedImage get() {
-                        try {
-                            return download(value);
-                        } catch (IOException exception) {
-                            throw new java.util.concurrent.CompletionException(exception);
+                final long deadline = System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(Math.max(500, settings.getRenderTimeoutMillis()));
+                try {
+                    future = CompletableFuture.supplyAsync(new java.util.function.Supplier<BufferedImage>() {
+                        @Override
+                        public BufferedImage get() {
+                            try {
+                                return download(value, deadline);
+                            } catch (IOException exception) {
+                                throw new java.util.concurrent.CompletionException(exception);
+                            }
                         }
-                    }
-                }, executor);
+                    }, executor);
+                } catch (RejectedExecutionException exception) {
+                    throw new IOException("Remote image download queue is full or closed", exception);
+                }
                 remoteCache.put(value, future);
                 while (remoteCache.size() > MAX_CACHE_ENTRIES) {
                     remoteCache.remove(remoteCache.keySet().iterator().next());
@@ -124,9 +140,11 @@ final class SecureImageLoader implements AutoCloseable {
                 future.whenComplete(new java.util.function.BiConsumer<BufferedImage, Throwable>() {
                     @Override
                     public void accept(BufferedImage image, Throwable throwable) {
-                        if (throwable != null) {
-                            synchronized (remoteCache) {
+                        synchronized (remoteCache) {
+                            if (throwable != null) {
                                 remoteCache.remove(value, future);
+                            } else {
+                                trimRemoteCache();
                             }
                         }
                     }
@@ -150,20 +168,46 @@ final class SecureImageLoader implements AutoCloseable {
         }
     }
 
-    private BufferedImage download(String value) throws IOException {
+    private void trimRemoteCache() {
+        long pixels = 0L;
+        for (CompletableFuture<BufferedImage> cached : remoteCache.values()) {
+            pixels += cachedPixels(cached);
+        }
+        Iterator<CompletableFuture<BufferedImage>> oldest = remoteCache.values().iterator();
+        while (pixels > MAX_CACHE_PIXELS && oldest.hasNext()) {
+            CompletableFuture<BufferedImage> cached = oldest.next();
+            if (!cached.isDone()) continue;
+            pixels -= cachedPixels(cached);
+            oldest.remove();
+        }
+    }
+
+    private long cachedPixels(CompletableFuture<BufferedImage> future) {
+        if (!future.isDone() || future.isCompletedExceptionally() || future.isCancelled()) return 0L;
+        BufferedImage image = future.getNow(null);
+        return image == null ? 0L : (long) image.getWidth() * image.getHeight();
+    }
+
+    private BufferedImage download(String value, long deadline) throws IOException {
+        requireBeforeDeadline(deadline);
         URL current = safeRemoteUrl(value);
         for (int redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
-            HttpURLConnection connection = (HttpURLConnection) current.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(1500);
-            connection.setReadTimeout(2500);
-            connection.setUseCaches(false);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestProperty("Accept", "image/png,image/jpeg,image/gif");
-            connection.setRequestProperty("User-Agent", "ShitBotRenderer/1");
-            int status = connection.getResponseCode();
-            if (status == HttpURLConnection.HTTP_OK) {
-                try {
+            requireBeforeDeadline(deadline);
+            InetAddress address = safeRemoteAddress(current);
+            requireBeforeDeadline(deadline);
+            HttpsURLConnection connection = (HttpsURLConnection) current.openConnection(Proxy.NO_PROXY);
+            connection.setSSLSocketFactory(new PinnedHttpsSocketFactory(
+                    connection.getSSLSocketFactory(), current.getHost(), address, 1500, 2500, deadline));
+            try {
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(1500);
+                connection.setReadTimeout(2500);
+                connection.setUseCaches(false);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("Accept", "image/png,image/jpeg,image/gif");
+                connection.setRequestProperty("User-Agent", "ShitBotRenderer/1");
+                int status = connection.getResponseCode();
+                if (status == HttpURLConnection.HTTP_OK) {
                     String contentType = connection.getContentType();
                     if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
                         throw new IOException("Remote image returned a non-image content type");
@@ -172,22 +216,22 @@ final class SecureImageLoader implements AutoCloseable {
                         throw new IOException("Remote image exceeds its size limit");
                     }
                     try (InputStream input = connection.getInputStream()) {
-                        return decode(readLimited(input, settings.getMaximumAssetBytes()));
+                        byte[] bytes = readLimited(input, settings.getMaximumAssetBytes(), deadline);
+                        requireBeforeDeadline(deadline);
+                        return decode(bytes);
                     }
-                } finally {
-                    connection.disconnect();
                 }
-            }
-            if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) {
+                if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) {
+                    throw new IOException("Remote image returned HTTP " + status);
+                }
+                String location = connection.getHeaderField("Location");
+                if (location == null || location.trim().isEmpty()) {
+                    throw new IOException("Remote image redirect has no Location header");
+                }
+                current = safeRemoteUrl(new URL(current, location).toString());
+            } finally {
                 connection.disconnect();
-                throw new IOException("Remote image returned HTTP " + status);
             }
-            String location = connection.getHeaderField("Location");
-            connection.disconnect();
-            if (location == null || location.trim().isEmpty()) {
-                throw new IOException("Remote image redirect has no Location header");
-            }
-            current = safeRemoteUrl(new URL(current, location).toString());
         }
         throw new IOException("Remote image has too many redirects");
     }
@@ -199,16 +243,20 @@ final class SecureImageLoader implements AutoCloseable {
         } catch (Exception exception) {
             throw new IOException("Remote image URL is invalid", exception);
         }
-        if (!"https".equalsIgnoreCase(url.getProtocol()) || url.getUserInfo() != null
+        if (!"https".equalsIgnoreCase(url.getProtocol()) || url.getUserInfo() != null || url.getHost().isEmpty()
                 || (url.getPort() != -1 && url.getPort() != 443)) {
             throw new IOException("Remote image URL must use HTTPS without credentials");
         }
+        return url;
+    }
+
+    private InetAddress safeRemoteAddress(URL url) throws IOException {
         InetAddress[] addresses = InetAddress.getAllByName(url.getHost());
         if (addresses.length == 0) throw new IOException("Remote image host has no address");
         for (InetAddress address : addresses) {
             if (unsafe(address)) throw new IOException("Remote image host resolves to a private address");
         }
-        return url;
+        return addresses[0];
     }
 
     private boolean unsafe(InetAddress address) {
@@ -219,9 +267,15 @@ final class SecureImageLoader implements AutoCloseable {
             int first = bytes[0] & 0xff;
             int second = bytes[1] & 0xff;
             return (first == 100 && second >= 64 && second <= 127)
+                    || (first == 198 && (second == 18 || second == 19))
+                    || (first == 192 && second == 0 && bytes[2] == 0)
                     || first == 0 || first >= 224;
         }
-        return address instanceof Inet6Address && bytes.length == 16 && (bytes[0] & 0xfe) == 0xfc;
+        // Only native global IPv6 unicast is allowed; translation/tunnel prefixes
+        // could otherwise encode an IPv4 destination that bypasses the checks above.
+        return bytes.length != 16 || (bytes[0] & 0xe0) != 0x20
+                || (bytes[0] == 0x20 && bytes[1] == 0x02)
+                || (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0 && bytes[3] == 0);
     }
 
     private BufferedImage decode(byte[] bytes) throws IOException {
@@ -253,18 +307,25 @@ final class SecureImageLoader implements AutoCloseable {
         }
     }
 
-    private byte[] readLimited(InputStream input, long maximumBytes) throws IOException {
+    private byte[] readLimited(InputStream input, long maximumBytes, long deadline) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream((int) Math.min(maximumBytes, 8192L));
         byte[] buffer = new byte[8192];
         long total = 0L;
         int read;
         while ((read = input.read(buffer)) >= 0) {
+            requireBeforeDeadline(deadline);
             if (read == 0) continue;
             total += read;
             if (total > maximumBytes) throw new IOException("Image asset exceeds its size limit");
             output.write(buffer, 0, read);
         }
         return output.toByteArray();
+    }
+
+    private void requireBeforeDeadline(long deadline) throws IOException {
+        if (Thread.currentThread().isInterrupted() || deadline - System.nanoTime() <= 0L) {
+            throw new IOException("Remote image download deadline expired");
+        }
     }
 
     @Override

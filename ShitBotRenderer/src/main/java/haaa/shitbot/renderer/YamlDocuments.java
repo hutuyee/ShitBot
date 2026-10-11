@@ -10,12 +10,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 final class YamlDocuments {
     private static final int MAX_DOCUMENT_BYTES = 512 * 1024;
+    private static final int MAX_DOCUMENT_DEPTH = 64;
+    private static final int MAX_DOCUMENT_NODES = 65536;
     private final Yaml loader;
     private final Yaml dumper;
 
@@ -23,7 +26,7 @@ final class YamlDocuments {
         LoaderOptions loadOptions = new LoaderOptions();
         loadOptions.setAllowDuplicateKeys(false);
         loadOptions.setMaxAliasesForCollections(20);
-        loadOptions.setNestingDepthLimit(64);
+        loadOptions.setNestingDepthLimit(MAX_DOCUMENT_DEPTH);
         loadOptions.setCodePointLimit(MAX_DOCUMENT_BYTES);
         loader = new Yaml(new SafeConstructor(loadOptions));
 
@@ -56,7 +59,7 @@ final class YamlDocuments {
         return loadMap(source, false);
     }
 
-    private Map<String, Object> loadMap(String source, boolean allowEmpty) throws IOException {
+    private synchronized Map<String, Object> loadMap(String source, boolean allowEmpty) throws IOException {
         if (source == null || (!allowEmpty && source.isEmpty())
                 || source.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_BYTES) {
             throw new IOException("YAML document has an invalid size");
@@ -73,31 +76,75 @@ final class YamlDocuments {
         if (!(loaded instanceof Map<?, ?>)) {
             throw new IOException("YAML document root must be a mapping");
         }
-        return map((Map<?, ?>) loaded);
+        return map((Map<?, ?>) loaded, new NormalizationBudget(), 0);
     }
 
-    String dump(Map<String, Object> value) {
+    synchronized String dump(Map<String, Object> value) {
         return dumper.dump(value);
     }
 
-    private Map<String, Object> map(Map<?, ?> input) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        for (Map.Entry<?, ?> entry : input.entrySet()) {
-            if (entry.getKey() != null) {
-                result.put(String.valueOf(entry.getKey()), normalize(entry.getValue()));
+    private Map<String, Object> map(Map<?, ?> input, NormalizationBudget budget, int depth) throws IOException {
+        budget.enter(input, depth);
+        try {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : input.entrySet()) {
+                Object key = entry.getKey();
+                if (key instanceof Map<?, ?> || key instanceof Iterable<?>) {
+                    throw new IOException("YAML mapping keys must be scalar values");
+                }
+                budget.visit(depth + 1);
+                if (key != null) {
+                    String name = String.valueOf(key);
+                    if (result.containsKey(name)) {
+                        throw new IOException("YAML mapping keys collide after normalization");
+                    }
+                    result.put(name, normalize(entry.getValue(), budget, depth + 1));
+                }
             }
+            return result;
+        } finally {
+            budget.leave(input);
         }
-        return result;
     }
 
-    private Object normalize(Object value) {
-        if (value instanceof Map<?, ?>) return map((Map<?, ?>) value);
+    private Object normalize(Object value, NormalizationBudget budget, int depth) throws IOException {
+        if (value instanceof Map<?, ?>) return map((Map<?, ?>) value, budget, depth);
         if (value instanceof Iterable<?>) {
-            List<Object> values = new ArrayList<Object>();
-            for (Object item : (Iterable<?>) value) values.add(normalize(item));
-            return values;
+            budget.enter(value, depth);
+            try {
+                List<Object> values = new ArrayList<Object>();
+                for (Object item : (Iterable<?>) value) {
+                    values.add(normalize(item, budget, depth + 1));
+                }
+                return values;
+            } finally {
+                budget.leave(value);
+            }
         }
+        budget.visit(depth);
         return value == null || value instanceof String || value instanceof Number
                 || value instanceof Boolean ? value : String.valueOf(value);
+    }
+
+    private static final class NormalizationBudget {
+        private final IdentityHashMap<Object, Boolean> ancestors = new IdentityHashMap<Object, Boolean>();
+        private int nodes;
+
+        private void visit(int depth) throws IOException {
+            if (depth > MAX_DOCUMENT_DEPTH || ++nodes > MAX_DOCUMENT_NODES) {
+                throw new IOException("Expanded YAML document exceeds its structure limit");
+            }
+        }
+
+        private void enter(Object value, int depth) throws IOException {
+            visit(depth);
+            if (ancestors.put(value, Boolean.TRUE) != null) {
+                throw new IOException("Recursive YAML aliases are not supported");
+            }
+        }
+
+        private void leave(Object value) {
+            ancestors.remove(value);
+        }
     }
 }
