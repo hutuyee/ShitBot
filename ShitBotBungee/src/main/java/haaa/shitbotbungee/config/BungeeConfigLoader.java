@@ -29,7 +29,7 @@ public final class BungeeConfigLoader {
 
     public BungeeConfigLoader(Plugin plugin) {
         this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResourceAsStream,
-                plugin.getLogger()::info);
+                plugin.getLogger()::info, plugin.getDescription().getVersion());
     }
 
     public Settings load() throws IOException {

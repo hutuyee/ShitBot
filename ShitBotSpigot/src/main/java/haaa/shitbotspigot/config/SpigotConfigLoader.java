@@ -31,7 +31,7 @@ public final class SpigotConfigLoader {
     public SpigotConfigLoader(JavaPlugin plugin) {
         this.plugin = plugin;
         this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource,
-                plugin.getLogger()::info);
+                plugin.getLogger()::info, plugin.getDescription().getVersion());
     }
 
     public Settings load() {

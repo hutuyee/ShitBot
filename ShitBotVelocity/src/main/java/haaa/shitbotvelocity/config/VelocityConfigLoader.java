@@ -39,7 +39,12 @@ public final class VelocityConfigLoader {
     }
 
     public VelocityConfigLoader(Path dataDirectory, ClassLoader classLoader, Consumer<String> logger) {
-        this.resources = new ConfigResources(dataDirectory, classLoader::getResourceAsStream, logger);
+        this(dataDirectory, classLoader, logger, "");
+    }
+
+    public VelocityConfigLoader(Path dataDirectory, ClassLoader classLoader,
+                                Consumer<String> logger, String pluginVersion) {
+        this.resources = new ConfigResources(dataDirectory, classLoader::getResourceAsStream, logger, pluginVersion);
     }
 
     public Settings load() throws IOException {

@@ -70,7 +70,8 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
     public void onProxyInitialization(ProxyInitializeEvent event) {
         stopping = false;
         startupNoticeTriggered = false;
-        this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader(), logger::info);
+        this.configLoader = new VelocityConfigLoader(dataDirectory, getClass().getClassLoader(),
+                logger::info, resolvePluginVersion());
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
         this.pluginJarPath = resolvePluginPath();
         this.updateChecker = new UpdateChecker(resolvePluginVersion(), platformBridge);

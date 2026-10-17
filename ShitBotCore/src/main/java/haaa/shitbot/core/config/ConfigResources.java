@@ -35,24 +35,41 @@ public final class ConfigResources {
     private final Path directory;
     private final Function<String, InputStream> resources;
     private final ConfigBackups backups;
+    private final String pluginVersion;
+    private boolean versionPrepared;
 
     public ConfigResources(Path directory, Function<String, InputStream> resources) {
         this(directory, resources, Logger.getLogger(ConfigResources.class.getName())::info);
     }
 
     public ConfigResources(Path directory, Function<String, InputStream> resources, Consumer<String> logger) {
+        this(directory, resources, logger, "");
+    }
+
+    public ConfigResources(Path directory, Function<String, InputStream> resources,
+                           Consumer<String> logger, String pluginVersion) {
         this.directory = directory.toAbsolutePath().normalize();
         this.resources = resources;
         this.backups = new ConfigBackups(this.directory, logger);
+        this.pluginVersion = pluginVersion;
     }
 
     /** Platform-specific legacy migrations must preserve the file before saving it. */
     public void backup(Path file) throws IOException {
+        prepareVersion();
         backups.beforeWrite(file);
+    }
+
+    private synchronized void prepareVersion() throws IOException {
+        if (!versionPrepared) {
+            backups.beforeVersion(pluginVersion);
+            versionPrepared = true;
+        }
     }
 
     /** Restores missing/empty files, leaving nonempty legacy files ready for migration. */
     public Path ensure(String resource) throws IOException {
+        prepareVersion();
         Path file = resolve(resource);
         if (!Files.exists(file)) {
             writeAtomically(file, defaults(resource));
@@ -63,6 +80,7 @@ public final class ConfigResources {
     }
 
     public Path complete(String resource) throws IOException {
+        prepareVersion();
         Path file = resolve(resource);
         byte[] defaults = defaults(resource);
         MappingNode fallback = readMapping(defaults, "defaults for " + resource);

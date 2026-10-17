@@ -3,6 +3,7 @@ package haaa.shitbot.core.update;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import haaa.shitbot.core.config.ConfigBackups;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.JsonUtil;
@@ -437,6 +438,8 @@ public final class UpdateChecker implements AutoCloseable {
             verifyDetachedSignature(temporary, signatureAsset);
             validateJar(temporary, updatePlatform, info.getLatestVersion());
 
+            new ConfigBackups(platform.getDataDirectory(), platform::info)
+                    .beforeUpdate(currentVersion, info.getLatestVersion());
             Path backup = pluginJar.resolveSibling(pluginJar.getFileName().toString() + ".bak");
             Path backupTemporary = backup.resolveSibling(backup.getFileName().toString() + ".tmp");
             try {
