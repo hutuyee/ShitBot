@@ -21,11 +21,13 @@ Instances using advanced templates also need the matching ShitBotRenderer in the
 3. Move the old JAR out, leaving only one ShitBot platform JAR.
 4. Put the new JAR in place.
 5. Start and inspect configuration/database migration logs.
-6. Review newly added fields saved automatically to configuration, language files, and image themes, and adjust as needed.
+6. Compare against the pre-upgrade files in `config-backups/`, review newly added fields saved automatically to configuration, language files, and image themes, and adjust as needed.
 7. Run `/shitbot status`.
 8. Verify OneBot, binding, forwarding, and shortcuts.
 
 Do not hot-unload the old JAR and hot-load the new one with a plugin manager.
+
+When the plugin version changes, existing `config.yml`, `commands.yml`, and YAML files under `lang/` and `templates/` are backed up before configuration is read or modified. Backups live in `config-backups/` inside the plugin data directory and retain original contents and relative paths. Existing installations also receive a snapshot when the backup feature is first used. Each automatic configuration overwrite additionally preserves the original file, and a backup failure stops that write. See [Automatic configuration backups](configuration.md#automatic-configuration-backups) for locations, retention, and restoration.
 
 Startup and reload save missing keys and `null` values in configuration, language files, and image themes while retaining existing values; see [Configuration](configuration.md). When upgrading from `config-version: 1`, the first load imports replies, notices, built-in aliases/usage, and image titles from the old `config.yml` into `lang/zh_CN.yml` before completing the main configuration. Review the import before removing obsolete text settings yourself. Completion is recorded in `_migration.legacy-config-v1`, preventing repeated overwrites on reload.
 
@@ -45,18 +47,19 @@ The updater:
 4. Verifies download addresses, size, and SHA-256.
 5. Verifies the detached RSA signature with the embedded public key.
 6. Checks the platform descriptor, main class, and embedded version.
-7. Backs up the current JAR as `.bak` in the same directory.
-8. Replaces the JAR and asks for a manual restart.
+7. Backs up current configuration to `config-backups/` in the data directory and logs its location.
+8. Backs up the current JAR as `.bak` in the same directory.
+9. Replaces the JAR and asks for a manual restart.
 
 This does not hot-reload the plugin. Restart the server or proxy normally afterward.
 
-If any verification fails, the current JAR is retained. Do not bypass verification by removing `.sha256`, `.sig`, or altering release files.
+If verification or configuration backup fails, the current JAR is retained. Do not bypass verification by removing `.sha256`, `.sig`, or altering release files.
 
 ## Coordinated network updates
 
 Running `/shitbot update` on BungeeCord sends the same release's Spigot JAR and verification metadata to configured `backend-transport.endpoints`.
 
-- Each backend verifies and replaces its own JAR independently.
+- Each backend independently verifies the new JAR, backs up its configuration, and replaces its own JAR.
 - The proxy reports each backend's result.
 - Backends without an endpoint are not scanned or updated.
 - You must still restart the proxy and backends manually.

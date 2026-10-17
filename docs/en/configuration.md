@@ -15,6 +15,22 @@ Every startup and `/shitbot reload` completes `config.yml`, `commands.yml`, both
 
 The selected custom language is completed from the data directory's `lang/zh_CN.yml`, and selected custom image themes from `templates/default.yml`. Missing selected files are also created. Added fields become editable values in those files. See [Image templates](image-templates.md#template-directory) for recovery of the default advanced template draft.
 
+## Automatic configuration backups
+
+Spigot, BungeeCord, Velocity, and Nukkit automatically preserve old configuration in `config-backups/` inside the plugin data directory. No additional setting is required:
+
+- When the plugin version changes, existing `config.yml`, `commands.yml`, and all `.yml` / `.yaml` files under `lang/` and `templates/` are backed up before the first configuration load, completion, or migration. Custom languages and themes are included. Existing installations also receive a backup when this feature is first used.
+- After verifying a new JAR and before replacing the installed JAR, `/shitbot update` backs up the same files. Each backend in a coordinated update creates its own backup. The new version still creates a startup backup, preserving any changes made after the update command.
+- Before overwriting an existing file to add missing keys, fill `null` values, restore an empty file, or migrate legacy language text, the plugin also backs up that file, even when its version has not changed.
+
+Each backup uses a separate `<timestamp>-<reason>-<unique-id>/` directory and retains original contents, comments, and relative paths. For example, the main configuration in a full snapshot remains `<backup-directory>/config.yml`, and a language file remains `<backup-directory>/lang/zh_CN.yml`. The log reports the full backup directory. Later backups do not overwrite or automatically delete older ones, so administrators can compare the original files with the current files and selectively restore them.
+
+First installations and restoration of deleted files do not create empty backups for files with no previous contents. Starting or reloading the same version with complete files and no pending migration does not create repeated backups. `config-backups/last-version.txt` tracks version changes; retain it when manually removing old backup directories.
+
+A backup failure stops the corresponding configuration write or JAR replacement and reports an error. Directories beginning with `.pending-` are incomplete backups and must not be treated as complete snapshots. To restore files, stop the server or proxy and copy the selected backed-up configuration files into the plugin data directory using their original relative paths. Configuration completion for the current version still runs on the next startup.
+
+Automatic backups cover only the configuration files listed above. Continue to back up databases, the advanced `image-templates/` directory, and custom image assets manually as described in [Updating](updating.md).
+
 ## Language files
 
 Use a language filename without its extension at the top level of `config.yml`:
