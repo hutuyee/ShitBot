@@ -28,12 +28,18 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 public final class VelocityConfigLoader {
     private final ConfigResources resources;
 
     public VelocityConfigLoader(Path dataDirectory, ClassLoader classLoader) {
-        this.resources = new ConfigResources(dataDirectory, classLoader::getResourceAsStream);
+        this(dataDirectory, classLoader, Logger.getLogger(VelocityConfigLoader.class.getName())::info);
+    }
+
+    public VelocityConfigLoader(Path dataDirectory, ClassLoader classLoader, Consumer<String> logger) {
+        this.resources = new ConfigResources(dataDirectory, classLoader::getResourceAsStream, logger);
     }
 
     public Settings load() throws IOException {
@@ -86,6 +92,7 @@ public final class VelocityConfigLoader {
             putPath(root, entry.getKey(), entry.getValue());
         }
         putPath(root, LegacyLanguageMigration.MARKER_PATH, Boolean.TRUE);
+        resources.backup(fallbackFile);
         saveYamlAtomically(fallbackFile, root);
     }
 

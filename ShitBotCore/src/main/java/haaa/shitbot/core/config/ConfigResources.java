@@ -26,16 +26,29 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.logging.Logger;
 
 /** Restores bundled configuration files and persists missing YAML defaults. */
 public final class ConfigResources {
     private final Path directory;
     private final Function<String, InputStream> resources;
+    private final ConfigBackups backups;
 
     public ConfigResources(Path directory, Function<String, InputStream> resources) {
+        this(directory, resources, Logger.getLogger(ConfigResources.class.getName())::info);
+    }
+
+    public ConfigResources(Path directory, Function<String, InputStream> resources, Consumer<String> logger) {
         this.directory = directory.toAbsolutePath().normalize();
         this.resources = resources;
+        this.backups = new ConfigBackups(this.directory, logger);
+    }
+
+    /** Platform-specific legacy migrations must preserve the file before saving it. */
+    public void backup(Path file) throws IOException {
+        backups.beforeWrite(file);
     }
 
     /** Restores missing/empty files, leaving nonempty legacy files ready for migration. */
@@ -224,6 +237,7 @@ public final class ConfigResources {
         Path temporary = Files.createTempFile(file.getParent(), "." + file.getFileName(), ".tmp");
         try {
             Files.write(temporary, bytes);
+            backup(file);
             try {
                 Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ignored) {

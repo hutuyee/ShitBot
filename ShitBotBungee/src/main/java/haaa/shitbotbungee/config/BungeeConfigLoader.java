@@ -28,7 +28,8 @@ public final class BungeeConfigLoader {
     private final ConfigResources resources;
 
     public BungeeConfigLoader(Plugin plugin) {
-        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResourceAsStream);
+        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResourceAsStream,
+                plugin.getLogger()::info);
     }
 
     public Settings load() throws IOException {
@@ -92,6 +93,7 @@ public final class BungeeConfigLoader {
             language.set(entry.getKey(), entry.getValue());
         }
         language.set(LegacyLanguageMigration.MARKER_PATH, true);
+        resources.backup(fallbackFile.toPath());
         provider.save(language, fallbackFile);
     }
 

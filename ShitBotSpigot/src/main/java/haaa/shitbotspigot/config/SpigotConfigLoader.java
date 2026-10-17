@@ -30,7 +30,8 @@ public final class SpigotConfigLoader {
 
     public SpigotConfigLoader(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource);
+        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource,
+                plugin.getLogger()::info);
     }
 
     public Settings load() {
@@ -115,6 +116,7 @@ public final class SpigotConfigLoader {
         }
         language.set(LegacyLanguageMigration.MARKER_PATH, true);
         try {
+            resources.backup(fallbackFile.toPath());
             language.save(fallbackFile);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to migrate legacy messages to " + fallbackFile, exception);

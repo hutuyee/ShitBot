@@ -28,7 +28,8 @@ public final class NukkitConfigLoader {
 
     public NukkitConfigLoader(ShitBotNukkit plugin) {
         this.plugin = plugin;
-        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource);
+        this.resources = new ConfigResources(plugin.getDataFolder().toPath(), plugin::getResource,
+                plugin.getLogger()::info);
     }
 
     public Settings load() {
@@ -104,6 +105,11 @@ public final class NukkitConfigLoader {
             language.set(entry.getKey(), entry.getValue());
         }
         language.set(LegacyLanguageMigration.MARKER_PATH, true);
+        try {
+            resources.backup(fallbackFile.toPath());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to back up " + fallbackFile + " before legacy migration", exception);
+        }
         if (!language.save()) {
             throw new IllegalStateException("Unable to migrate legacy messages to " + fallbackFile);
         }
