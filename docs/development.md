@@ -55,7 +55,7 @@ mvn -pl ShitBotNukkit -am package
 
 ## 测试
 
-测试使用 JUnit 4.13.2 和 Maven Surefire 3.5.2，位于各模块的 `src/test/java/`。带测试的模块要求至少发现一个测试，避免测试目录或命名错误导致构建空跑。
+测试使用 JUnit 4.13.2 和 Maven Surefire 3.5.2，位于各模块的 `src/test/java/`。七个模块均要求至少发现一个测试，避免测试目录或命名错误导致构建空跑；CI 汇总还会拒绝预期模块的报告缺失或用例全部跳过。
 
 只运行 API、Core 和 Renderer 的共享逻辑测试，无需服务端 API 仓库：
 
@@ -69,6 +69,12 @@ mvn -pl ShitBotApi,ShitBotCore,ShitBotRenderer -am test
 mvn clean verify
 ```
 
+使用 JDK 21 只运行 Bungee、Velocity、Nukkit 及其共享依赖的测试：
+
+```powershell
+mvn -pl ShitBotBungee,ShitBotVelocity,ShitBotNukkit -am test
+```
+
 当前用例覆盖：
 
 - API 输入副本、只读集合、渲染结果字节隔离和数据提供器 ID 校验；
@@ -78,7 +84,10 @@ mvn clean verify
 - 背包格式 1/2/3 兼容、物品组件、槽位归一化和 GZIP 解压大小限制；
 - 模板绑定、YAML 校验、发布快照、回滚、资源路径和资源大小限制；
 - 无界面 PNG 渲染、条件/循环、渲染超时和展开图层数量限制；
-- Folia 调度方法签名的兼容与拒绝路径。
+- Folia 调度方法签名的兼容与拒绝路径；
+- Bungee 原生配置对象的长整数、列表副本、语言迁移、命令别名、绑定要求和后端 TLS 配置适配；
+- Nukkit 原生 YAML 的类型与群号精度、配置副本、语言迁移、命令绑定要求及平台专用默认值；
+- Velocity 配置文件的首次恢复、缺项补全、重载、语言与主题回退、迁移幂等、非法 YAML 拒绝和路径限制。
 
 这些测试使用内存数据和临时目录，不启动 Minecraft、OneBot、数据库或编辑器服务，也不访问远程图片。渲染测试只断言简单形状的内部像素，避免依赖系统字体。真实平台行为和外部服务联调仍需单独验证。
 
@@ -149,14 +158,14 @@ GitHub Actions 在 push、pull request 和手动触发时：
 
 1. 读取 `.mvn/maven.config` 中唯一的 `revision`，统一传给后续 Maven 任务；
 2. 在 Linux JDK 8、17 和 Windows JDK 21 上运行 API、Core、Renderer 的 `clean test`，验证不同运行环境的兼容性，不重复执行打包和 shade；
-3. 在 Linux JDK 21 上执行全工程 `mvn clean verify`，包含 Spigot 调度适配器测试和四个平台打包；
+3. 在 Linux JDK 21 上执行全工程 `mvn clean verify`，包含四个平台的单元测试和打包；
 4. 无论成功或失败，都汇总测试结果并上传已有的 Surefire 报告，保留 14 天；预期模块没有报告、没有执行任何测试或全部跳过时会失败；
 5. 收集四个平台 JAR、一个 `ShitBotApi` JAR 和一个独立 `ShitBotRenderer` JAR，生成并校验 SHA-256 文件；
 6. 检查六个文件名、内置 Maven 坐标和 POM、平台描述文件及 Renderer 元数据中的版本是否与 `revision` 一致；发布 POM 不得残留 `${revision}`；
 7. 检查项目类的 Java 字节码目标、入口和共享资源、Renderer SPI，以及平台 API、测试依赖和可选 Renderer 的打包隔离；检查四个平台的默认配置存在且无未替换占位符，并检查部署、统计、传输片段和 Mod JAR 扫描默认值；
 8. 上传发布构件 Artifact，保留 30 天。
 
-JUnit 用例目前位于 API、Core、Renderer 和 Spigot。BungeeCord、Velocity、Nukkit 当前经过编译、打包、描述文件和默认配置检查，尚无各自的 JUnit 用例；这些产物检查不覆盖真实服务器上的平台行为。
+七个模块均有 JUnit 用例，全平台任务汇总并要求七个模块都实际执行测试。Bungee 用例直接使用其原生 `Configuration` 对象验证配置适配；Nukkit 用例通过原生 `Config` 解析 YAML；Velocity 用例在临时目录中执行配置加载流程。这些用例不启动代理或服务器，真实平台行为仍需单独联调；编译、打包、描述文件和默认配置检查继续作为独立的产物检查。
 
 矩阵任务不会因其他环境失败而提前取消；同一分支或 PR 的过期 CI 运行会被新运行取消。版本、测试和构建结果统一汇总为 `CI checks`，可将它设为分支保护的必需检查。工作流使用只读仓库权限，只有 Release 上传任务获得写权限。
 

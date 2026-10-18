@@ -139,7 +139,10 @@ jobs:
       - name: Summarize test results
         if: always()
         shell: bash
-        run: python .github/scripts/summarize-tests.py ShitBotApi ShitBotCore ShitBotRenderer ShitBotSpigot
+        run: >-
+          python .github/scripts/summarize-tests.py
+          ShitBotApi ShitBotCore ShitBotRenderer ShitBotSpigot
+          ShitBotBungee ShitBotVelocity ShitBotNukkit
 
       - name: Upload test reports
         if: always()

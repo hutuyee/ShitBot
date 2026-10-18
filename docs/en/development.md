@@ -55,7 +55,7 @@ Final plugin JARs are in each module's `target/`. Do not distribute `original-*.
 
 ## Tests
 
-Tests use JUnit 4.13.2 and Maven Surefire 3.5.2 and live in each module's `src/test/java/`. Modules with tests require at least one discovered test, so missing test directories or incorrect naming cannot silently produce an empty test run.
+Tests use JUnit 4.13.2 and Maven Surefire 3.5.2 and live in each module's `src/test/java/`. All seven modules require at least one discovered test, so missing test directories or incorrect naming cannot silently produce an empty test run. CI summaries also reject missing reports or entirely skipped tests in expected modules.
 
 Run the shared API, Core, and Renderer tests without platform API repositories:
 
@@ -69,6 +69,12 @@ With JDK 21, run all tests and package every platform:
 mvn clean verify
 ```
 
+With JDK 21, run only the Bungee, Velocity, and Nukkit tests and their shared dependencies:
+
+```powershell
+mvn -pl ShitBotBungee,ShitBotVelocity,ShitBotNukkit -am test
+```
+
 Current cases cover:
 
 - API input copies, read-only collections, rendered byte isolation, and provider ID validation.
@@ -79,6 +85,9 @@ Current cases cover:
 - Template bindings, YAML validation, published snapshots, rollback, asset paths, and asset size limits.
 - Headless PNG rendering, conditions/loops, render deadlines, and expanded layer limits.
 - Compatible and incompatible Folia scheduler method signatures.
+- Bungee configuration adaptation for long integers, list copies, language migration, command aliases, binding requirements, and backend TLS settings.
+- Nukkit native YAML types and group ID precision, configuration copies, language migration, command binding requirements, and platform defaults.
+- Velocity configuration restoration, missing defaults, reloads, language and theme fallbacks, migration idempotence, invalid YAML rejection, and path restrictions.
 
 These tests use in-memory data and temporary directories. They do not start Minecraft, OneBot, a database, or the editor server, and do not fetch remote images. Rendering assertions use interior pixels of simple shapes to avoid system font dependencies. Real platform behavior and external service integration still require separate validation.
 
@@ -149,14 +158,14 @@ On pushes, pull requests, and manual runs, GitHub Actions:
 
 1. Reads the single `revision` from `.mvn/maven.config` and passes it explicitly to subsequent Maven jobs.
 2. Runs `clean test` for API, Core, and Renderer on Linux with JDK 8 and 17, and Windows with JDK 21, checking compatibility without repeating packaging and shading.
-3. Runs the full `mvn clean verify` build on Linux with JDK 21, including Spigot scheduler tests and all four platform packages.
+3. Runs the full `mvn clean verify` build on Linux with JDK 21, including unit tests and packaging for all four platforms.
 4. Summarizes results and uploads available Surefire reports even when the build fails, retaining them for 14 days. Missing reports, zero executed tests, or entirely skipped tests in an expected module fail the job.
 5. Collects four platform JARs, one ShitBotApi JAR, and one separate ShitBotRenderer JAR; generates and verifies their SHA-256 files.
 6. Checks that all six filenames, embedded Maven coordinates and POMs, plugin descriptors, and Renderer version metadata match `revision`. Published POMs must not retain `${revision}`.
 7. Checks project bytecode targets, entry points and shared resources, Renderer SPI, and packaging isolation for platform APIs, test dependencies, and the optional Renderer. Checks that platform defaults exist without unresolved placeholders and contain the correct deployment, metrics, transport, and Mod JAR scanning defaults.
 8. Uploads release build artifacts, retaining them for 30 days.
 
-JUnit cases currently live in API, Core, Renderer, and Spigot. BungeeCord, Velocity, and Nukkit currently receive compilation, packaging, descriptor, and default configuration checks, without their own JUnit suites. These artifact checks do not cover platform behavior on real servers.
+All seven modules have JUnit cases, and the full platform job summarizes and requires executed tests from every module. Bungee cases exercise adaptation of native `Configuration` objects; Nukkit cases parse YAML with native `Config`; Velocity cases run configuration loading against temporary files. These cases do not start a proxy or server, so real platform behavior still needs separate integration checks. Compilation, packaging, descriptor, and default configuration checks remain separate artifact checks.
 
 Matrix jobs continue if another environment fails. New runs cancel outdated CI runs for the same branch or PR. The stable `CI checks` job aggregates version, test, and build results and can be required by branch protection. Workflow permissions default to read-only; only the Release upload job receives write access.
 
