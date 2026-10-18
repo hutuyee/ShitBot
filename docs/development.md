@@ -95,6 +95,7 @@ ShitBot/
 ├─ ShitBotBungee/     # BungeeCord 平台入口
 ├─ ShitBotVelocity/   # Velocity 平台入口
 ├─ ShitBotNukkit/     # Nukkit-MOT 平台入口
+├─ config-templates/  # 四个平台共享的默认配置与可选片段
 ├─ PictureBridge/     # 独立客户端模组的 Git 子模块
 ├─ docs/              # 项目文档
 └─ pom.xml            # Maven 聚合工程
@@ -104,19 +105,24 @@ ShitBot/
 
 ## 配置资源
 
-各平台默认配置位于：
+四个平台的默认配置统一维护在仓库根目录的 `config-templates/`：
 
 ```text
-ShitBotSpigot/src/main/resources/
-ShitBotBungee/src/main/resources/
-ShitBotVelocity/src/main/resources/
-ShitBotNukkit/src/main/resources/
+config-templates/config.yml              # 共用主配置
+config-templates/commands.yml            # 共用群命令配置
+config-templates/bstats.yml              # Java 平台的统计配置
+config-templates/spigot-deployment.yml   # Bukkit 的部署角色
+config-templates/backend-transport.yml   # Java 平台的代理—后端传输配置
 ```
+
+平台 POM 用 `config.defaults.fragments` 和 `config.commands.fragments` 选择片段，AntRun 在 `generate-resources` 阶段按顺序拼接到各模块的 `target/generated-resources/defaults/`，随后 Maven Resources 过滤平台属性并复制到 JAR 根目录。构建仅需现有 JDK 和 Maven；不要编辑生成目录或重新添加四份配置副本。
+
+Spigot 包含统计、部署角色和传输片段；BungeeCord/Velocity 包含统计和传输片段；Nukkit-MOT 只使用共用配置，并通过 `config.scan-mod-jars=false` 保留关闭 Mod JAR 扫描的默认值。其他三个平台默认开启扫描。平台插件描述文件仍位于各自的 `src/main/resources/`。
 
 修改配置结构时，应同步检查：
 
-- 四个平台的 `config.yml`；
-- 平台适用的 `commands.yml`；
+- 共用的 `config.yml`、`commands.yml` 与相关片段；
+- 平台 POM 中的片段选择和过滤属性；
 - Core 中共享的 `lang/zh_CN.yml` 与 `lang/en_US.yml`；
 - Core 中共享的 `templates/default.yml`；
 - 配置加载器与默认值；

@@ -35,10 +35,10 @@ onebot:
 
   notices:
     server-startup:
-      # 启动通知会发送到 onebot.allowed-group-ids 中的所有群。
+      # 本服或代理启动且 OneBot 连接成功后，通知 allowed-group-ids 中的所有群（Spigot 仅 standalone 模式）。
       enabled: false
-      # 留空：Nukkit-MOT 启动且 OneBot 连接成功后通知。
-      # Nukkit-MOT 为单服平台，请保持为空。
+      # BungeeCord/Velocity 可填写子服名，持续 ping 到首次启动成功后通知；留空则通知代理启动。
+      # Spigot 和 Nukkit-MOT 为本服启动通知，请保持为空。
       target-server: ""
       check-interval-seconds: 5
     group-join-welcome:
@@ -73,7 +73,7 @@ forwarding:
 
   # QQ 群消息转发到游戏，输出格式为 [QQ] 群名片或昵称: 内容。
   # 图片、动画表情、语音、视频、文件、分享等会转换成可识别的聊天标签；
-  # OneBot 提供网络地址时，Nukkit-MOT 会把原始 URL 附在标签后。普通 Unicode 表情会原样保留。
+  # Java 版可点击 OneBot 提供的网络地址；Nukkit-MOT 会把原始 URL 附在标签后。Unicode 表情原样保留。
   # 仅处理 onebot.allowed-group-ids 中配置的群。
   group-to-game:
     # 该方向的总开关。
@@ -83,8 +83,9 @@ forwarding:
     # 转发时会移除此触发前缀；末尾空格属于前缀的一部分。
     # 设置为空字符串时，即使 require-prefix 为 true，也会默认转发全部非空消息。
     prefix: "#mc "
-    # browser：图片统一显示为 [图片]；picturebridge：优先保留 OneBot 提供的图片摘要。
-    # Nukkit-MOT 不使用 PictureBridge 客户端模组协议，两种模式都会在标签后保留原始 URL。
+    # browser：使用 [图片] 标签；Java 版客户端可点击后在浏览器查看。
+    # picturebridge：Java 版附加模组预览标记；Nukkit-MOT 仅优先保留 OneBot 提供的图片摘要。
+    # 两种模式均保留图片地址：Java 版使用 OPEN_URL，Nukkit-MOT 在标签后显示原始 URL。
     media-mode: "browser"
 
 binding:
@@ -164,10 +165,10 @@ image:
   avatar:
     # 头像下载和图片渲染全部在独立线程执行，不会阻塞服务器主线程。
     enabled: true
-    # 支持 %player% 变量。默认地址面向 Java 版名称；Bedrock 玩家请替换成兼容 Xbox ID 的头像服务。
+    # 支持 %player% 变量。默认服务使用 Java 版名称；Bedrock 玩家请替换成兼容 Xbox ID 的服务。
     url-template: "https://mc-heads.net/avatar/%player%/64"
     size: 36
-    # 下载成功后同时缓存到内存和 plugins/ShitBotNukkit/images/avatar-cache。
+    # 下载成功后同时缓存到内存和插件数据目录下的 images/avatar-cache。
     cache-minutes: 1440
     download-threads: 4
     # 避免在线人数很多时一次性排队下载过多头像。未下载的玩家暂时使用默认头像。
@@ -178,7 +179,9 @@ image:
     wait-timeout-ms: 2200
 
 profile:
+  # 内置个人资料图：左侧皮肤，右侧显示名称、权限组、点券和累计在线时长。
   skin-url-template: "https://mc-heads.net/body/%player%/180"
+  # 留空或解析不到时对应字段会隐藏；代理部署时填写目标后端名。
   permission-group-placeholder: "%luckperms_primary_group_name%"
   points-placeholder: "%playerpoints_points%"
   target-server: ""
@@ -256,12 +259,12 @@ inventory:
     # 精确覆盖目录：item-icons/<namespace>/<path>.png
     # CustomModelData 可使用 <path>__cmd_<值>.png。
     exported-directory: "item-icons"
-    # Nukkit-MOT 当前不启用 Mod JAR 扫描；该项保留给后续 Mod 支持。
-    scan-mod-jars: false
+    # 扫描 mods-directory 下的 JAR/ZIP；Java 版默认开启，Nukkit-MOT 默认关闭。
+    scan-mod-jars: ${config.scan-mod-jars}
     mods-directory: "../../mods"
     # 自动发现 Java 版资源包目录、versions 和客户端 JAR；Nukkit 自定义图标请放入 exported-directory。
     auto-discover: true
-    # 定期检查已配置的资源包和客户端核心是否变化；变化后异步重建索引。
+    # 定期检查资源包、客户端核心及启用扫描的 Mod JAR；变化后异步重建索引。
     refresh-seconds: 30
     # 首次查询最多等待材质索引的时间，超时则先显示已加载图标，不能阻塞主线程。
     index-wait-ms: 5000

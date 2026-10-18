@@ -130,6 +130,35 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-antrun-plugin</artifactId>
+                    <version>3.1.0</version>
+                    <executions>
+                        <execution>
+                            <id>generate-platform-defaults</id>
+                            <phase>generate-resources</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <mkdir dir="${project.build.directory}/generated-resources/defaults"/>
+                                    <concat destfile="${project.build.directory}/generated-resources/defaults/config.yml"
+                                            encoding="UTF-8" outputencoding="UTF-8" fixlastline="yes" eol="lf">
+                                        <filelist dir="${project.basedir}/../config-templates"
+                                                  files="${config.defaults.fragments}"/>
+                                    </concat>
+                                    <concat destfile="${project.build.directory}/generated-resources/defaults/commands.yml"
+                                            encoding="UTF-8" outputencoding="UTF-8" fixlastline="yes" eol="lf">
+                                        <filelist dir="${project.basedir}/../config-templates"
+                                                  files="${config.commands.fragments}"/>
+                                    </concat>
+                                </target>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
                     <configuration>

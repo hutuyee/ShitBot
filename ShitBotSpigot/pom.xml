@@ -12,9 +12,16 @@
     <name>ShitBotSpigot</name>
     <properties>
         <tests.required>true</tests.required>
+        <config.defaults.fragments>config.yml,bstats.yml,spigot-deployment.yml</config.defaults.fragments>
+        <config.commands.fragments>commands.yml,backend-transport.yml</config.commands.fragments>
+        <config.scan-mod-jars>true</config.scan-mod-jars>
     </properties>
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -43,6 +50,10 @@
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+            <resource>
+                <directory>${project.build.directory}/generated-resources/defaults</directory>
                 <filtering>true</filtering>
             </resource>
         </resources>

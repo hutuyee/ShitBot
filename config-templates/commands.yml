@@ -15,7 +15,7 @@ image-templates:
       template: "online-status"
       # bound：使用该 QQ 最新绑定；argument：命令后必须跟该 QQ 已绑定的角色名；none：不读取绑定。
       player-source: "bound"
-      # Nukkit 不支持 Bukkit PlaceholderAPI；target-server 请保持为空。
+      # 代理部署可指定处理权限/PAPI 的 Spigot 子服；Nukkit 不支持 Bukkit PlaceholderAPI，请保持为空。
       target-server: ""
       permission: ""
       cooldown-seconds: 10
@@ -46,13 +46,11 @@ image-templates:
       usage: "%at% 用法：自定义背包"
       failed: "%at% 背包图片生成失败：%result%"
 
-# Nukkit-MOT 为单服平台，不需要代理端后端传输配置。
-
 tps:
   enabled: true
   # 留空表示任何群成员都能查询。
   permission: ""
-  # Nukkit-MOT 为单服平台，请保持为空。
+  # 代理可指定子服名；留空时优先选择绑定角色所在子服。Nukkit-MOT 请保持为空。
   server: ""
 
 shortcuts:
@@ -62,9 +60,10 @@ shortcuts:
     permission: "shitbot.admin"
     # 即使 permission 留空也默认要求 QQ 已绑定；仅在明确接受群内未绑定成员调用时改为 true。
     allow-unbound: false
-    # Nukkit-MOT 为单服平台，命令始终在本服执行。
+    # backend：在 Bukkit 子服执行；proxy：在 BungeeCord/Velocity 代理执行。
+    # 单 Bukkit 或 Nukkit-MOT 部署始终在本服执行。
     target: "backend"
-    # Nukkit-MOT 不需要指定目标子服，请保持为空。
+    # backend 目标可指定子服名；留空时优先选择绑定角色所在子服。Nukkit-MOT 请保持为空。
     server: ""
-    # 执行前记录 logs/server.log 的位置，等待指定秒数后读取这期间新增的日志。
+    # 执行前记录日志位置（Java 版 logs/latest.log，Nukkit-MOT logs/server.log），等待后读取新增日志。
     capture-seconds: 5

@@ -95,6 +95,7 @@ ShitBot/
 ├─ ShitBotBungee/     # BungeeCord entry point
 ├─ ShitBotVelocity/   # Velocity entry point
 ├─ ShitBotNukkit/     # Nukkit-MOT entry point
+├─ config-templates/  # Shared platform defaults and optional fragments
 ├─ PictureBridge/    # Git submodule for the separate client mod
 ├─ docs/             # Chinese documentation and English translations in en/
 └─ pom.xml           # Maven aggregate project
@@ -104,19 +105,24 @@ Platform modules depend on ShitBotCore and relocate the shared runtime dependenc
 
 ## Configuration resources
 
-Platform defaults are in:
+All four platforms share the defaults maintained in the root `config-templates/` directory:
 
 ```text
-ShitBotSpigot/src/main/resources/
-ShitBotBungee/src/main/resources/
-ShitBotVelocity/src/main/resources/
-ShitBotNukkit/src/main/resources/
+config-templates/config.yml              # Common main configuration
+config-templates/commands.yml            # Common group command configuration
+config-templates/bstats.yml              # Metrics for Java platforms
+config-templates/spigot-deployment.yml   # Bukkit deployment role
+config-templates/backend-transport.yml   # Java proxy/backend transport
 ```
+
+Platform POMs select fragments through `config.defaults.fragments` and `config.commands.fragments`. During `generate-resources`, AntRun concatenates them in order into each module's `target/generated-resources/defaults/`; Maven Resources then filters platform properties and copies the files to the JAR root. Builds still require only the existing JDK and Maven. Do not edit generated files or add platform copies of the defaults.
+
+Spigot includes metrics, deployment, and transport fragments. BungeeCord and Velocity include metrics and transport. Nukkit-MOT uses only the common configurations and sets `config.scan-mod-jars=false` to preserve its disabled Mod JAR scanning default; the other three platforms enable scanning by default. Plugin descriptors remain in each platform's `src/main/resources/`.
 
 When changing configuration structure, consider:
 
-- All four `config.yml` files.
-- The applicable `commands.yml` files.
+- Shared `config.yml`, `commands.yml`, and the relevant fragments.
+- Fragment selection and filtering properties in platform POMs.
 - Shared Core `lang/zh_CN.yml` and `lang/en_US.yml`.
 - Shared Core `templates/default.yml`.
 - Loaders and default values.

@@ -12,6 +12,9 @@
     <name>ShitBotVelocity</name>
     <properties>
         <java.version>21</java.version>
+        <config.defaults.fragments>config.yml,bstats.yml</config.defaults.fragments>
+        <config.commands.fragments>commands.yml,backend-transport.yml</config.commands.fragments>
+        <config.scan-mod-jars>true</config.scan-mod-jars>
     </properties>
     <profiles>
         <profile>
@@ -56,12 +59,6 @@
                         </executions>
                     </plugin>
                 </plugins>
-                <resources>
-                    <resource>
-                        <directory>src/main/resources</directory>
-                        <filtering>true</filtering>
-                    </resource>
-                </resources>
             </build>
         </profile>
     </profiles>
@@ -72,8 +69,16 @@
                 <directory>${project.basedir}/src/main/resources</directory>
                 <filtering>true</filtering>
             </resource>
+            <resource>
+                <directory>${project.build.directory}/generated-resources/defaults</directory>
+                <filtering>true</filtering>
+            </resource>
         </resources>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>

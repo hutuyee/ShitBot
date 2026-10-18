@@ -1,0 +1,53 @@
+
+backend-transport:
+  # 代理连接子服时使用；配置后不依赖任何在线玩家。
+  connect-timeout-ms: 3000
+  read-timeout-seconds: 40
+  # 未在 QQ 命令后指定子服时使用；留空且只有一个 endpoint 时自动选择该项。
+  default-server: ""
+  # 仅在 BungeeCord/Velocity 的 commands.yml 中配置目标子服。
+  endpoints: {}
+  # 示例：
+  # endpoints:
+  #   survival:
+  #     host: "127.0.0.1"
+  #     port: 25580
+  #     token: "替换成至少16位的强随机密钥"
+  #     # 非回环地址的明文连接默认拒绝；跨机器请启用 TLS。
+  #     allow-insecure-remote-plaintext: false
+  #     tls:
+  #       enabled: false
+  #       # 留空使用 JVM 默认 CA；自签名证书请填写插件目录内的 PKCS12 trust store。
+  #       trust-store: ""
+  #       trust-store-password: ""
+  #       # listener 要求客户端证书时填写客户端 PKCS12 key store。
+  #       key-store: ""
+  #       key-store-password: ""
+
+  # 仅在对应 Bukkit 子服的 commands.yml 中启用。
+  listener:
+    enabled: false
+    bind-address: "127.0.0.1"
+    port: 25580
+    token: ""
+    # 必须与代理 endpoints 下的键一致。
+    server-name: "survival"
+    # 未完成鉴权的连接最多占用 worker 的时间。
+    authentication-timeout-ms: 2000
+    # 非回环监听的明文模式默认拒绝；仅在已有加密隧道且明确接受风险时开启。
+    allow-insecure-remote-plaintext: false
+    tls:
+      enabled: false
+      # 启用 TLS 时必须填写服务端 PKCS12 key store（相对插件数据目录）。
+      key-store: ""
+      key-store-password: ""
+      # require-client-certificate 为 true 时还必须填写信任客户端证书的 PKCS12 store。
+      trust-store: ""
+      trust-store-password: ""
+      require-client-certificate: false
+    # 在进入认证 worker 前按来源 IP 拒绝连接；跨机器部署时改为代理服务器的实际 IP。
+    allowed-proxy-addresses:
+      - "127.0.0.1"
+      - "::1"
+
+
