@@ -146,10 +146,10 @@ public final class NukkitConfigLoader {
         return completeFile(Translations.resourcePath(language));
     }
 
-    private static final class Source implements ConfigSource {
+    static final class Source implements ConfigSource {
         private final Config configuration;
 
-        private Source(Config configuration) {
+        Source(Config configuration) {
             this.configuration = configuration;
         }
 

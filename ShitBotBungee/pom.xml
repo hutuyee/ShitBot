@@ -11,6 +11,7 @@
     <packaging>jar</packaging>
     <name>ShitBotBungee</name>
     <properties>
+        <tests.required>true</tests.required>
         <config.defaults.fragments>config.yml,bstats.yml</config.defaults.fragments>
         <config.commands.fragments>commands.yml,backend-transport.yml</config.commands.fragments>
         <config.scan-mod-jars>true</config.scan-mod-jars>
@@ -73,6 +74,11 @@
         </repository>
     </repositories>
     <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>haaa</groupId>
             <artifactId>ShitBotCore</artifactId>

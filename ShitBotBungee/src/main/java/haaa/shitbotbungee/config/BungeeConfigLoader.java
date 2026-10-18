@@ -108,10 +108,10 @@ public final class BungeeConfigLoader {
                 new Source(provider.load(fallbackFile)));
     }
 
-    private static final class Source implements ConfigSource {
+    static final class Source implements ConfigSource {
         private final Configuration configuration;
 
-        private Source(Configuration configuration) {
+        Source(Configuration configuration) {
             this.configuration = configuration;
         }
 
