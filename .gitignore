@@ -19,6 +19,7 @@ run
 
 lib/
 target/
+.flattened-pom.xml
 .DS_Store
 
 # release signing private keys

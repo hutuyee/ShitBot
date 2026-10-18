@@ -36,6 +36,10 @@ The `revision` property in `.mvn/maven.config` supplies the version. To override
 mvn -Drevision=1.0.10-SNAPSHOT clean package
 ```
 
+The root `pom.xml` is both the aggregator and the parent of all seven modules. It manages dependency and plugin versions, encoding, and the default Java 8 target; Velocity and Nukkit override the target to Java 21 and 17. The Compiler Plugin uses `release` to restrict available Java APIs, preventing Java 8 bytecode compiled on JDK 21 from referencing newer APIs.
+
+Before installation or deployment, `flatten-maven-plugin` resolves `${revision}` to the actual version in published POMs. Install the API with `mvn -pl ShitBotApi -am install` so the parent POM is installed as well; include the parent when deploying to a Maven repository too. Generated `.flattened-pom.xml` files are ignored by Git.
+
 ## Build one platform
 
 Use `-am` to also build the required ShitBotApi and ShitBotCore modules:

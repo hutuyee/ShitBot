@@ -36,6 +36,10 @@ mvn clean package
 mvn -Drevision=1.0.10-SNAPSHOT clean package
 ```
 
+根 `pom.xml` 同时是聚合工程和七个模块的父 POM，统一管理依赖、插件版本、编码和默认 Java 8 目标；Velocity 和 Nukkit 分别覆盖为 Java 21 和 17。Compiler Plugin 使用 `release` 限制可用的 Java API，避免在 JDK 21 上编译出引用新 API 的 Java 8 字节码。
+
+`flatten-maven-plugin` 在安装或部署前将发布 POM 中的 `${revision}` 展开为实际版本。安装 API 时使用 `mvn -pl ShitBotApi -am install`，同时安装父 POM；部署到 Maven 仓库时也应包含父 POM。生成的 `.flattened-pom.xml` 不纳入版本控制。
+
 ## 构建单个平台
 
 使用 `-am` 同时构建依赖的 ShitBotApi 与 ShitBotCore：

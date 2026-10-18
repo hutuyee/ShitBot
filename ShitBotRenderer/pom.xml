@@ -3,16 +3,19 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>haaa</groupId>
+        <artifactId>ShitBot</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
 
-    <groupId>haaa</groupId>
     <artifactId>ShitBotRenderer</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
     <name>ShitBotRenderer</name>
 
     <properties>
-        <java.version>8</java.version>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <tests.required>true</tests.required>
     </properties>
 
     <build>
@@ -29,38 +32,8 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.2</version>
-                <configuration>
-                    <failIfNoTests>true</failIfNoTests>
-                    <systemPropertyVariables>
-                        <java.awt.headless>true</java.awt.headless>
-                    </systemPropertyVariables>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
-                <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.3</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                </executions>
                 <configuration>
-                    <createDependencyReducedPom>false</createDependencyReducedPom>
                     <shadedArtifactAttached>false</shadedArtifactAttached>
                     <relocations>
                         <relocation>
@@ -68,19 +41,6 @@
                             <shadedPattern>haaa.shitbot.renderer.lib.snakeyaml</shadedPattern>
                         </relocation>
                     </relocations>
-                    <filters>
-                        <filter>
-                            <artifact>*:*</artifact>
-                            <excludes>
-                                <exclude>META-INF/*.SF</exclude>
-                                <exclude>META-INF/*.DSA</exclude>
-                                <exclude>META-INF/*.RSA</exclude>
-                            </excludes>
-                        </filter>
-                    </filters>
-                    <transformers>
-                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                    </transformers>
                 </configuration>
             </plugin>
         </plugins>
@@ -90,19 +50,16 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>haaa</groupId>
             <artifactId>ShitBotApi</artifactId>
-            <version>${revision}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>2.2</version>
         </dependency>
     </dependencies>
 </project>
