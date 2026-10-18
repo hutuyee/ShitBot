@@ -147,23 +147,28 @@ See PictureBridge's own documentation for build instructions.
 
 On pushes, pull requests, and manual runs, GitHub Actions:
 
-1. Runs `clean verify` for API, Core, and Renderer on Linux with JDK 8 and 17, and Windows with JDK 21.
-2. Runs the full `mvn clean verify` build on Linux with JDK 21, including Spigot scheduler tests and all four platform packages.
-3. Summarizes results and uploads available Surefire reports even when the build fails, retaining them for 14 days. Missing reports, zero executed tests, or entirely skipped tests in an expected module fail the job.
-4. Collects four platform JARs, one ShitBotApi JAR, and one separate ShitBotRenderer JAR; generates and verifies their SHA-256 files.
-5. Checks project bytecode targets, entry points and shared resources, Renderer SPI and version metadata, and packaging isolation for platform APIs, test dependencies, and the optional Renderer.
-6. Uploads release build artifacts, retaining them for 30 days.
+1. Reads the single `revision` from `.mvn/maven.config` and passes it explicitly to subsequent Maven jobs.
+2. Runs `clean test` for API, Core, and Renderer on Linux with JDK 8 and 17, and Windows with JDK 21, checking compatibility without repeating packaging and shading.
+3. Runs the full `mvn clean verify` build on Linux with JDK 21, including Spigot scheduler tests and all four platform packages.
+4. Summarizes results and uploads available Surefire reports even when the build fails, retaining them for 14 days. Missing reports, zero executed tests, or entirely skipped tests in an expected module fail the job.
+5. Collects four platform JARs, one ShitBotApi JAR, and one separate ShitBotRenderer JAR; generates and verifies their SHA-256 files.
+6. Checks that all six filenames, embedded Maven coordinates and POMs, plugin descriptors, and Renderer version metadata match `revision`. Published POMs must not retain `${revision}`.
+7. Checks project bytecode targets, entry points and shared resources, Renderer SPI, and packaging isolation for platform APIs, test dependencies, and the optional Renderer. Checks that platform defaults exist without unresolved placeholders and contain the correct deployment, metrics, transport, and Mod JAR scanning defaults.
+8. Uploads release build artifacts, retaining them for 30 days.
 
-Matrix jobs continue if another environment fails. New runs cancel outdated CI runs for the same branch or PR. The stable `CI checks` job aggregates every test and build result and can be required by branch protection. Workflow permissions default to read-only; only the Release upload job receives write access.
+JUnit cases currently live in API, Core, Renderer, and Spigot. BungeeCord, Velocity, and Nukkit currently receive compilation, packaging, descriptor, and default configuration checks, without their own JUnit suites. These artifact checks do not cover platform behavior on real servers.
+
+Matrix jobs continue if another environment fails. New runs cancel outdated CI runs for the same branch or PR. The stable `CI checks` job aggregates version, test, and build results and can be required by branch protection. Workflow permissions default to read-only; only the Release upload job receives write access.
 
 For GitHub releases, the workflow also:
 
-1. Runs the same test matrix and full platform build without skipping tests; uploads require a successful `CI checks` result.
-2. Signs all four platform JARs, the public API JAR, and the optional renderer JAR with the RSA private key in repository secrets.
-3. Checks for six JARs, six checksums, and six signatures, verifying each signature against the built-in public key in the release source.
-4. Uploads the JARs, `.sha256`, and `.sig` files. New runs do not automatically cancel release workflows.
+1. Before building, requires the release tag, with an optional `v` or `V` prefix, to match the source revision exactly. For example, `v1.2.0` requires `-Drevision=1.2.0`; mismatches fail immediately.
+2. Runs the same test matrix and full platform build without skipping tests; uploads require a successful `CI checks` result.
+3. Rechecks downloaded artifact contents and versions, then signs all four platform JARs, the public API JAR, and the optional renderer JAR with the RSA private key in repository secrets.
+4. Checks for six JARs, six checksums, and six signatures, verifying each signature against the built-in public key in the release source.
+5. Uploads the JARs, `.sha256`, and `.sig` files. New runs do not automatically cancel release workflows.
 
-The workflow lives in `.github/workflows/release.yml`. Report summarization and release artifact checks live in `.github/scripts/` and require only the Python 3 standard library. PictureBridge keeps its independent CI and is not part of these Maven tests or packages.
+The workflow lives in `.github/workflows/release.yml`. Version resolution, report summarization, and release artifact checks live in `.github/scripts/` and require only the Python 3 standard library. Run artifact checks with `python .github/scripts/check-artifacts.py release --version 1.2.0`, using the version of that build. PictureBridge keeps its independent CI and is not part of these Maven tests or packages.
 
 See [Upgrading and automatic updates](updating.md) for signing key management.
 

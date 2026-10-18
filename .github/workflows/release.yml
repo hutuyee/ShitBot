@@ -21,10 +21,31 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
+  version:
+    name: Check build and release version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Resolve version and validate release tag
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+        run: python .github/scripts/resolve-version.py
+
   test:
-    name: Shared tests / Java ${{ matrix.java }} / ${{ matrix.os }}
+    name: Shared compatibility tests / Java ${{ matrix.java }} / ${{ matrix.os }}
+    needs: version
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    env:
+      BUILD_VERSION: ${{ needs.version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -52,12 +73,13 @@ jobs:
             **/pom.xml
             .mvn/maven.config
 
-      - name: Test shared modules without platform servers
+      - name: Test shared modules without packaging
         shell: bash
         run: >-
           mvn --batch-mode --no-transfer-progress --errors
           -pl ShitBotApi,ShitBotCore,ShitBotRenderer -am
-          -DskipTests=false -Dmaven.test.skip=false clean verify
+          "-Drevision=${BUILD_VERSION}"
+          -DskipTests=false -Dmaven.test.skip=false clean test
 
       - name: Summarize test results
         if: always()
@@ -75,8 +97,11 @@ jobs:
 
   build:
     name: All platforms / Java 21 / Linux
+    needs: version
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      BUILD_VERSION: ${{ needs.version.outputs.version }}
 
     permissions:
       contents: read
@@ -106,6 +131,7 @@ jobs:
             --batch-mode \
             --no-transfer-progress \
             --errors \
+            "-Drevision=${BUILD_VERSION}" \
             -DskipTests=false \
             -Dmaven.test.skip=false \
             clean verify
@@ -241,7 +267,7 @@ jobs:
 
       - name: Check release contents and Java targets
         shell: bash
-        run: python .github/scripts/check-artifacts.py release
+        run: python .github/scripts/check-artifacts.py release --version "${BUILD_VERSION}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6
@@ -256,6 +282,7 @@ jobs:
     name: CI checks
     if: always()
     needs:
+      - version
       - test
       - build
     runs-on: ubuntu-latest
@@ -263,12 +290,13 @@ jobs:
     steps:
       - name: Require every test and build job to pass
         env:
+          VERSION_RESULT: ${{ needs.version.result }}
           TEST_RESULT: ${{ needs.test.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         shell: bash
         run: |
-          if [[ "${TEST_RESULT}" != "success" || "${BUILD_RESULT}" != "success" ]]; then
-            echo "::error::Shared tests: ${TEST_RESULT}; platform build: ${BUILD_RESULT}"
+          if [[ "${VERSION_RESULT}" != "success" || "${TEST_RESULT}" != "success" || "${BUILD_RESULT}" != "success" ]]; then
+            echo "::error::Version check: ${VERSION_RESULT}; shared tests: ${TEST_RESULT}; platform build: ${BUILD_RESULT}"
             exit 1
           fi
 
@@ -276,10 +304,13 @@ jobs:
     name: Upload GitHub Release
     if: github.event_name == 'release' && github.event.action == 'published'
     needs:
+      - version
       - build
       - ci
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      BUILD_VERSION: ${{ needs.version.outputs.version }}
 
     permissions:
       contents: write
@@ -295,6 +326,10 @@ jobs:
         with:
           name: ShitBot-${{ github.sha }}
           path: release
+
+      - name: Recheck downloaded release contents and versions
+        shell: bash
+        run: python .github/scripts/check-artifacts.py release --version "${BUILD_VERSION}"
 
       - name: Sign release JAR files
         env:

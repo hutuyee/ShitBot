@@ -147,23 +147,28 @@ PictureBridge 的构建说明见其独立仓库文档。
 
 GitHub Actions 在 push、pull request 和手动触发时：
 
-1. 在 Linux JDK 8、17 和 Windows JDK 21 上运行 API、Core、Renderer 的 `clean verify`；
-2. 在 Linux JDK 21 上执行全工程 `mvn clean verify`，包含 Spigot 调度适配器测试和四个平台打包；
-3. 无论成功或失败，都汇总测试结果并上传已有的 Surefire 报告，保留 14 天；预期模块没有报告、没有执行任何测试或全部跳过时会失败；
-4. 收集四个平台 JAR、一个 `ShitBotApi` JAR 和一个独立 `ShitBotRenderer` JAR，生成并校验 SHA-256 文件；
-5. 检查项目类的 Java 字节码目标、入口和共享资源、Renderer SPI 与版本信息，以及平台 API、测试依赖和可选 Renderer 的打包隔离；
-6. 上传发布构件 Artifact，保留 30 天。
+1. 读取 `.mvn/maven.config` 中唯一的 `revision`，统一传给后续 Maven 任务；
+2. 在 Linux JDK 8、17 和 Windows JDK 21 上运行 API、Core、Renderer 的 `clean test`，验证不同运行环境的兼容性，不重复执行打包和 shade；
+3. 在 Linux JDK 21 上执行全工程 `mvn clean verify`，包含 Spigot 调度适配器测试和四个平台打包；
+4. 无论成功或失败，都汇总测试结果并上传已有的 Surefire 报告，保留 14 天；预期模块没有报告、没有执行任何测试或全部跳过时会失败；
+5. 收集四个平台 JAR、一个 `ShitBotApi` JAR 和一个独立 `ShitBotRenderer` JAR，生成并校验 SHA-256 文件；
+6. 检查六个文件名、内置 Maven 坐标和 POM、平台描述文件及 Renderer 元数据中的版本是否与 `revision` 一致；发布 POM 不得残留 `${revision}`；
+7. 检查项目类的 Java 字节码目标、入口和共享资源、Renderer SPI，以及平台 API、测试依赖和可选 Renderer 的打包隔离；检查四个平台的默认配置存在且无未替换占位符，并检查部署、统计、传输片段和 Mod JAR 扫描默认值；
+8. 上传发布构件 Artifact，保留 30 天。
 
-矩阵任务不会因其他环境失败而提前取消；同一分支或 PR 的过期 CI 运行会被新运行取消。所有测试和构建统一汇总为 `CI checks`，可将它设为分支保护的必需检查。工作流使用只读仓库权限，只有 Release 上传任务获得写权限。
+JUnit 用例目前位于 API、Core、Renderer 和 Spigot。BungeeCord、Velocity、Nukkit 当前经过编译、打包、描述文件和默认配置检查，尚无各自的 JUnit 用例；这些产物检查不覆盖真实服务器上的平台行为。
+
+矩阵任务不会因其他环境失败而提前取消；同一分支或 PR 的过期 CI 运行会被新运行取消。版本、测试和构建结果统一汇总为 `CI checks`，可将它设为分支保护的必需检查。工作流使用只读仓库权限，只有 Release 上传任务获得写权限。
 
 发布 GitHub Release 时，工作流还会：
 
-1. 执行相同的测试矩阵和全平台构建，不跳过测试；只有 `CI checks` 成功才允许上传；
-2. 使用仓库 Secret 中的 RSA 私钥签署四个平台 JAR、公开 API JAR 和可选渲染器 JAR；
-3. 检查六个 JAR、六个 checksum 和六个签名，并使用当前 Release 源码中的内置公钥逐个验签；
-4. 将 JAR、`.sha256` 和 `.sig` 上传到 Release。Release 工作流不会被新运行自动取消。
+1. 在构建前校验标签（允许前缀 `v` 或 `V`）与源码的 `revision` 完全一致；例如 `v1.2.0` 对应 `-Drevision=1.2.0`，不一致会直接失败；
+2. 执行相同的测试矩阵和全平台构建，不跳过测试；只有 `CI checks` 成功才允许上传；
+3. 下载构件后再次执行内容和版本检查，再使用仓库 Secret 中的 RSA 私钥签署四个平台 JAR、公开 API JAR 和可选渲染器 JAR；
+4. 检查六个 JAR、六个 checksum 和六个签名，并使用当前 Release 源码中的内置公钥逐个验签；
+5. 将 JAR、`.sha256` 和 `.sig` 上传到 Release。Release 工作流不会被新运行自动取消。
 
-工作流在 `.github/workflows/release.yml` 中维护；测试报告汇总和发布构件检查位于 `.github/scripts/`，只依赖 Python 3 标准库。PictureBridge 保持独立 CI，不参与上述 Maven 测试与打包。
+工作流在 `.github/workflows/release.yml` 中维护；版本解析、测试报告汇总和发布构件检查位于 `.github/scripts/`，只依赖 Python 3 标准库。构件检查命令为 `python .github/scripts/check-artifacts.py release --version 1.2.0`，版本参数应与本次构建一致。PictureBridge 保持独立 CI，不参与上述 Maven 测试与打包。
 
 签名密钥管理见[升级与自动更新](updating.md)。
 
