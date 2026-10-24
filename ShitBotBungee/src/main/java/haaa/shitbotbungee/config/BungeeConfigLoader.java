@@ -139,7 +139,7 @@ public final class BungeeConfigLoader {
             }
             if (value != null) {
                 try {
-                    return Long.parseLong(String.valueOf(value));
+                    return Long.parseLong(String.valueOf(value).trim());
                 } catch (NumberFormatException ignored) {
                 }
             }
