@@ -16,7 +16,7 @@ import java.util.Optional;
 public final class ShitBotExpansion extends PlaceholderExpansion implements AutoCloseable {
     private final ShitBotSpigot plugin;
     private final Map<String, Entry> entries = new LinkedHashMap<String, Entry>(64, 0.75F, true) {
-        @Override protected boolean removeEldestEntry(Map.Entry<String, Entry> eldest) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, ShitBotExpansion.Entry> eldest) {
             return size() > 512;
         }
     };
