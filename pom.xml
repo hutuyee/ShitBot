@@ -164,6 +164,9 @@
                     <configuration>
                         <!-- On JDK 8 the compiler plugin translates release to source/target. -->
                         <release>${java.version}</release>
+                        <!-- Keep actionable stack traces without local-variable debug tables. -->
+                        <debug>true</debug>
+                        <debuglevel>lines,source</debuglevel>
                     </configuration>
                 </plugin>
                 <plugin>
