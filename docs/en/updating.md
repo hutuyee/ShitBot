@@ -49,7 +49,15 @@ The updater:
 6. Checks the platform descriptor, main class, and embedded version.
 7. Backs up current configuration to `config-backups/` in the data directory and logs its location.
 8. Backs up the current JAR as `.bak` in the same directory.
-9. Replaces the JAR and asks for a manual restart.
+9. Replaces or stages the JAR according to the platform and asks for a normal restart.
+
+Spigot, Paper, and Folia use the server's configured update directory, which defaults to `plugins/update/`. The new JAR enters this directory only after all verification and backup steps succeed. The server replaces the current JAR before loading plugins on the next startup. Updates are staged while the server runs, avoiding the attempt to overwrite a loaded JAR that Windows may lock.
+
+The staged file keeps the current plugin's filename. For example, if the current file is `ShitBotSpigot-1.1.5.jar`, version 1.2.0 is staged as `plugins/update/ShitBotSpigot-1.1.5.jar`; the plugin descriptor inside the JAR determines its actual version. Do not rename or move the current JAR before restarting, since the server may then fail to match the staged file.
+
+The command reports that the update is staged and shows its path. Repeating the command in the same process reports an already-staged update while the file remains present, or prepares it again if the file was removed. The `settings.update-folder` entry in `bukkit.yml` must enable a separate update directory. Updating fails and retains the current JAR if this entry is empty, points to the plugin directory, or the staged path resolves to the current JAR.
+
+BungeeCord, Velocity, and Nukkit-MOT still replace the verified JAR on disk and load it after restart. If an older Spigot updater fails because Windows locks the JAR, stop the server and manually install a version containing the staging fix before using this workflow.
 
 This does not hot-reload the plugin. Restart the server or proxy normally afterward.
 
@@ -59,7 +67,7 @@ If verification or configuration backup fails, the current JAR is retained. Do n
 
 Running `/shitbot update` on BungeeCord sends the same release's Spigot JAR and verification metadata to configured `backend-transport.endpoints`.
 
-- Each backend independently verifies the new JAR, backs up its configuration, and replaces its own JAR.
+- Each Spigot backend independently verifies the new JAR, backs up its configuration and current JAR, and stages the update for replacement on restart.
 - The proxy reports each backend's result.
 - Backends without an endpoint are not scanned or updated.
 - You must still restart the proxy and backends manually.
@@ -82,11 +90,13 @@ Check that:
 - If advanced templates are enabled, the matching ShitBotRenderer is also present.
 - Matching `.jar.sha256` and `.jar.sig` files exist.
 - The JAR, checksum, and signature all come from the same release.
-- The plugin directory is writable.
-- The current JAR path can be identified and is not locked by another program.
+- The plugin directory is writable. Spigot's server update directory must also be writable and enabled.
+- The current JAR path can be identified and read. Platforms that replace it directly must also be able to overwrite it.
 - The proxy/backend channel is healthy.
 
 If automatic updating fails, preserve the logs and use a manual upgrade, still downloading from the official release.
+
+Background installation or staging failures log the full exception stack trace to the console. Spigot commands and backend update replies also include the exception type to help distinguish file locks, permissions, directory configuration, and network errors.
 
 ## Release maintainers: signing keys
 

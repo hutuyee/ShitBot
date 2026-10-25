@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | `/shitbot status` | 查看数据库、OneBot 和运行状态 | 无 |
 | `/shitbot reload` | 重载配置、数据库、OneBot、图片和命令服务 | `shitbot.admin` |
-| `/shitbot update` | 下载并安装当前平台的新版本 | `shitbot.admin` |
+| `/shitbot update` | 下载并准备当前平台的新版本，正常重启生效 | `shitbot.admin` |
 | `/shitbot image` | 手动生成在线状态图片 | `shitbot.admin` |
 | `/shitbot editor` | 生成高级图片模板编辑器的短时一次性登录地址 | `shitbot.admin` |
 | `/shitbot migrate easybot [EasyBot.db]` | 导入 EasyBot 绑定数据 | `shitbot.admin` |

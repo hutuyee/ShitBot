@@ -14,7 +14,7 @@ The main command is `/shitbot`, with alias `/sbot`.
 | --- | --- | --- |
 | `/shitbot status` | Show database, OneBot, and runtime status | None |
 | `/shitbot reload` | Reload configuration, database, OneBot, images, and command services | `shitbot.admin` |
-| `/shitbot update` | Download and install an update for this platform | `shitbot.admin` |
+| `/shitbot update` | Download and prepare an update for this platform; restart normally to apply it | `shitbot.admin` |
 | `/shitbot image` | Generate an online status image manually | `shitbot.admin` |
 | `/shitbot editor` | Create a short-lived, one-time editor login URL | `shitbot.admin` |
 | `/shitbot migrate easybot [EasyBot.db]` | Import EasyBot bindings | `shitbot.admin` |

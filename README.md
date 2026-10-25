@@ -113,7 +113,7 @@ inventory:
 | --- | --- | --- |
 | `/shitbot status` | 查看数据库、OneBot 和插件运行状态 | 无 |
 | `/shitbot reload` | 重载配置、语言文件、图片模板和运行实例 | `shitbot.admin` |
-| `/shitbot update` | 下载并校验当前平台的新版本，替换后等待手动重启 | `shitbot.admin` |
+| `/shitbot update` | 下载并校验当前平台的新版本，正常重启生效 | `shitbot.admin` |
 | `/shitbot image` | 生成一次在线状态图片 | `shitbot.admin` |
 | `/shitbot editor` | 生成高级图片模板编辑器的一次性登录地址 | `shitbot.admin` |
 | `/shitbot whitelist` | 添加、删除、查询绑定和无 QQ 白名单 | `shitbot.admin` |

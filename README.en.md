@@ -113,7 +113,7 @@ Proxy/backend deployments also need `backend-transport` in `commands.yml`. Never
 | --- | --- | --- |
 | `/shitbot status` | Show database, OneBot, and runtime status | None |
 | `/shitbot reload` | Reload configuration, language files, image templates, and the runtime | `shitbot.admin` |
-| `/shitbot update` | Download and verify an update for this platform; a manual restart is required after replacement | `shitbot.admin` |
+| `/shitbot update` | Download and verify an update for this platform; restart normally to apply it | `shitbot.admin` |
 | `/shitbot image` | Generate an online status image | `shitbot.admin` |
 | `/shitbot editor` | Create a one-time login URL for the advanced template editor | `shitbot.admin` |
 | `/shitbot whitelist` | Add, remove, or query bindings and whitelist entries without QQ | `shitbot.admin` |
