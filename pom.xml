@@ -212,6 +212,43 @@
                                     <exclude>META-INF/*.RSA</exclude>
                                 </excludes>
                             </filter>
+                            <!-- Only remove optional implementations unused by our YAML loaders. -->
+                            <filter>
+                                <artifact>org.yaml:snakeyaml</artifact>
+                                <excludes>
+                                    <exclude>org/yaml/snakeyaml/env/**</exclude>
+                                    <exclude>org/yaml/snakeyaml/extensions/compactnotation/**</exclude>
+                                    <exclude>org/yaml/snakeyaml/constructor/CustomClassLoaderConstructor.class</exclude>
+                                    <exclude>org/yaml/snakeyaml/error/MissingEnvironmentVariableException.class</exclude>
+                                </excludes>
+                            </filter>
+                            <!-- OneBot uses a client with no negotiated compression extensions. -->
+                            <filter>
+                                <artifact>org.java-websocket:Java-WebSocket</artifact>
+                                <excludes>
+                                    <exclude>org/java_websocket/extensions/permessage_deflate/**</exclude>
+                                    <exclude>org/java_websocket/extensions/CompressionExtension.class</exclude>
+                                    <exclude>org/java_websocket/extensions/ExtensionRequestData.class</exclude>
+                                    <exclude>org/java_websocket/server/CustomSSLWebSocketServerFactory.class</exclude>
+                                    <exclude>org/java_websocket/server/DefaultSSLWebSocketServerFactory.class</exclude>
+                                    <exclude>org/java_websocket/server/SSLParametersWebSocketServerFactory.class</exclude>
+                                    <exclude>org/java_websocket/AbstractWrappedByteChannel.class</exclude>
+                                    <exclude>org/java_websocket/SSLSocketChannel*.class</exclude>
+                                </excludes>
+                            </filter>
+                            <!-- Keep CustomChart, which MetricsBase references, but no unused chart implementations. -->
+                            <filter>
+                                <artifact>org.bstats:bstats-base</artifact>
+                                <excludes>
+                                    <exclude>org/bstats/charts/AdvancedBarChart.class</exclude>
+                                    <exclude>org/bstats/charts/AdvancedPie.class</exclude>
+                                    <exclude>org/bstats/charts/DrilldownPie.class</exclude>
+                                    <exclude>org/bstats/charts/MultiLineChart.class</exclude>
+                                    <exclude>org/bstats/charts/SimpleBarChart.class</exclude>
+                                    <exclude>org/bstats/charts/SimplePie.class</exclude>
+                                    <exclude>org/bstats/charts/SingleLineChart.class</exclude>
+                                </excludes>
+                            </filter>
                         </filters>
                         <transformers>
                             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
