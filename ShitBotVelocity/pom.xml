@@ -118,10 +118,6 @@
                             <shadedPattern>haaa.shitbot.lib.snakeyaml</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>org.java_websocket</pattern>
-                            <shadedPattern>haaa.shitbot.lib.websocket</shadedPattern>
-                        </relocation>
-                        <relocation>
                             <pattern>org.bstats</pattern>
                             <shadedPattern>haaa.shitbot.lib.bstats</shadedPattern>
                         </relocation>
@@ -160,6 +156,10 @@
         <dependency>
             <groupId>haaa</groupId>
             <artifactId>ShitBotCore</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>haaa</groupId>
+            <artifactId>ShitBotWebSocketJdk</artifactId>
         </dependency>
         <dependency>
             <groupId>com.velocitypowered</groupId>

@@ -8,27 +8,23 @@ import com.google.gson.JsonPrimitive;
 import haaa.shitbot.core.chat.ChatPart;
 import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.config.Translations;
+import haaa.shitbot.core.onebot.transport.WebSocketTransport;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.JsonUtil;
 import haaa.shitbot.core.util.NamedThreadFactory;
 import haaa.shitbot.core.util.NetworkUtil;
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.drafts.Draft_6455;
-import org.java_websocket.enums.ReadyState;
-import org.java_websocket.extensions.IExtension;
-import org.java_websocket.handshake.ServerHandshake;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,7 +46,6 @@ import java.util.function.Consumer;
  */
 public final class OneBotClient implements AutoCloseable {
     private static final int MAX_INBOUND_MESSAGE_LENGTH = 2 * 1024 * 1024;
-    private static final Logger log = LoggerFactory.getLogger(OneBotClient.class);
 
     private final Settings.OneBot settings;
     private final Settings.MediaMode mediaMode;
@@ -69,6 +64,7 @@ public final class OneBotClient implements AutoCloseable {
     private volatile Consumer<GroupNotice> groupNoticeConsumer;
     private volatile Runnable connectedListener;
     private volatile Client client;
+    private WebSocketTransport.Factory transportFactory;
 
     public OneBotClient(Settings.OneBot settings, Translations translations, PlatformBridge platform) {
         this(settings, Settings.MediaMode.BROWSER, translations, false, platform);
@@ -149,9 +145,10 @@ public final class OneBotClient implements AutoCloseable {
         }
         reconnectScheduled.set(false);
         Client previous = client;
-        if (previous != null && previous.getReadyState() != ReadyState.CLOSED) {
+        if (previous != null && !previous.transport.isClosed()) {
             return;
         }
+        Client created = null;
         try {
             URI uri = URI.create(settings.getWebsocketUrl());
             Map<String, String> headers = new HashMap<String, String>();
@@ -159,19 +156,53 @@ public final class OneBotClient implements AutoCloseable {
                 headers.put("Authorization", "Bearer " + settings.getAccessToken());
             }
             headers.put("User-Agent", "ShitBot-OneBot11/1.0");
-            Client created = new Client(uri, headers, settings.getConnectTimeoutSeconds() * 1000);
+            created = new Client(uri, headers, settings.getConnectTimeoutSeconds() * 1000);
             client = created;
-            boolean connected = created.connectBlocking(settings.getConnectTimeoutSeconds(), TimeUnit.SECONDS);
-            if (!connected) {
-                platform.warn("OneBot WebSocket connection timed out: " + safeEndpoint());
+            if (closed.get()) {
+                abortConnection(created, 1001, "ShitBot shutdown");
+                return;
+            }
+            boolean connected = created.transport.connectBlocking(settings.getConnectTimeoutSeconds(), TimeUnit.SECONDS);
+            if (!connected && !closed.get()) {
+                abortConnection(created, 1001, "connection did not open");
+                platform.warn("OneBot WebSocket connection did not open: " + safeEndpoint());
                 scheduleReconnect();
             }
         } catch (InterruptedException exception) {
+            abortConnection(created, 1001, "connection interrupted");
             Thread.currentThread().interrupt();
         } catch (Throwable throwable) {
-            platform.warn("OneBot WebSocket connection failed: "
-                    + redactSecrets(FutureUtil.unwrap(throwable).getMessage()));
-            scheduleReconnect();
+            abortConnection(created, 1001, "connection failed");
+            if (!closed.get()) {
+                platform.warn("OneBot WebSocket connection failed: "
+                        + redactSecrets(FutureUtil.unwrap(throwable).getMessage()));
+                scheduleReconnect();
+            }
+        }
+    }
+
+    private WebSocketTransport.Factory transportFactory() {
+        if (transportFactory == null) {
+            Iterator<WebSocketTransport.Factory> providers = ServiceLoader.load(
+                    WebSocketTransport.Factory.class, OneBotClient.class.getClassLoader()).iterator();
+            if (!providers.hasNext()) {
+                throw new IllegalStateException("No OneBot WebSocket transport is bundled with this platform");
+            }
+            WebSocketTransport.Factory selected = providers.next();
+            if (providers.hasNext()) {
+                throw new IllegalStateException("Multiple OneBot WebSocket transports are bundled with this platform");
+            }
+            transportFactory = selected;
+        }
+        return transportFactory;
+    }
+
+    private void abortConnection(Client connection, int code, String reason) {
+        if (connection != null) {
+            try {
+                connection.transport.abort(code, reason);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -182,12 +213,19 @@ public final class OneBotClient implements AutoCloseable {
         int delay = reconnectDelaySeconds.get();
         int next = Math.min(settings.getReconnectMaximumSeconds(), Math.max(delay + 1, delay * 2));
         reconnectDelaySeconds.set(next);
-        scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-                connectNow();
+        try {
+            scheduler.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    connectNow();
+                }
+            }, delay, TimeUnit.SECONDS);
+        } catch (RejectedExecutionException exception) {
+            reconnectScheduled.set(false);
+            if (!closed.get()) {
+                throw exception;
             }
-        }, delay, TimeUnit.SECONDS);
+        }
     }
 
     private void checkHeartbeat() {
@@ -195,17 +233,15 @@ public final class OneBotClient implements AutoCloseable {
             return;
         }
         Client current = client;
-        if (current == null || !current.isOpen()) {
+        if (current == null || !current.transport.isOpen()) {
             scheduleReconnect();
             return;
         }
         long last = lastReceivedAt.get();
         if (last > 0L && System.currentTimeMillis() - last > settings.getHeartbeatTimeoutSeconds() * 1000L) {
             platform.warn("OneBot heartbeat timeout, reconnecting.");
-            try {
-                current.close(1000, "heartbeat timeout");
-            } catch (Throwable ignored) {
-            }
+            // A stale peer may never answer a close handshake; release it before reconnecting.
+            abortConnection(current, 1001, "heartbeat timeout");
             scheduleReconnect();
         }
     }
@@ -215,7 +251,7 @@ public final class OneBotClient implements AutoCloseable {
             return FutureUtil.failedFuture(new IllegalArgumentException("action cannot be empty"));
         }
         Client current = client;
-        if (closed.get() || current == null || !current.isOpen()) {
+        if (closed.get() || current == null || !current.transport.isOpen()) {
             return FutureUtil.failedFuture(new IllegalStateException("OneBot WebSocket is not connected"));
         }
         if (!pendingCapacity.tryAcquire()) {
@@ -244,15 +280,23 @@ public final class OneBotClient implements AutoCloseable {
             }, settings.getActionTimeoutSeconds(), TimeUnit.SECONDS));
             String serialized = JsonUtil.toJson(request);
             debug("OneBot -> QQ: " + serialized);
-            current.send(serialized);
+            current.transport.sendText(serialized).whenComplete((ignored, error) -> {
+                if (error != null) {
+                    failPending(echo, pending, FutureUtil.unwrap(error));
+                }
+            });
         } catch (Throwable throwable) {
-            if (pendingActions.remove(echo, pending)) {
-                pending.cancelTimeout();
-                pending.releaseCapacity(pendingCapacity);
-                future.completeExceptionally(throwable);
-            }
+            failPending(echo, pending, throwable);
         }
         return future;
+    }
+
+    private void failPending(String echo, PendingAction pending, Throwable throwable) {
+        if (pendingActions.remove(echo, pending)) {
+            pending.cancelTimeout();
+            pending.releaseCapacity(pendingCapacity);
+            pending.future.completeExceptionally(throwable);
+        }
     }
 
     public CompletableFuture<JsonElement> sendGroupText(long groupId, String text, Long atUserId) {
@@ -304,7 +348,7 @@ public final class OneBotClient implements AutoCloseable {
 
     public boolean isConnected() {
         Client current = client;
-        return current != null && current.isOpen() && !closed.get();
+        return current != null && current.transport.isOpen() && !closed.get();
     }
 
     private void handleMessage(String message) {
@@ -822,7 +866,7 @@ public final class OneBotClient implements AutoCloseable {
         client = null;
         if (current != null) {
             try {
-                current.close();
+                current.transport.close(1000, "");
             } catch (Throwable ignored) {
             }
         }
@@ -836,30 +880,36 @@ public final class OneBotClient implements AutoCloseable {
             scheduler.schedule(new Runnable() {
                 @Override
                 public void run() {
-                    if (!closing.isClosed()) {
-                        closing.closeConnection(1001, "ShitBot shutdown timeout");
+                    if (!closing.transport.isClosed()) {
+                        abortConnection(closing, 1001, "ShitBot shutdown timeout");
                     }
                 }
             }, 5L, TimeUnit.SECONDS);
             scheduler.shutdown();
         } catch (RejectedExecutionException exception) {
-            if (!closing.isClosed()) {
-                closing.closeConnection(1001, "ShitBot shutdown");
+            if (!closing.transport.isClosed()) {
+                abortConnection(closing, 1001, "ShitBot shutdown");
             }
             scheduler.shutdownNow();
         }
     }
 
-    private final class Client extends WebSocketClient {
+    private final class Client implements WebSocketTransport.Listener {
+        private final WebSocketTransport transport;
+        private volatile boolean opened;
+
         private Client(URI serverUri, Map<String, String> headers, int connectTimeoutMs) {
-            super(serverUri, new Draft_6455(Collections.<IExtension>emptyList(), MAX_INBOUND_MESSAGE_LENGTH),
-                    headers == null ? Collections.<String, String>emptyMap() : headers,
-                    connectTimeoutMs);
-            setConnectionLostTimeout(Math.max(15, settings.getHeartbeatTimeoutSeconds() / 2));
+            transport = transportFactory().create(serverUri, headers, connectTimeoutMs,
+                    Math.max(15, settings.getHeartbeatTimeoutSeconds() / 2), MAX_INBOUND_MESSAGE_LENGTH, this);
         }
 
         @Override
-        public void onOpen(ServerHandshake handshake) {
+        public void onOpen() {
+            if (!isCurrent()) {
+                abortConnection(this, 1001, "connection superseded");
+                return;
+            }
+            opened = true;
             reconnectDelaySeconds.set(settings.getReconnectInitialSeconds());
             reconnectScheduled.set(false);
             lastReceivedAt.set(System.currentTimeMillis());
@@ -876,26 +926,34 @@ public final class OneBotClient implements AutoCloseable {
         }
 
         @Override
-        public void onMessage(String message) {
-            handleMessage(message);
+        public void onText(String message) {
+            if (isCurrent()) {
+                handleMessage(message);
+            }
         }
 
         @Override
         public void onClose(int code, String reason, boolean remote) {
-            if (!closed.get()) {
-                platform.warn("OneBot WebSocket closed (code=" + code + ", remote=" + remote + "): "
-                        + redactSecrets(reason == null ? "" : reason));
+            if (isCurrent()) {
+                if (opened) {
+                    platform.warn("OneBot WebSocket closed (code=" + code + ", remote=" + remote + "): "
+                            + redactSecrets(reason == null ? "" : reason));
+                }
                 failAllPending(new IllegalStateException("OneBot WebSocket disconnected"));
                 scheduleReconnect();
             }
         }
 
         @Override
-        public void onError(Exception exception) {
-            if (!closed.get()) {
+        public void onError(Throwable exception) {
+            if (isCurrent()) {
                 platform.warn("OneBot WebSocket error: "
                         + redactSecrets(exception == null ? "unknown" : exception.getMessage()));
             }
+        }
+
+        private boolean isCurrent() {
+            return !closed.get() && client == this;
         }
     }
 

@@ -16,6 +16,8 @@
 | --- | --- |
 | ShitBotApi | Java 8 |
 | ShitBotCore | Java 8 |
+| ShitBotWebSocketLegacy | Java 8 |
+| ShitBotWebSocketJdk | Java 11 |
 | ShitBotRenderer | Java 8 |
 | ShitBotSpigot | Java 8 |
 | ShitBotBungee | Java 8 |
@@ -36,13 +38,15 @@ mvn clean package
 mvn -Drevision=1.0.10-SNAPSHOT clean package
 ```
 
-根 `pom.xml` 同时是聚合工程和七个模块的父 POM，统一管理依赖、插件版本、编码和默认 Java 8 目标；Velocity 和 Nukkit 分别覆盖为 Java 21 和 17。Compiler Plugin 使用 `release` 限制可用的 Java API，避免在 JDK 21 上编译出引用新 API 的 Java 8 字节码。
+根 `pom.xml` 同时是聚合工程和九个模块的父 POM，统一管理依赖、插件版本、编码和默认 Java 8 目标；JDK WebSocket 传输模块、Velocity 和 Nukkit 分别覆盖为 Java 11、21 和 17。Compiler Plugin 使用 `release` 限制可用的 Java API，避免在 JDK 21 上编译出引用新 API 的 Java 8 字节码。
+
+编译保留源码文件名和行号，不生成局部变量调试表。Shade 按明确清单排除未使用的 YAML 扩展、WebSocket 压缩/服务端 TLS 实现和 bStats 图表；没有开启全局自动裁剪。修改依赖版本或开始使用这些能力时，应同步复查根 POM 的排除清单。
 
 `flatten-maven-plugin` 在安装或部署前将发布 POM 中的 `${revision}` 展开为实际版本。安装 API 时使用 `mvn -pl ShitBotApi -am install`，同时安装父 POM；部署到 Maven 仓库时也应包含父 POM。生成的 `.flattened-pom.xml` 不纳入版本控制。
 
 ## 构建单个平台
 
-使用 `-am` 同时构建依赖的 ShitBotApi 与 ShitBotCore：
+使用 `-am` 同时构建依赖的 ShitBotApi、ShitBotCore 和对应的 WebSocket 传输模块：
 
 ```powershell
 mvn -pl ShitBotSpigot -am package
@@ -55,7 +59,7 @@ mvn -pl ShitBotNukkit -am package
 
 ## 测试
 
-测试使用 JUnit 4.13.2 和 Maven Surefire 3.5.2，位于各模块的 `src/test/java/`。七个模块均要求至少发现一个测试，避免测试目录或命名错误导致构建空跑；CI 汇总还会拒绝预期模块的报告缺失或用例全部跳过。
+测试使用 JUnit 4.13.2 和 Maven Surefire 3.5.2，位于各模块的 `src/test/java/`。API、Core、Renderer 和四个平台模块要求至少发现一个测试，避免测试目录或命名错误导致构建空跑；CI 汇总还会拒绝这些预期模块的报告缺失或用例全部跳过。
 
 只运行 API、Core 和 Renderer 的共享逻辑测试，无需服务端 API 仓库：
 
@@ -99,6 +103,8 @@ Surefire 的 XML 和文本报告位于各模块的 `target/surefire-reports/`。
 ShitBot/
 ├─ ShitBotApi/        # 绑定、白名单、图片 API 与渲染 SPI，独立发布供开发者依赖
 ├─ ShitBotCore/       # OneBot、数据库、绑定、图片、更新和共享业务逻辑
+├─ ShitBotWebSocketLegacy/ # Spigot/Bungee 使用的 Java 8 WebSocket 适配器
+├─ ShitBotWebSocketJdk/    # Velocity/Nukkit 使用的 JDK WebSocket 适配器
 ├─ ShitBotRenderer/   # 单独发布并按需下载的高级 Java2D 场景渲染器与编辑器
 ├─ ShitBotSpigot/     # Bukkit、Paper、Folia 与后端命令监听
 ├─ ShitBotBungee/     # BungeeCord 平台入口
@@ -111,6 +117,8 @@ ShitBot/
 ```
 
 平台模块依赖 ShitBotCore，并将运行所需的共享依赖重定位到最终 JAR。平台 API 依赖以 provided 范围使用，不应打包进发布 JAR。`ShitBotRenderer` 不得成为平台模块依赖；它通过 `ShitBotApi` 的 SPI 在运行时隔离加载，否则会破坏默认插件的体积边界和按需下载语义。
+
+每个平台包只包含一种 WebSocket 传输，由 `WebSocketTransport.Factory` 的服务声明加载。Spigot/Bungee 包含 `ShitBotWebSocketLegacy` 和 Java-WebSocket；Velocity/Nukkit 包含 `ShitBotWebSocketJdk`，使用 JDK 自带客户端，不再携带 Java-WebSocket 及其 SLF4J 运行时依赖。这两个传输模块直接合入平台 JAR，不需要另外安装。OneBot 的认证、重连、心跳和动作超时仍由共享 Core 协调，JDK 适配器负责分片组装、消息大小限制、顺序发送及 Ping/Pong。
 
 ## 配置资源
 
@@ -165,7 +173,7 @@ GitHub Actions 在 push、pull request 和手动触发时：
 7. 检查项目类的 Java 字节码目标、入口和共享资源、Renderer SPI，以及平台 API、测试依赖和可选 Renderer 的打包隔离；检查四个平台的默认配置存在且无未替换占位符，并检查部署、统计、传输片段和 Mod JAR 扫描默认值；
 8. 上传发布构件 Artifact，保留 30 天。
 
-七个模块均有 JUnit 用例，全平台任务汇总并要求七个模块都实际执行测试。Bungee 用例直接使用其原生 `Configuration` 对象验证配置适配；Nukkit 用例通过原生 `Config` 解析 YAML；Velocity 用例在临时目录中执行配置加载流程。这些用例不启动代理或服务器，真实平台行为仍需单独联调；编译、打包、描述文件和默认配置检查继续作为独立的产物检查。
+API、Core、Renderer 和四个平台模块均有 JUnit 用例，全平台任务汇总并要求这七个模块都实际执行测试。Bungee 用例直接使用其原生 `Configuration` 对象验证配置适配；Nukkit 用例通过原生 `Config` 解析 YAML；Velocity 用例在临时目录中执行配置加载流程。这些用例不启动代理或服务器，真实平台行为仍需单独联调；编译、打包、描述文件和默认配置检查继续作为独立的产物检查。
 
 矩阵任务不会因其他环境失败而提前取消；同一分支或 PR 的过期 CI 运行会被新运行取消。版本、测试和构建结果统一汇总为 `CI checks`，可将它设为分支保护的必需检查。工作流使用只读仓库权限，只有 Release 上传任务获得写权限。
 

@@ -84,6 +84,10 @@
             <artifactId>ShitBotCore</artifactId>
         </dependency>
         <dependency>
+            <groupId>haaa</groupId>
+            <artifactId>ShitBotWebSocketLegacy</artifactId>
+        </dependency>
+        <dependency>
             <groupId>net.md-5</groupId>
             <artifactId>bungeecord-api</artifactId>
             <scope>provided</scope>

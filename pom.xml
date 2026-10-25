@@ -27,6 +27,8 @@
     <modules>
         <module>ShitBotApi</module>
         <module>ShitBotCore</module>
+        <module>ShitBotWebSocketLegacy</module>
+        <module>ShitBotWebSocketJdk</module>
         <module>ShitBotRenderer</module>
         <module>ShitBotBungee</module>
         <module>ShitBotSpigot</module>
@@ -44,6 +46,16 @@
             <dependency>
                 <groupId>haaa</groupId>
                 <artifactId>ShitBotCore</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>haaa</groupId>
+                <artifactId>ShitBotWebSocketLegacy</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>haaa</groupId>
+                <artifactId>ShitBotWebSocketJdk</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

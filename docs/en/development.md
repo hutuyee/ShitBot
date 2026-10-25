@@ -16,6 +16,8 @@ The aggregate project builds with JDK 21 and produces:
 | --- | --- |
 | ShitBotApi | Java 8 |
 | ShitBotCore | Java 8 |
+| ShitBotWebSocketLegacy | Java 8 |
+| ShitBotWebSocketJdk | Java 11 |
 | ShitBotRenderer | Java 8 |
 | ShitBotSpigot | Java 8 |
 | ShitBotBungee | Java 8 |
@@ -36,13 +38,15 @@ The `revision` property in `.mvn/maven.config` supplies the version. To override
 mvn -Drevision=1.0.10-SNAPSHOT clean package
 ```
 
-The root `pom.xml` is both the aggregator and the parent of all seven modules. It manages dependency and plugin versions, encoding, and the default Java 8 target; Velocity and Nukkit override the target to Java 21 and 17. The Compiler Plugin uses `release` to restrict available Java APIs, preventing Java 8 bytecode compiled on JDK 21 from referencing newer APIs.
+The root `pom.xml` is both the aggregator and the parent of all nine modules. It manages dependency and plugin versions, encoding, and the default Java 8 target; the JDK WebSocket transport, Velocity, and Nukkit override the target to Java 11, 21, and 17 respectively. The Compiler Plugin uses `release` to restrict available Java APIs, preventing Java 8 bytecode compiled on JDK 21 from referencing newer APIs.
+
+Compilation retains source filenames and line numbers without local-variable debug tables. Shade uses explicit exclusions for unused YAML extensions, WebSocket compression/server TLS implementations, and bStats charts; global automatic minimization is disabled. Review the root POM's exclusion list when updating dependencies or starting to use these features.
 
 Before installation or deployment, `flatten-maven-plugin` resolves `${revision}` to the actual version in published POMs. Install the API with `mvn -pl ShitBotApi -am install` so the parent POM is installed as well; include the parent when deploying to a Maven repository too. Generated `.flattened-pom.xml` files are ignored by Git.
 
 ## Build one platform
 
-Use `-am` to also build the required ShitBotApi and ShitBotCore modules:
+Use `-am` to also build ShitBotApi, ShitBotCore, and the platform's WebSocket transport module:
 
 ```powershell
 mvn -pl ShitBotSpigot -am package
@@ -55,7 +59,7 @@ Final plugin JARs are in each module's `target/`. Do not distribute `original-*.
 
 ## Tests
 
-Tests use JUnit 4.13.2 and Maven Surefire 3.5.2 and live in each module's `src/test/java/`. All seven modules require at least one discovered test, so missing test directories or incorrect naming cannot silently produce an empty test run. CI summaries also reject missing reports or entirely skipped tests in expected modules.
+Tests use JUnit 4.13.2 and Maven Surefire 3.5.2 and live in each module's `src/test/java/`. API, Core, Renderer, and the four platform modules require at least one discovered test, so missing test directories or incorrect naming cannot silently produce an empty test run. CI summaries also reject missing reports or entirely skipped tests in these expected modules.
 
 Run the shared API, Core, and Renderer tests without platform API repositories:
 
@@ -99,6 +103,8 @@ Surefire XML and text reports are written to each module's `target/surefire-repo
 ShitBot/
 ├─ ShitBotApi/        # Binding, whitelist, image API and rendering SPI; published separately
 ├─ ShitBotCore/       # OneBot, database, binding, images, updates, and shared logic
+├─ ShitBotWebSocketLegacy/ # Java 8 WebSocket adapter for Spigot/Bungee
+├─ ShitBotWebSocketJdk/    # JDK WebSocket adapter for Velocity/Nukkit
 ├─ ShitBotRenderer/   # Separately published, optional Java2D scene renderer and editor
 ├─ ShitBotSpigot/     # Bukkit, Paper, Folia, and backend command listener
 ├─ ShitBotBungee/     # BungeeCord entry point
@@ -111,6 +117,8 @@ ShitBot/
 ```
 
 Platform modules depend on ShitBotCore and relocate the shared runtime dependencies into the final JAR. Platform APIs use `provided` scope and should not be bundled. `ShitBotRenderer` must not become a platform module dependency: it is loaded in isolation at runtime through the ShitBotApi SPI, preserving the small default plugin and optional download behavior.
+
+Each platform bundles one WebSocket transport, loaded through the `WebSocketTransport.Factory` service descriptor. Spigot/Bungee include `ShitBotWebSocketLegacy` and Java-WebSocket. Velocity/Nukkit include `ShitBotWebSocketJdk`, use the JDK client, and no longer bundle Java-WebSocket or its SLF4J runtime dependencies. Both transport modules are merged into platform JARs and require no separate installation. Core still coordinates OneBot authentication, reconnects, heartbeats, and action timeouts; the JDK adapter handles fragments, message size limits, ordered sends, and Ping/Pong.
 
 ## Configuration resources
 
@@ -165,7 +173,7 @@ On pushes, pull requests, and manual runs, GitHub Actions:
 7. Checks project bytecode targets, entry points and shared resources, Renderer SPI, and packaging isolation for platform APIs, test dependencies, and the optional Renderer. Checks that platform defaults exist without unresolved placeholders and contain the correct deployment, metrics, transport, and Mod JAR scanning defaults.
 8. Uploads release build artifacts, retaining them for 30 days.
 
-All seven modules have JUnit cases, and the full platform job summarizes and requires executed tests from every module. Bungee cases exercise adaptation of native `Configuration` objects; Nukkit cases parse YAML with native `Config`; Velocity cases run configuration loading against temporary files. These cases do not start a proxy or server, so real platform behavior still needs separate integration checks. Compilation, packaging, descriptor, and default configuration checks remain separate artifact checks.
+API, Core, Renderer, and the four platform modules have JUnit cases, and the full platform job summarizes and requires executed tests from these seven modules. Bungee cases exercise adaptation of native `Configuration` objects; Nukkit cases parse YAML with native `Config`; Velocity cases run configuration loading against temporary files. These cases do not start a proxy or server, so real platform behavior still needs separate integration checks. Compilation, packaging, descriptor, and default configuration checks remain separate artifact checks.
 
 Matrix jobs continue if another environment fails. New runs cancel outdated CI runs for the same branch or PR. The stable `CI checks` job aggregates version, test, and build results and can be required by branch protection. Workflow permissions default to read-only; only the Release upload job receives write access.
 
