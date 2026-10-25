@@ -77,14 +77,14 @@ jobs:
         shell: bash
         run: >-
           mvn --batch-mode --no-transfer-progress --errors
-          -pl ShitBotApi,ShitBotCore,ShitBotRenderer -am
+          -pl :ShitBotApi,:ShitBotCore,:ShitBotRenderer -am
           "-Drevision=${BUILD_VERSION}"
           -DskipTests=false -Dmaven.test.skip=false clean test
 
       - name: Summarize test results
         if: always()
         shell: bash
-        run: python .github/scripts/summarize-tests.py ShitBotApi ShitBotCore ShitBotRenderer
+        run: python .github/scripts/summarize-tests.py modules/api modules/core modules/renderer
 
       - name: Upload test reports
         if: always()
@@ -141,8 +141,8 @@ jobs:
         shell: bash
         run: >-
           python .github/scripts/summarize-tests.py
-          ShitBotApi ShitBotCore ShitBotRenderer ShitBotSpigot
-          ShitBotBungee ShitBotVelocity ShitBotNukkit
+          modules/api modules/core modules/renderer modules/platforms/spigot
+          modules/platforms/bungee modules/platforms/velocity modules/platforms/nukkit
 
       - name: Upload test reports
         if: always()
@@ -162,11 +162,11 @@ jobs:
           mkdir -p release
 
           modules=(
-            "ShitBotApi"
-            "ShitBotSpigot"
-            "ShitBotBungee"
-            "ShitBotVelocity"
-            "ShitBotNukkit"
+            "modules/api"
+            "modules/platforms/spigot"
+            "modules/platforms/bungee"
+            "modules/platforms/velocity"
+            "modules/platforms/nukkit"
           )
 
           for module in "${modules[@]}"; do
@@ -222,7 +222,7 @@ jobs:
           done
 
           mapfile -t renderer_jars < <(
-            find ShitBotRenderer/target \
+            find modules/renderer/target \
               -maxdepth 1 \
               -type f \
               -name "ShitBotRenderer-*.jar" \
@@ -417,7 +417,7 @@ jobs:
           for jar_file in "${jars[@]}"; do
             openssl dgst \
               -sha256 \
-              -verify ShitBotCore/src/main/resources/haaa/shitbot/core/update/update-public-key.pem \
+              -verify modules/core/src/main/resources/haaa/shitbot/core/update/update-public-key.pem \
               -signature "${jar_file}.sig" \
               "${jar_file}"
           done

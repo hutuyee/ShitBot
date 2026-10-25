@@ -12,17 +12,17 @@ This page is for developers building or modifying ShitBot. Server owners should 
 
 The aggregate project builds with JDK 21 and produces:
 
-| Module | Bytecode target |
-| --- | --- |
-| ShitBotApi | Java 8 |
-| ShitBotCore | Java 8 |
-| ShitBotWebSocketLegacy | Java 8 |
-| ShitBotWebSocketJdk | Java 11 |
-| ShitBotRenderer | Java 8 |
-| ShitBotSpigot | Java 8 |
-| ShitBotBungee | Java 8 |
-| ShitBotVelocity | Java 21 |
-| ShitBotNukkit | Java 17 |
+| Module | Source directory | Bytecode target |
+| --- | --- | --- |
+| ShitBotApi | `modules/api` | Java 8 |
+| ShitBotCore | `modules/core` | Java 8 |
+| ShitBotWebSocketLegacy | `modules/transports/legacy` | Java 8 |
+| ShitBotWebSocketJdk | `modules/transports/jdk` | Java 11 |
+| ShitBotRenderer | `modules/renderer` | Java 8 |
+| ShitBotSpigot | `modules/platforms/spigot` | Java 8 |
+| ShitBotBungee | `modules/platforms/bungee` | Java 8 |
+| ShitBotVelocity | `modules/platforms/velocity` | Java 21 |
+| ShitBotNukkit | `modules/platforms/nukkit` | Java 17 |
 
 ## Build all platforms
 
@@ -42,20 +42,20 @@ The root `pom.xml` is both the aggregator and the parent of all nine modules. It
 
 Compilation retains source filenames and line numbers without local-variable debug tables. Shade uses explicit exclusions for unused YAML extensions, WebSocket compression/server TLS implementations, and bStats charts; global automatic minimization is disabled. Review the root POM's exclusion list when updating dependencies or starting to use these features.
 
-Before installation or deployment, `flatten-maven-plugin` resolves `${revision}` to the actual version in published POMs. Install the API with `mvn -pl ShitBotApi -am install` so the parent POM is installed as well; include the parent when deploying to a Maven repository too. Generated `.flattened-pom.xml` files are ignored by Git.
+Before installation or deployment, `flatten-maven-plugin` resolves `${revision}` to the actual version in published POMs. Install the API with `mvn -pl :ShitBotApi -am install` so the parent POM is installed as well; include the parent when deploying to a Maven repository too. Generated `.flattened-pom.xml` files are ignored by Git.
 
 ## Build one platform
 
-Use `-am` to also build ShitBotApi, ShitBotCore, and the platform's WebSocket transport module:
+From the repository root, use `-pl :artifactId` to select a platform by Maven module name. Add `-am` to also build ShitBotApi, ShitBotCore, and the platform's WebSocket transport module:
 
 ```powershell
-mvn -pl ShitBotSpigot -am package
-mvn -pl ShitBotBungee -am package
-mvn -pl ShitBotVelocity -am package
-mvn -pl ShitBotNukkit -am package
+mvn -pl :ShitBotSpigot -am package
+mvn -pl :ShitBotBungee -am package
+mvn -pl :ShitBotVelocity -am package
+mvn -pl :ShitBotNukkit -am package
 ```
 
-Final plugin JARs are in each module's `target/`. Do not distribute `original-*.jar`, sources, javadoc, or test JARs as plugins.
+Final plugin JARs are in each source directory's `target/`, for example `modules/platforms/spigot/target/ShitBotSpigot-<version>.jar`. Directory names do not change Maven coordinates or release JAR names. Do not distribute `original-*.jar`, sources, javadoc, or test JARs as plugins.
 
 ## Tests
 
@@ -64,7 +64,7 @@ Tests use JUnit 4.13.2 and Maven Surefire 3.5.2 and live in each module's `src/t
 Run the shared API, Core, and Renderer tests without platform API repositories:
 
 ```powershell
-mvn -pl ShitBotApi,ShitBotCore,ShitBotRenderer -am test
+mvn -pl :ShitBotApi,:ShitBotCore,:ShitBotRenderer -am test
 ```
 
 With JDK 21, run all tests and package every platform:
@@ -76,7 +76,7 @@ mvn clean verify
 With JDK 21, run only the Bungee, Velocity, and Nukkit tests and their shared dependencies:
 
 ```powershell
-mvn -pl ShitBotBungee,ShitBotVelocity,ShitBotNukkit -am test
+mvn -pl :ShitBotBungee,:ShitBotVelocity,:ShitBotNukkit -am test
 ```
 
 Current cases cover:
@@ -101,15 +101,18 @@ Surefire XML and text reports are written to each module's `target/surefire-repo
 
 ```text
 ShitBot/
-├─ ShitBotApi/        # Binding, whitelist, image API and rendering SPI; published separately
-├─ ShitBotCore/       # OneBot, database, binding, images, updates, and shared logic
-├─ ShitBotWebSocketLegacy/ # Java 8 WebSocket adapter for Spigot/Bungee
-├─ ShitBotWebSocketJdk/    # JDK WebSocket adapter for Velocity/Nukkit
-├─ ShitBotRenderer/   # Separately published, optional Java2D scene renderer and editor
-├─ ShitBotSpigot/     # Bukkit, Paper, Folia, and backend command listener
-├─ ShitBotBungee/     # BungeeCord entry point
-├─ ShitBotVelocity/   # Velocity entry point
-├─ ShitBotNukkit/     # Nukkit-MOT entry point
+├─ modules/
+│  ├─ api/           # Public binding, whitelist, image API and rendering SPI
+│  ├─ core/          # OneBot, database, binding, images, updates, and shared logic
+│  ├─ renderer/      # Optional Java2D scene renderer and editor
+│  ├─ platforms/
+│  │  ├─ spigot/     # Bukkit, Paper, Folia, and backend command listener
+│  │  ├─ bungee/     # BungeeCord entry point
+│  │  ├─ velocity/   # Velocity entry point
+│  │  └─ nukkit/     # Nukkit-MOT entry point
+│  └─ transports/
+│     ├─ legacy/     # Java 8 WebSocket adapter for Spigot/Bungee
+│     └─ jdk/        # JDK WebSocket adapter for Velocity/Nukkit
 ├─ config-templates/  # Shared platform defaults and optional fragments
 ├─ PictureBridge/    # Git submodule for the separate client mod
 ├─ docs/             # Chinese documentation and English translations in en/

@@ -6,7 +6,7 @@
 
 ## Dependency and access
 
-Releases include a separate `ShitBotApi-<version>.jar` with checksum and signature files for developers. Do not put this JAR in the server's `plugins/` directory. You can also install the current API into your local Maven repository with `mvn -pl ShitBotApi -am install`.
+Releases include a separate `ShitBotApi-<version>.jar` with checksum and signature files for developers. Do not put this JAR in the server's `plugins/` directory. You can also install the current API into your local Maven repository with `mvn -pl :ShitBotApi -am install`.
 
 Install the matching API version into your Maven repository and use a `provided` dependency. Do not bundle the API or ShitBotCore inside your own plugin:
 

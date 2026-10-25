@@ -7,45 +7,38 @@
         <groupId>haaa</groupId>
         <artifactId>ShitBot</artifactId>
         <version>${revision}</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
-    <artifactId>ShitBotNukkit</artifactId>
+
+    <artifactId>ShitBotRenderer</artifactId>
     <packaging>jar</packaging>
-    <name>ShitBotNukkit</name>
+    <name>ShitBotRenderer</name>
 
     <properties>
         <tests.required>true</tests.required>
-        <java.version>17</java.version>
-        <config.defaults.fragments>config.yml</config.defaults.fragments>
-        <config.commands.fragments>commands.yml</config.commands.fragments>
-        <config.scan-mod-jars>false</config.scan-mod-jars>
     </properties>
 
     <build>
-        <defaultGoal>clean package</defaultGoal>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
-                <filtering>true</filtering>
+                <filtering>false</filtering>
             </resource>
             <resource>
-                <directory>${project.build.directory}/generated-resources/defaults</directory>
+                <directory>src/version-resources</directory>
                 <filtering>true</filtering>
             </resource>
         </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <configuration>
+                    <shadedArtifactAttached>false</shadedArtifactAttached>
                     <relocations>
                         <relocation>
                             <pattern>org.yaml.snakeyaml</pattern>
-                            <shadedPattern>haaa.shitbot.lib.snakeyaml</shadedPattern>
+                            <shadedPattern>haaa.shitbot.renderer.lib.snakeyaml</shadedPattern>
                         </relocation>
                     </relocations>
                 </configuration>
@@ -61,16 +54,12 @@
         </dependency>
         <dependency>
             <groupId>haaa</groupId>
-            <artifactId>ShitBotCore</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>haaa</groupId>
-            <artifactId>ShitBotWebSocketJdk</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nukkit-mot</groupId>
-            <artifactId>nukkit-mot</artifactId>
+            <artifactId>ShitBotApi</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
         </dependency>
     </dependencies>
 </project>

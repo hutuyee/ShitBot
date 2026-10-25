@@ -25,15 +25,15 @@
     </properties>
 
     <modules>
-        <module>ShitBotApi</module>
-        <module>ShitBotCore</module>
-        <module>ShitBotWebSocketLegacy</module>
-        <module>ShitBotWebSocketJdk</module>
-        <module>ShitBotRenderer</module>
-        <module>ShitBotBungee</module>
-        <module>ShitBotSpigot</module>
-        <module>ShitBotVelocity</module>
-        <module>ShitBotNukkit</module>
+        <module>modules/api</module>
+        <module>modules/core</module>
+        <module>modules/transports/legacy</module>
+        <module>modules/transports/jdk</module>
+        <module>modules/renderer</module>
+        <module>modules/platforms/bungee</module>
+        <module>modules/platforms/spigot</module>
+        <module>modules/platforms/velocity</module>
+        <module>modules/platforms/nukkit</module>
     </modules>
 
     <dependencyManagement>
@@ -156,12 +156,12 @@
                                     <mkdir dir="${project.build.directory}/generated-resources/defaults"/>
                                     <concat destfile="${project.build.directory}/generated-resources/defaults/config.yml"
                                             encoding="UTF-8" outputencoding="UTF-8" fixlastline="yes" eol="lf">
-                                        <filelist dir="${project.basedir}/../config-templates"
+                                        <filelist dir="${maven.multiModuleProjectDirectory}/config-templates"
                                                   files="${config.defaults.fragments}"/>
                                     </concat>
                                     <concat destfile="${project.build.directory}/generated-resources/defaults/commands.yml"
                                             encoding="UTF-8" outputencoding="UTF-8" fixlastline="yes" eol="lf">
-                                        <filelist dir="${project.basedir}/../config-templates"
+                                        <filelist dir="${maven.multiModuleProjectDirectory}/config-templates"
                                                   files="${config.commands.fragments}"/>
                                     </concat>
                                 </target>

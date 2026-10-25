@@ -120,7 +120,7 @@ The colors reference WCAG 2.2 [text contrast requirements](https://www.w3.org/WA
 
 Standalone layouts show up to 40 players in four columns. Proxy layouts show up to 4 backends with up to 8 players each. Counts always use the full online data, and overflow hints indicate omitted players/backends. A zero total shows a full-page empty state; empty proxy backends have their own hints. Both layouts fit the default layer and canvas limits.
 
-Upgrades fill missing content in the built-in template draft while retaining existing values and layer lists. New templates created in the editor use the new defaults. To replace the entire layout of an existing `online-status`, copy the release source's `ShitBotRenderer/src/main/resources/defaults/online-status/scene.yml` into its scene draft, then save, preview, and publish through the editor.
+Upgrades fill missing content in the built-in template draft while retaining existing values and layer lists. New templates created in the editor use the new defaults. To replace the entire layout of an existing `online-status`, copy the release source's `modules/renderer/src/main/resources/defaults/online-status/scene.yml` into its scene draft, then save, preview, and publish through the editor.
 
 Template IDs allow lowercase letters, digits, underscores, and hyphens, up to 64 characters. Files must remain within the plugin data directory. Absolute paths, traversal, and symlinks escaping the directory are rejected.
 

@@ -12,17 +12,17 @@
 
 整个聚合工程由 JDK 21 构建，各模块输出：
 
-| 模块 | 字节码目标 |
-| --- | --- |
-| ShitBotApi | Java 8 |
-| ShitBotCore | Java 8 |
-| ShitBotWebSocketLegacy | Java 8 |
-| ShitBotWebSocketJdk | Java 11 |
-| ShitBotRenderer | Java 8 |
-| ShitBotSpigot | Java 8 |
-| ShitBotBungee | Java 8 |
-| ShitBotVelocity | Java 21 |
-| ShitBotNukkit | Java 17 |
+| 模块 | 源码目录 | 字节码目标 |
+| --- | --- | --- |
+| ShitBotApi | `modules/api` | Java 8 |
+| ShitBotCore | `modules/core` | Java 8 |
+| ShitBotWebSocketLegacy | `modules/transports/legacy` | Java 8 |
+| ShitBotWebSocketJdk | `modules/transports/jdk` | Java 11 |
+| ShitBotRenderer | `modules/renderer` | Java 8 |
+| ShitBotSpigot | `modules/platforms/spigot` | Java 8 |
+| ShitBotBungee | `modules/platforms/bungee` | Java 8 |
+| ShitBotVelocity | `modules/platforms/velocity` | Java 21 |
+| ShitBotNukkit | `modules/platforms/nukkit` | Java 17 |
 
 ## 构建全部平台
 
@@ -42,20 +42,20 @@ mvn -Drevision=1.0.10-SNAPSHOT clean package
 
 编译保留源码文件名和行号，不生成局部变量调试表。Shade 按明确清单排除未使用的 YAML 扩展、WebSocket 压缩/服务端 TLS 实现和 bStats 图表；没有开启全局自动裁剪。修改依赖版本或开始使用这些能力时，应同步复查根 POM 的排除清单。
 
-`flatten-maven-plugin` 在安装或部署前将发布 POM 中的 `${revision}` 展开为实际版本。安装 API 时使用 `mvn -pl ShitBotApi -am install`，同时安装父 POM；部署到 Maven 仓库时也应包含父 POM。生成的 `.flattened-pom.xml` 不纳入版本控制。
+`flatten-maven-plugin` 在安装或部署前将发布 POM 中的 `${revision}` 展开为实际版本。安装 API 时使用 `mvn -pl :ShitBotApi -am install`，同时安装父 POM；部署到 Maven 仓库时也应包含父 POM。生成的 `.flattened-pom.xml` 不纳入版本控制。
 
 ## 构建单个平台
 
-使用 `-am` 同时构建依赖的 ShitBotApi、ShitBotCore 和对应的 WebSocket 传输模块：
+在仓库根目录使用 `-pl :artifactId` 按 Maven 模块名选择平台，`-am` 同时构建依赖的 ShitBotApi、ShitBotCore 和对应的 WebSocket 传输模块：
 
 ```powershell
-mvn -pl ShitBotSpigot -am package
-mvn -pl ShitBotBungee -am package
-mvn -pl ShitBotVelocity -am package
-mvn -pl ShitBotNukkit -am package
+mvn -pl :ShitBotSpigot -am package
+mvn -pl :ShitBotBungee -am package
+mvn -pl :ShitBotVelocity -am package
+mvn -pl :ShitBotNukkit -am package
 ```
 
-最终插件 JAR 位于对应模块的 `target/`。不要发布 `original-*.jar`、sources、javadoc 或 test JAR。
+最终插件 JAR 位于对应源码目录的 `target/`，例如 `modules/platforms/spigot/target/ShitBotSpigot-<版本>.jar`。目录名称不影响 Maven 坐标或发布 JAR 名称。不要发布 `original-*.jar`、sources、javadoc 或 test JAR。
 
 ## 测试
 
@@ -64,7 +64,7 @@ mvn -pl ShitBotNukkit -am package
 只运行 API、Core 和 Renderer 的共享逻辑测试，无需服务端 API 仓库：
 
 ```powershell
-mvn -pl ShitBotApi,ShitBotCore,ShitBotRenderer -am test
+mvn -pl :ShitBotApi,:ShitBotCore,:ShitBotRenderer -am test
 ```
 
 使用 JDK 21 运行全部测试并检查所有平台的打包：
@@ -76,7 +76,7 @@ mvn clean verify
 使用 JDK 21 只运行 Bungee、Velocity、Nukkit 及其共享依赖的测试：
 
 ```powershell
-mvn -pl ShitBotBungee,ShitBotVelocity,ShitBotNukkit -am test
+mvn -pl :ShitBotBungee,:ShitBotVelocity,:ShitBotNukkit -am test
 ```
 
 当前用例覆盖：
@@ -101,15 +101,18 @@ Surefire 的 XML 和文本报告位于各模块的 `target/surefire-reports/`。
 
 ```text
 ShitBot/
-├─ ShitBotApi/        # 绑定、白名单、图片 API 与渲染 SPI，独立发布供开发者依赖
-├─ ShitBotCore/       # OneBot、数据库、绑定、图片、更新和共享业务逻辑
-├─ ShitBotWebSocketLegacy/ # Spigot/Bungee 使用的 Java 8 WebSocket 适配器
-├─ ShitBotWebSocketJdk/    # Velocity/Nukkit 使用的 JDK WebSocket 适配器
-├─ ShitBotRenderer/   # 单独发布并按需下载的高级 Java2D 场景渲染器与编辑器
-├─ ShitBotSpigot/     # Bukkit、Paper、Folia 与后端命令监听
-├─ ShitBotBungee/     # BungeeCord 平台入口
-├─ ShitBotVelocity/   # Velocity 平台入口
-├─ ShitBotNukkit/     # Nukkit-MOT 平台入口
+├─ modules/
+│  ├─ api/           # 绑定、白名单、图片 API 与渲染 SPI，独立发布供开发者依赖
+│  ├─ core/          # OneBot、数据库、绑定、图片、更新和共享业务逻辑
+│  ├─ renderer/      # 按需下载的高级 Java2D 场景渲染器与编辑器
+│  ├─ platforms/
+│  │  ├─ spigot/     # Bukkit、Paper、Folia 与后端命令监听
+│  │  ├─ bungee/     # BungeeCord 平台入口
+│  │  ├─ velocity/   # Velocity 平台入口
+│  │  └─ nukkit/     # Nukkit-MOT 平台入口
+│  └─ transports/
+│     ├─ legacy/     # Spigot/Bungee 使用的 Java 8 WebSocket 适配器
+│     └─ jdk/        # Velocity/Nukkit 使用的 JDK WebSocket 适配器
 ├─ config-templates/  # 四个平台共享的默认配置与可选片段
 ├─ PictureBridge/     # 独立客户端模组的 Git 子模块
 ├─ docs/              # 项目文档
