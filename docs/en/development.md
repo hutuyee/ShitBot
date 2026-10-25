@@ -114,8 +114,10 @@ ShitBot/
 │     ├─ legacy/     # Java 8 WebSocket adapter for Spigot/Bungee
 │     └─ jdk/        # JDK WebSocket adapter for Velocity/Nukkit
 ├─ config-templates/  # Shared platform defaults and optional fragments
-├─ PictureBridge/    # Git submodule for the separate client mod
-├─ docs/             # Chinese documentation and English translations in en/
+├─ integrations/
+│  └─ picturebridge/  # Git submodule for the separate client mod
+├─ docs/              # Chinese documentation and English translations in en/
+│  └─ assets/         # README and documentation images
 └─ pom.xml           # Maven aggregate project
 ```
 
@@ -153,7 +155,7 @@ Nukkit-MOT has no proxy/backend transport configuration. Other platforms share t
 
 ## PictureBridge submodule
 
-PictureBridge has its own repository and build. It is not part of ShitBot's Maven aggregate project. You do not need to build it when only modifying the server plugin.
+The PictureBridge submodule lives in `integrations/picturebridge/` and has its own repository and build. It is not part of ShitBot's Maven aggregate project. You do not need to build it when only modifying the server plugin.
 
 For client development, initialize the submodule after cloning:
 

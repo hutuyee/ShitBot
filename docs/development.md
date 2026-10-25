@@ -114,8 +114,10 @@ ShitBot/
 │     ├─ legacy/     # Spigot/Bungee 使用的 Java 8 WebSocket 适配器
 │     └─ jdk/        # Velocity/Nukkit 使用的 JDK WebSocket 适配器
 ├─ config-templates/  # 四个平台共享的默认配置与可选片段
-├─ PictureBridge/     # 独立客户端模组的 Git 子模块
+├─ integrations/
+│  └─ picturebridge/  # 独立客户端模组的 Git 子模块
 ├─ docs/              # 项目文档
+│  └─ assets/         # README 与文档图片
 └─ pom.xml            # Maven 聚合工程
 ```
 
@@ -153,7 +155,7 @@ Nukkit-MOT 不包含代理—后端传输配置，其他平台的 `commands.yml`
 
 ## PictureBridge 子模块
 
-PictureBridge 是独立仓库和独立构建，不参与 ShitBot Maven 聚合工程。只修改服务端插件时，不需要构建 PictureBridge。
+PictureBridge 子模块位于 `integrations/picturebridge/`，使用独立仓库和独立构建，不参与 ShitBot Maven 聚合工程。只修改服务端插件时，不需要构建 PictureBridge。
 
 需要同时开发客户端模组时，克隆仓库后初始化子模块：
 

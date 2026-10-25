@@ -174,7 +174,7 @@ ShitBot does not compete with EasyBot.
 
 ## Spark
 
-![spark](image/spark.png)
+![spark](docs/assets/spark.png)
 
 ## License
 

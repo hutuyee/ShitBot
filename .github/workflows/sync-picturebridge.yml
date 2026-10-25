@@ -30,16 +30,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          git submodule sync -- PictureBridge
-          git submodule update --remote PictureBridge
+          git submodule sync -- integrations/picturebridge
+          git submodule update --remote integrations/picturebridge
 
-          if git diff --quiet -- PictureBridge; then
+          if git diff --quiet -- integrations/picturebridge; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git -C PictureBridge rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git -C integrations/picturebridge rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Commit updated reference
         if: steps.update.outputs.changed == 'true'
@@ -49,6 +49,6 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PictureBridge
+          git add integrations/picturebridge
           git commit -m "chore: 同步 PictureBridge 到 ${{ steps.update.outputs.sha }}"
           git push origin HEAD:main

@@ -1,4 +1,4 @@
 [submodule "PictureBridge"]
-	path = PictureBridge
+	path = integrations/picturebridge
 	url = https://github.com/hutuyee/PictureBridge.git
 	branch = main
