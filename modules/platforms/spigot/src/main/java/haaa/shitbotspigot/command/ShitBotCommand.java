@@ -182,7 +182,7 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
         String message = cause.getMessage();
         return message == null || message.trim().isEmpty()
                 ? cause.getClass().getSimpleName()
-                : message;
+                : cause.getClass().getSimpleName() + ": " + message;
     }
 
     private void sendInstallResult(CommandSender sender,
@@ -193,14 +193,23 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     "%version%", result.getLatestVersion()));
             return;
         }
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_STAGED) {
+            send(sender, translations.format("admin.update.already-staged-server",
+                    "%version%", result.getLatestVersion()));
+            send(sender, translations.format("admin.update.staged-jar",
+                    "%path%", String.valueOf(result.getInstalledPath())));
+            return;
+        }
         if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
             send(sender, translations.format("admin.update.already-installed-server",
                     "%version%", result.getLatestVersion()));
             return;
         }
-        send(sender, translations.format("admin.update.installed-server",
+        send(sender, translations.format(result.isStaged()
+                        ? "admin.update.staged-server" : "admin.update.installed-server",
                 "%version%", result.getLatestVersion()));
-        send(sender, translations.format("admin.update.current-jar",
+        send(sender, translations.format(result.isStaged()
+                        ? "admin.update.staged-jar" : "admin.update.current-jar",
                 "%path%", String.valueOf(result.getInstalledPath())));
         send(sender, translations.format("admin.update.backup-jar",
                 "%path%", String.valueOf(result.getBackupPath())));

@@ -53,7 +53,8 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
         stopping = false;
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
-        this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
+        this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge,
+                getServer().getUpdateFolder().isEmpty() ? null : getServer().getUpdateFolderFile().toPath());
         platformBridge.configureUpdateInstaller(
                 new java.util.function.Function<BackendUpdatePayload,
                         CompletableFuture<UpdateInstallResult>>() {

@@ -254,6 +254,17 @@ public final class SpigotConsoleController implements AutoCloseable {
             return format("console.result.update-up-to-date",
                     "%version%", result.getLatestVersion());
         }
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_STAGED) {
+            return format("console.result.update-already-staged",
+                    "%version%", result.getLatestVersion(),
+                    "%path%", String.valueOf(result.getInstalledPath()));
+        }
+        if (result.getStatus() == UpdateInstallResult.Status.STAGED) {
+            return format("console.result.update-staged",
+                    "%version%", result.getLatestVersion(),
+                    "%path%", String.valueOf(result.getInstalledPath()),
+                    "%backup%", String.valueOf(result.getBackupPath()));
+        }
         if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
             return format("console.result.update-already-installed",
                     "%version%", result.getLatestVersion());
@@ -268,7 +279,7 @@ public final class SpigotConsoleController implements AutoCloseable {
         String message = cause.getMessage();
         return message == null || message.trim().isEmpty()
                 ? cause.getClass().getSimpleName()
-                : message;
+                : cause.getClass().getSimpleName() + ": " + message;
     }
 
     private CompletableFuture<ConsoleResult> queryTps(final ConsoleRequest request) {
