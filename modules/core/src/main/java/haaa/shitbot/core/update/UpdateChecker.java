@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import haaa.shitbot.core.config.ConfigBackups;
+import haaa.shitbot.core.config.Settings;
 import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.JsonUtil;
@@ -39,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -79,6 +81,7 @@ public final class UpdateChecker implements AutoCloseable {
     private final AtomicReference<UpdateInfo> latestRelease = new AtomicReference<UpdateInfo>();
     private final AtomicReference<UpdateInstallResult> lastInstallation = new AtomicReference<UpdateInstallResult>();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private volatile Settings.Update automaticSettings;
     private CompletableFuture<UpdateInfo> inFlight;
     private CompletableFuture<UpdateInstallResult> installInFlight;
 
@@ -99,6 +102,56 @@ public final class UpdateChecker implements AutoCloseable {
 
     public boolean isUpdateAvailable(UpdateInfo info) {
         return info != null && info.isUpdateAvailable(currentVersion);
+    }
+
+    /** Applies startup/reload settings without changing explicit update commands. */
+    public void configureAutomaticUpdates(Settings.Update settings,
+                                          UpdatePlatform updatePlatform,
+                                          Path pluginJar) {
+        configureAutomaticUpdates(settings, info -> installReleaseAsync(info, updatePlatform, pluginJar)
+                .whenComplete((result, throwable) -> {
+                    if (closed.get()) {
+                        return;
+                    }
+                    if (throwable != null) {
+                        platform.warn("ShitBot automatic update failed: " + FutureUtil.unwrap(throwable));
+                    } else if (result.isRestartRequired()) {
+                        platform.info("ShitBot automatic update downloaded: " + result.getLatestVersion()
+                                + " (" + result.getInstalledPath() + "). Restart normally to apply it.");
+                    }
+                }));
+    }
+
+    /** A null installer disables independent checks for proxy-managed backends. */
+    public void configureAutomaticUpdates(final Settings.Update settings,
+                                          final Consumer<UpdateInfo> installer) {
+        automaticSettings = settings;
+        if (closed.get() || installer == null || (!settings.isNotify() && !settings.isAutoUpdate())) {
+            return;
+        }
+        checkAsync().whenComplete((info, throwable) -> {
+            if (closed.get() || automaticSettings != settings) {
+                return;
+            }
+            if (throwable != null) {
+                platform.warn("Unable to check for ShitBot updates: " + FutureUtil.unwrap(throwable));
+                return;
+            }
+            if (!isUpdateAvailable(info)) {
+                return;
+            }
+            if (settings.isNotify()) {
+                platform.info("ShitBot update available: " + currentVersion
+                        + " -> " + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
+            }
+            if (settings.isAutoUpdate()) {
+                try {
+                    installer.accept(info);
+                } catch (RuntimeException exception) {
+                    platform.error("Unable to start ShitBot automatic update", exception);
+                }
+            }
+        });
     }
 
     /** Fetches the latest Release and installs the matching platform JAR when needed. */

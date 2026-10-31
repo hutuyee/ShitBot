@@ -68,7 +68,8 @@ public final class PlayerLoginListener {
         if (runtime != null) {
             runtime.playerJoin(player.getUsername(), player.getUniqueId().toString());
         }
-        if (!player.hasPermission("shitbot.admin")) {
+        if (runtime == null || !runtime.getSettings().getUpdate().isNotify()
+                || !player.hasPermission("shitbot.admin")) {
             return;
         }
         final UpdateChecker updateChecker = plugin.getUpdateChecker();

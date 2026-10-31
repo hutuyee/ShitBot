@@ -58,7 +58,6 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
         platformBridge = new NukkitPlatformBridge(this);
         updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
         getServer().getPluginManager().registerEvents(this, this);
-        startUpdateCheck();
 
         try {
             Settings settings = configLoader.load();
@@ -85,6 +84,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
                     startupUnavailable = false;
                     runtime.activate();
                     configureStartupNotification(runtime, true);
+                    configureUpdates(runtime);
                     platformBridge.info("ShitBotNukkit enabled.");
                 }
             });
@@ -140,6 +140,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
                             oldRuntime.close();
                         }
                         newRuntime.activate();
+                        configureUpdates(newRuntime);
                         startupUnavailable = false;
                         return Boolean.TRUE;
                     }
@@ -218,7 +219,8 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
         if (runtime != null) {
             runtime.playerJoin(player.getName(), player.getUniqueId().toString());
         }
-        if (!player.hasPermission("shitbot.admin") || updateChecker == null) {
+        if (runtime == null || !runtime.getSettings().getUpdate().isNotify()
+                || !player.hasPermission("shitbot.admin") || updateChecker == null) {
             return;
         }
         updateChecker.latestForNotificationAsync().thenAccept(
@@ -421,7 +423,7 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
             return;
         }
         ShitBotRuntime runtime = runtimeReference.get();
-        if (runtime == null) {
+        if (runtime == null || !runtime.getSettings().getUpdate().isNotify()) {
             return;
         }
         Translations translations = runtime.getSettings().getTranslations();
@@ -457,25 +459,9 @@ public final class ShitBotNukkit extends PluginBase implements Listener, ShitBot
         sender.sendMessage(TextUtil.color(message));
     }
 
-    private void startUpdateCheck() {
-        updateChecker.checkAsync().whenComplete(
-                new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
-                    @Override
-                    public void accept(UpdateInfo info, Throwable throwable) {
-                        if (throwable != null) {
-                            if (!stopping) {
-                                platformBridge.warn("Unable to check for ShitBot updates: "
-                                        + errorMessage(throwable));
-                            }
-                            return;
-                        }
-                        if (updateChecker.isUpdateAvailable(info)) {
-                            platformBridge.info("ShitBot update available: "
-                                    + updateChecker.getCurrentVersion() + " -> "
-                                    + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
-                        }
-                    }
-                });
+    private void configureUpdates(ShitBotRuntime runtime) {
+        updateChecker.configureAutomaticUpdates(runtime.getSettings().getUpdate(),
+                UpdatePlatform.NUKKIT, getPluginJarPath());
     }
 
     private String errorMessage(Throwable throwable) {

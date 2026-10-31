@@ -179,10 +179,10 @@ public final class ShitBotCommand extends Command {
                 });
     }
 
-    private void installProxyAndBackends(final CommandSender sender,
-                                         UpdateChecker updateChecker,
-                                         UpdateInfo info,
-                                         final Translations translations) {
+    public void installProxyAndBackends(final CommandSender sender,
+                                        UpdateChecker updateChecker,
+                                        UpdateInfo info,
+                                        final Translations translations) {
         CompletableFuture<UpdateInstallResult> proxyUpdate = updateChecker.installReleaseAsync(
                 info, UpdatePlatform.BUNGEE, plugin.getPluginJarPath());
         CompletableFuture<List<ConsoleResult>> backendUpdates =

@@ -231,7 +231,9 @@ public final class SettingsFactory {
 
         return new Settings(source.getInt("config-version", 2),
                 source.getBoolean("debug", false), translations, oneBot, forwarding, binding,
-                database, image, profile, customImages, inventory, messages);
+                database, image, profile, customImages, inventory, messages,
+                new Settings.Update(source.getBoolean("update.notify", true),
+                        source.getBoolean("update.auto-update", false)));
     }
 
     private static List<String> listOrDefault(List<String> values, String... fallback) {

@@ -13,6 +13,7 @@ public final class Settings {
 
     private final int configVersion;
     private final boolean debug;
+    private final Update update;
     private final Translations translations;
     private final OneBot oneBot;
     private final Forwarding forwarding;
@@ -51,8 +52,26 @@ public final class Settings {
                     CustomImages customImages,
                     Inventory inventory,
                     Messages messages) {
+        this(configVersion, debug, translations, oneBot, forwarding, binding,
+                database, image, profile, customImages, inventory, messages, new Update(true, false));
+    }
+
+    public Settings(int configVersion,
+                    boolean debug,
+                    Translations translations,
+                    OneBot oneBot,
+                    Forwarding forwarding,
+                    Binding binding,
+                    Database database,
+                    Image image,
+                    Profile profile,
+                    CustomImages customImages,
+                    Inventory inventory,
+                    Messages messages,
+                    Update update) {
         this.configVersion = configVersion;
         this.debug = debug;
+        this.update = require(update, "update");
         this.translations = require(translations, "translations");
         this.oneBot = require(oneBot, "oneBot");
         this.forwarding = require(forwarding, "forwarding");
@@ -71,6 +90,10 @@ public final class Settings {
 
     public boolean isDebug() {
         return debug;
+    }
+
+    public Update getUpdate() {
+        return update;
     }
 
     public Translations getTranslations() {
@@ -139,6 +162,24 @@ public final class Settings {
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    public static final class Update {
+        private final boolean notify;
+        private final boolean autoUpdate;
+
+        public Update(boolean notify, boolean autoUpdate) {
+            this.notify = notify;
+            this.autoUpdate = autoUpdate;
+        }
+
+        public boolean isNotify() {
+            return notify;
+        }
+
+        public boolean isAutoUpdate() {
+            return autoUpdate;
+        }
     }
 
     public static final class OneBot {

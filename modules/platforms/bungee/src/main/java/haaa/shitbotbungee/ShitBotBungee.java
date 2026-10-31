@@ -50,7 +50,6 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
         this.configLoader = new BungeeConfigLoader(this);
         this.platformBridge = new BungeePlatformBridge(this);
         this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
-        startUpdateCheck();
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerLoginListener(this));
         ProxyServer.getInstance().getPluginManager().registerListener(this, new PlayerChatListener(this));
         ProxyServer.getInstance().getPluginManager().registerCommand(this, new ShitBotCommand(this));
@@ -82,6 +81,7 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
                         startupUnavailable = false;
                         runtime.activate();
                         configureStartupNotification(runtime, true);
+                        configureUpdates(runtime);
                         platformBridge.info("ShitBotBungee enabled.");
                     }
                 }
@@ -137,6 +137,7 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
                 ShitBotBungee.this.translations = newRuntime.getSettings().getTranslations();
                 newRuntime.activate();
                 configureStartupNotification(newRuntime, false);
+                configureUpdates(newRuntime);
                 startupUnavailable = false;
                 return Boolean.TRUE;
             }
@@ -225,7 +226,7 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
             return;
         }
         ShitBotRuntime runtime = runtimeReference.get();
-        if (runtime == null) {
+        if (runtime == null || !runtime.getSettings().getUpdate().isNotify()) {
             return;
         }
         Translations translations = runtime.getSettings().getTranslations();
@@ -243,31 +244,10 @@ public final class ShitBotBungee extends Plugin implements ShitBotApiProvider {
         sender.sendMessage(link);
     }
 
-    private void startUpdateCheck() {
-        updateChecker.checkAsync().whenComplete(new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
-            @Override
-            public void accept(UpdateInfo info, Throwable throwable) {
-                if (throwable != null) {
-                    if (!stopping) {
-                        platformBridge.warn("Unable to check for ShitBot updates: "
-                                + errorMessage(throwable));
-                    }
-                    return;
-                }
-                if (updateChecker.isUpdateAvailable(info)) {
-                    platformBridge.info("ShitBot update available: " + updateChecker.getCurrentVersion()
-                            + " -> " + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
-                }
-            }
-        });
-    }
-
-    private String errorMessage(Throwable throwable) {
-        Throwable cause = FutureUtil.unwrap(throwable);
-        String message = cause.getMessage();
-        return message == null || message.trim().isEmpty()
-                ? cause.getClass().getSimpleName()
-                : message;
+    private void configureUpdates(ShitBotRuntime runtime) {
+        updateChecker.configureAutomaticUpdates(runtime.getSettings().getUpdate(),
+                info -> new ShitBotCommand(this).installProxyAndBackends(
+                        getProxy().getConsole(), updateChecker, info, runtime.getSettings().getTranslations()));
     }
 
     @Override

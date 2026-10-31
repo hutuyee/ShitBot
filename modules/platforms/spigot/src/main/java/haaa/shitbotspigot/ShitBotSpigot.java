@@ -30,7 +30,6 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvider {
@@ -38,7 +37,6 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
     private final haaa.shitbot.core.service.ServerStartupNotificationService.State startupNoticeState =
             new haaa.shitbot.core.service.ServerStartupNotificationService.State();
     private final AtomicReference<ShitBotRuntime> runtimeReference = new AtomicReference<ShitBotRuntime>();
-    private final AtomicBoolean updateCheckStarted = new AtomicBoolean();
     private volatile boolean startupUnavailable = true;
     private volatile Translations translations;
     private volatile boolean backendMode;
@@ -100,9 +98,6 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
             final boolean backendMode = configLoader.isBackendMode();
             platformBridge.configureConsole(consoleSettings, backendMode);
             this.backendMode = backendMode;
-            if (!backendMode) {
-                startUpdateCheck();
-            }
             ShitBotRuntime runtime = new ShitBotRuntime(settings, consoleSettings, platformBridge, startupNoticeState);
             runtimeReference.set(runtime);
             runtime.startAsync().whenComplete(new java.util.function.BiConsumer<Void, Throwable>() {
@@ -124,6 +119,7 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
                             runtime.activate();
                             configureStartupNotification(runtime, true);
                         }
+                        configureUpdates(runtime);
                         platformBridge.info("ShitBotSpigot enabled (role="
                                 + (backendMode ? "backend" : "standalone") + ").");
                     }
@@ -191,10 +187,10 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
                 ShitBotSpigot.this.backendMode = configuredBackendMode;
                 ShitBotSpigot.this.translations = newRuntime.getSettings().getTranslations();
                 if (!configuredBackendMode) {
-                    startUpdateCheck();
                     newRuntime.activate();
                     configureStartupNotification(newRuntime, false);
                 }
+                configureUpdates(newRuntime);
                 startupUnavailable = false;
                 return Boolean.TRUE;
             }
@@ -264,7 +260,7 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
             return;
         }
         ShitBotRuntime runtime = runtimeReference.get();
-        if (runtime == null) {
+        if (runtime == null || backendMode || !runtime.getSettings().getUpdate().isNotify()) {
             return;
         }
         Translations translations = runtime.getSettings().getTranslations();
@@ -281,34 +277,13 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
         sender.spigot().sendMessage(link);
     }
 
-    private void startUpdateCheck() {
-        if (!updateCheckStarted.compareAndSet(false, true)) {
-            return;
+    private void configureUpdates(ShitBotRuntime runtime) {
+        if (backendMode) {
+            updateChecker.configureAutomaticUpdates(runtime.getSettings().getUpdate(), null);
+        } else {
+            updateChecker.configureAutomaticUpdates(runtime.getSettings().getUpdate(),
+                    UpdatePlatform.SPIGOT, getPluginJarPath());
         }
-        updateChecker.checkAsync().whenComplete(new java.util.function.BiConsumer<UpdateInfo, Throwable>() {
-            @Override
-            public void accept(UpdateInfo info, Throwable throwable) {
-                if (throwable != null) {
-                    if (!stopping) {
-                        platformBridge.warn("Unable to check for ShitBot updates: "
-                                + errorMessage(throwable));
-                    }
-                    return;
-                }
-                if (updateChecker.isUpdateAvailable(info)) {
-                    platformBridge.info("ShitBot update available: " + updateChecker.getCurrentVersion()
-                            + " -> " + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
-                }
-            }
-        });
-    }
-
-    private String errorMessage(Throwable throwable) {
-        Throwable cause = FutureUtil.unwrap(throwable);
-        String message = cause.getMessage();
-        return message == null || message.trim().isEmpty()
-                ? cause.getClass().getSimpleName()
-                : message;
     }
 
     @Override

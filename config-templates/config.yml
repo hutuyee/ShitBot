@@ -8,6 +8,13 @@ language: "zh_CN"
 # 仅建议在本地测试时开启；本地 JAR 仍会检查 Renderer 元数据和版本，但跳过 checksum、sig 和公钥校验。
 debug: false
 
+update:
+  # 是否在控制台和管理员上线时提示发现新版本。
+  notify: true
+  # 启动或 reload 后发现新版本时自动下载；仍需正常重启生效。
+  # BungeeCord 会同时联动已配置的 Spigot 后端；后端模式不独立检查更新。
+  auto-update: false
+
 onebot:
   enabled: true
   # OneBot v11 正向 WebSocket 地址。ShitBot 主动连接 OneBot 实现。

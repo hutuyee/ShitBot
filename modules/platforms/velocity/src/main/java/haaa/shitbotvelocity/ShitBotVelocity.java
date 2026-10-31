@@ -22,6 +22,7 @@ import haaa.shitbot.core.platform.PlatformBridge;
 import haaa.shitbot.core.runtime.ShitBotRuntime;
 import haaa.shitbot.core.update.UpdateChecker;
 import haaa.shitbot.core.update.UpdateInfo;
+import haaa.shitbot.core.update.UpdatePlatform;
 import haaa.shitbot.core.util.FutureUtil;
 import haaa.shitbot.core.util.TextUtil;
 import net.kyori.adventure.text.Component;
@@ -75,7 +76,6 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
         this.platformBridge = new VelocityPlatformBridge(this, server, logger, dataDirectory);
         this.pluginJarPath = resolvePluginPath();
         this.updateChecker = new UpdateChecker(resolvePluginVersion(), platformBridge);
-        startUpdateCheck();
         server.getEventManager().register(this, new PlayerLoginListener(this));
         server.getEventManager().register(this, new PlayerChatListener(this));
         CommandMeta commandMeta = server.getCommandManager().metaBuilder("shitbot")
@@ -108,6 +108,7 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
                     startupUnavailable = false;
                     runtime.activate();
                     configureStartupNotification(runtime, true);
+                    configureUpdates(runtime);
                     platformBridge.info("ShitBotVelocity enabled.");
                 }
             });
@@ -155,6 +156,7 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
             ShitBotVelocity.this.translations = newRuntime.getSettings().getTranslations();
             newRuntime.activate();
             configureStartupNotification(newRuntime, false);
+            configureUpdates(newRuntime);
             startupUnavailable = false;
             return Boolean.TRUE;
         });
@@ -239,7 +241,7 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
             return;
         }
         ShitBotRuntime runtime = runtimeReference.get();
-        if (runtime == null) {
+        if (runtime == null || !runtime.getSettings().getUpdate().isNotify()) {
             return;
         }
         Translations translations = runtime.getSettings().getTranslations();
@@ -255,20 +257,9 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
         sender.sendMessage(link);
     }
 
-    private void startUpdateCheck() {
-        updateChecker.checkAsync().whenComplete((info, throwable) -> {
-            if (throwable != null) {
-                if (!stopping) {
-                    platformBridge.warn("Unable to check for ShitBot updates: "
-                            + errorMessage(throwable));
-                }
-                return;
-            }
-            if (updateChecker.isUpdateAvailable(info)) {
-                platformBridge.info("ShitBot update available: " + updateChecker.getCurrentVersion()
-                        + " -> " + info.getLatestVersion() + " (" + info.getReleaseUrl() + ")");
-            }
-        });
+    private void configureUpdates(ShitBotRuntime runtime) {
+        updateChecker.configureAutomaticUpdates(runtime.getSettings().getUpdate(),
+                UpdatePlatform.VELOCITY, getPluginJarPath());
     }
 
     private String resolvePluginVersion() {
@@ -285,14 +276,6 @@ public final class ShitBotVelocity implements ShitBotApiProvider {
         return server.getPluginManager().getPlugin("shitbotvelocity")
                 .flatMap(container -> container.getDescription().getSource())
                 .orElse(null);
-    }
-
-    private String errorMessage(Throwable throwable) {
-        Throwable cause = FutureUtil.unwrap(throwable);
-        String message = cause.getMessage();
-        return message == null || message.trim().isEmpty()
-                ? cause.getClass().getSimpleName()
-                : message;
     }
 
     @Subscribe
