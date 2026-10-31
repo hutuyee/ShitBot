@@ -77,11 +77,21 @@ BungeeCord、Velocity、Nukkit-MOT 仍使用校验后直接替换磁盘 JAR、�
 
 执行联动更新前，确认代理—后端通道正常，并为各端数据库与配置创建备份。
 
-## 自动检查
+## 更新提示与自动更新
 
-插件启动后会在后台检查 GitHub Release。检查不会占用服务端主线程；最新结果发生变化时会写入插件数据目录下的 `update-cache.json`。
+`config.yml` 提供两个独立开关：
 
-有 `shitbot.admin` 权限的管理员上线时，会收到可用新版本和 Release 链接提示。自动检查只负责通知，不会未经命令自动替换插件。
+```yaml
+update:
+  notify: true
+  auto-update: false
+```
+
+`notify: true` 时，控制台和有 `shitbot.admin` 权限的管理员上线时会收到新版本提示；关闭后也不会显示缓存提醒。`auto-update: true` 时，启动或 `/shitbot reload` 成功后会自动检查并下载可用更新，沿用上述校验和备份流程。自动更新仍需正常重启生效，不会自动重启或热重载插件；更新结果和失败日志不受提示开关影响。
+
+默认仅提示、不自动安装。两个开关都关闭时，启动和 reload 不会自动检查更新，手动 `/shitbot update` 仍可使用。检查在后台执行，每次启动或成功 reload 触发一次，不会定时轮询；最新结果发生变化时会写入插件数据目录的 `update-cache.json`。
+
+BungeeCord 自动更新会联动配置过的 Spigot 后端，结果写入代理控制台。Spigot 后端模式不独立检查 GitHub；自动联动由代理的开关控制，后端本地开关不阻止代理下发的更新请求。
 
 ## 更新失败排查
 

@@ -77,11 +77,21 @@ Running `/shitbot update` on BungeeCord sends the same release's Spigot JAR and 
 
 Before a coordinated update, confirm the channel works and back up databases and configurations on all instances.
 
-## Automatic checks
+## Update notifications and automatic updates
 
-After startup, the plugin checks GitHub releases in the background without occupying the server's main thread. Changed results are written to `update-cache.json` in the data directory.
+`config.yml` provides two independent switches:
 
-Administrators with `shitbot.admin` receive an available-version notice and release link when joining. Automatic checks only notify; they do not replace the plugin without an update command.
+```yaml
+update:
+  notify: true
+  auto-update: false
+```
+
+With `notify: true`, the console and joining administrators with `shitbot.admin` receive available-version notices. Disabling it also suppresses cached reminders. With `auto-update: true`, successful startup or `/shitbot reload` automatically checks for and downloads an available update using the verification and backup steps above. A normal restart is still required; the updater does not restart or hot-reload the plugin. Update results and failures are logged regardless of the notification switch.
+
+The default is to notify without installing automatically. When both switches are disabled, startup and reload do not check for updates automatically; `/shitbot update` remains available. Checks run in the background once per startup or successful reload, without periodic polling. Changed results are written to `update-cache.json` in the data directory.
+
+BungeeCord automatic updates also coordinate configured Spigot backends and report results to the proxy console. Backend-mode Spigot does not check GitHub independently. The proxy's switch controls automatic coordination; a backend's local switch does not block update requests from the proxy.
 
 ## Update failures
 

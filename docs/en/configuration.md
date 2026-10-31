@@ -4,7 +4,7 @@
 
 On first startup, ShitBot generates these files in its data directory:
 
-- `config.yml`: language, OneBot, forwarding, binding, database, images, and inventories.
+- `config.yml`: language, updates, OneBot, forwarding, binding, database, images, and inventories.
 - `commands.yml`: TPS, QQ shortcuts, advanced image commands, and the proxy/backend command channel.
 - `lang/zh_CN.yml` and `lang/en_US.yml`: the main user-facing text, built-in aliases, and image text.
 - `templates/default.yml`: default layouts and colors for online lists and inventory images.
@@ -42,6 +42,23 @@ language: "en_US"
 The default is `zh_CN`. To add another language, copy `lang/zh_CN.yml` or `lang/en_US.yml`, rename it (for example, `zh_TW.yml`), translate it, and set `language: "zh_TW"`. Names may contain only letters, digits, underscores, and hyphens.
 
 The built-in `zh_CN.yml` and `en_US.yml` are each completed from their matching bundled language. Missing custom-language keys are copied from the data directory's `zh_CN.yml` and saved so you can translate the new entries directly. Preserve placeholders such as `%player%` and `%result%`. Minecraft text supports `&` color codes.
+
+## Update notifications and automatic updates
+
+Configure these entries in `config.yml`:
+
+```yaml
+update:
+  notify: true
+  auto-update: false
+```
+
+- `update.notify`: whether to announce available versions in the console and to joining administrators with `shitbot.admin`. Defaults to `true`. Disabling it also suppresses cached version reminders; manual update replies and actual automatic-update results and errors are still logged.
+- `update.auto-update`: whether to download an available update after successful startup or `/shitbot reload`. Defaults to `false`. Automatic updates use the same SHA-256, signature, JAR verification, and backup steps as manual updates. A normal restart is still required to apply them.
+
+The switches are independent, so automatic updates can run with notifications disabled. When both are `false`, startup and reload do not check releases automatically; `/shitbot update` remains available. Checks run in the background once per startup or successful reload, without periodic polling.
+
+On BungeeCord, automatic updates reuse the `/shitbot update` workflow to update the proxy and coordinate updates for Spigot backends configured in `backend-transport.endpoints`. Backend-mode Spigot continues to receive notifications and updates through the proxy instead of checking GitHub independently; its local automatic-update switch does not block update requests from the proxy. See [Updating](updating.md) for installation and old-JAR cleanup behavior.
 
 ## Debug mode
 

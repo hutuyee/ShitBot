@@ -4,7 +4,7 @@
 
 ShitBot 首次启动会在插件数据目录生成：
 
-- `config.yml`：语言选择、OneBot、转发、绑定、数据库、图片和背包配置；
+- `config.yml`：语言选择、更新、OneBot、转发、绑定、数据库、图片和背包配置；
 - `commands.yml`：TPS、QQ 快捷命令、高级图片模板群命令和代理—后端命令通道；
 - `lang/zh_CN.yml` 与 `lang/en_US.yml`：所有主要用户文本、内置指令别名和图片文字；
 - `templates/default.yml`：在线列表与背包图片的默认布局和配色。
@@ -42,6 +42,23 @@ language: "zh_CN"
 切换英文时改为 `en_US`。扩展其他语言时，复制 `lang/zh_CN.yml` 或 `lang/en_US.yml`，例如改名为 `zh_TW.yml`，完整翻译后设置 `language: "zh_TW"`。语言名只允许字母、数字、下划线和连字符。
 
 内置 `zh_CN.yml` 和 `en_US.yml` 会各自从插件内对应的语言文件补齐缺失文本。自定义语言缺少的键会从数据目录的 `zh_CN.yml` 补齐并保存，后续可直接翻译新增字段。必须保留 `%player%`、`%result%` 等占位符。Minecraft 文本支持 `&` 颜色代码。
+
+## 更新提示与自动更新
+
+在 `config.yml` 中配置：
+
+```yaml
+update:
+  notify: true
+  auto-update: false
+```
+
+- `update.notify`：是否在控制台和有 `shitbot.admin` 权限的管理员上线时提示发现新版本，默认 `true`。关闭后不会显示缓存中的版本提醒；手动更新回复和实际自动更新的结果、错误日志仍会保留。
+- `update.auto-update`：启动或 `/shitbot reload` 成功后，检查到可用新版本时是否自动下载更新，默认 `false`。自动更新沿用手动更新的 SHA-256、签名、JAR 校验和备份流程，完成后仍需正常重启生效。
+
+两个开关彼此独立，可以关闭提示并开启自动更新。两项都为 `false` 时，不会在启动或 reload 后自动检查 Release，仍可手动执行 `/shitbot update`。检查在后台执行，每次启动或成功 reload 触发一次，不定时轮询。
+
+BungeeCord 开启自动更新时，会沿用 `/shitbot update` 的流程，同时更新代理并联动 `backend-transport.endpoints` 中配置的 Spigot 后端。后端模式的 Spigot 继续由代理负责通知和分发，不独立检查 GitHub；后端本地的自动更新开关不阻止代理下发的更新请求。安装方式和旧版 JAR 清理规则见[升级与自动更新](updating.md)。
 
 ## 调试模式
 
