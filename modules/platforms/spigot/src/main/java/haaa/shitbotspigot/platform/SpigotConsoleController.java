@@ -254,23 +254,14 @@ public final class SpigotConsoleController implements AutoCloseable {
             return format("console.result.update-up-to-date",
                     "%version%", result.getLatestVersion());
         }
-        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_STAGED) {
-            return format("console.result.update-already-staged",
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
+            return format("console.result.update-already-downloaded",
                     "%version%", result.getLatestVersion(),
                     "%path%", String.valueOf(result.getInstalledPath()));
         }
-        if (result.getStatus() == UpdateInstallResult.Status.STAGED) {
-            return format("console.result.update-staged",
-                    "%version%", result.getLatestVersion(),
-                    "%path%", String.valueOf(result.getInstalledPath()),
-                    "%backup%", String.valueOf(result.getBackupPath()));
-        }
-        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
-            return format("console.result.update-already-installed",
-                    "%version%", result.getLatestVersion());
-        }
-        return format("console.result.update-installed",
+        return format("console.result.update-downloaded",
                 "%version%", result.getLatestVersion(),
+                "%path%", String.valueOf(result.getInstalledPath()),
                 "%backup%", String.valueOf(result.getBackupPath()));
     }
 

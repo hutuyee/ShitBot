@@ -193,23 +193,16 @@ public final class ShitBotCommand implements CommandExecutor, TabCompleter {
                     "%version%", result.getLatestVersion()));
             return;
         }
-        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_STAGED) {
-            send(sender, translations.format("admin.update.already-staged-server",
+        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
+            send(sender, translations.format("admin.update.already-downloaded-server",
                     "%version%", result.getLatestVersion()));
-            send(sender, translations.format("admin.update.staged-jar",
+            send(sender, translations.format("admin.update.installed-jar",
                     "%path%", String.valueOf(result.getInstalledPath())));
             return;
         }
-        if (result.getStatus() == UpdateInstallResult.Status.ALREADY_INSTALLED) {
-            send(sender, translations.format("admin.update.already-installed-server",
-                    "%version%", result.getLatestVersion()));
-            return;
-        }
-        send(sender, translations.format(result.isStaged()
-                        ? "admin.update.staged-server" : "admin.update.installed-server",
+        send(sender, translations.format("admin.update.downloaded-server",
                 "%version%", result.getLatestVersion()));
-        send(sender, translations.format(result.isStaged()
-                        ? "admin.update.staged-jar" : "admin.update.current-jar",
+        send(sender, translations.format("admin.update.installed-jar",
                 "%path%", String.valueOf(result.getInstalledPath())));
         send(sender, translations.format("admin.update.backup-jar",
                 "%path%", String.valueOf(result.getBackupPath())));

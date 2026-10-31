@@ -19,6 +19,7 @@ import haaa.shitbotspigot.listener.PlayerChatListener;
 import haaa.shitbotspigot.listener.PlayerInventorySnapshotListener;
 import haaa.shitbotspigot.listener.PlayerLoginListener;
 import haaa.shitbotspigot.platform.SpigotPlatformBridge;
+import haaa.shitbotspigot.update.SpigotPluginCleanup;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -53,8 +54,8 @@ public final class ShitBotSpigot extends JavaPlugin implements ShitBotApiProvide
         stopping = false;
         this.configLoader = new SpigotConfigLoader(this);
         this.platformBridge = new SpigotPlatformBridge(this);
-        this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge,
-                getServer().getUpdateFolder().isEmpty() ? null : getServer().getUpdateFolderFile().toPath());
+        SpigotPluginCleanup.deleteOldJars(this);
+        this.updateChecker = new UpdateChecker(getDescription().getVersion(), platformBridge);
         platformBridge.configureUpdateInstaller(
                 new java.util.function.Function<BackendUpdatePayload,
                         CompletableFuture<UpdateInstallResult>>() {

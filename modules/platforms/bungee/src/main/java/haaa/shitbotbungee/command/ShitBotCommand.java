@@ -239,7 +239,7 @@ public final class ShitBotCommand extends Command {
                         runOnPlatform(new Runnable() {
                             @Override
                             public void run() {
-                                send(sender, translations.get("admin.update.coordinated-ready"));
+                                send(sender, translations.get("admin.update.coordinated-downloaded"));
                             }
                         });
                     }

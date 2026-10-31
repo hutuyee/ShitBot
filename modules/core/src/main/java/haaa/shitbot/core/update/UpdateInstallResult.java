@@ -2,14 +2,12 @@ package haaa.shitbot.core.update;
 
 import java.nio.file.Path;
 
-/** Outcome of installing or staging a Release asset on disk. */
+/** Outcome of installing a Release asset on disk. */
 public final class UpdateInstallResult {
     public enum Status {
         UP_TO_DATE,
         ALREADY_INSTALLED,
-        INSTALLED,
-        ALREADY_STAGED,
-        STAGED
+        INSTALLED
     }
 
     private final Status status;
@@ -58,21 +56,6 @@ public final class UpdateInstallResult {
                 assetName, sha256, installedPath, backupPath);
     }
 
-    public static UpdateInstallResult alreadyStaged(String currentVersion, String latestVersion, Path path) {
-        return new UpdateInstallResult(Status.ALREADY_STAGED, currentVersion, latestVersion,
-                "", "", path, null);
-    }
-
-    public static UpdateInstallResult staged(String currentVersion,
-                                             String latestVersion,
-                                             String assetName,
-                                             String sha256,
-                                             Path stagedPath,
-                                             Path backupPath) {
-        return new UpdateInstallResult(Status.STAGED, currentVersion, latestVersion,
-                assetName, sha256, stagedPath, backupPath);
-    }
-
     public Status getStatus() {
         return status;
     }
@@ -93,7 +76,7 @@ public final class UpdateInstallResult {
         return sha256;
     }
 
-    /** Destination of the installed or staged JAR, or the current JAR when already up to date. */
+    /** Destination of the installed JAR, or the current JAR when already up to date. */
     public Path getInstalledPath() {
         return installedPath;
     }
@@ -103,11 +86,7 @@ public final class UpdateInstallResult {
     }
 
     public boolean isRestartRequired() {
-        return status == Status.INSTALLED || status == Status.ALREADY_INSTALLED || isStaged();
-    }
-
-    public boolean isStaged() {
-        return status == Status.STAGED || status == Status.ALREADY_STAGED;
+        return status == Status.INSTALLED || status == Status.ALREADY_INSTALLED;
     }
 
     private static String text(String value) {

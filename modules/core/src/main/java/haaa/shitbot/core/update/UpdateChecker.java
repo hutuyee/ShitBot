@@ -73,8 +73,6 @@ public final class UpdateChecker implements AutoCloseable {
 
     private final String currentVersion;
     private final Path cachePath;
-    private final Path stagingDirectory;
-    private final boolean stageOnRestart;
     private final PlatformBridge platform;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(
             new NamedThreadFactory("shitbot-update", true));
@@ -85,21 +83,9 @@ public final class UpdateChecker implements AutoCloseable {
     private CompletableFuture<UpdateInstallResult> installInFlight;
 
     public UpdateChecker(String currentVersion, PlatformBridge platform) {
-        this(currentVersion, platform, null, false);
-    }
-
-    /** Defers replacement until restart; a null directory means server-managed updates are disabled. */
-    public UpdateChecker(String currentVersion, PlatformBridge platform, Path stagingDirectory) {
-        this(currentVersion, platform, stagingDirectory, true);
-    }
-
-    private UpdateChecker(String currentVersion, PlatformBridge platform, Path stagingDirectory,
-                          boolean stageOnRestart) {
         this.currentVersion = currentVersion == null ? "" : currentVersion.trim();
         this.platform = platform;
         this.cachePath = platform.getDataDirectory().resolve("update-cache.json");
-        this.stagingDirectory = stagingDirectory == null ? null : stagingDirectory.toAbsolutePath().normalize();
-        this.stageOnRestart = stageOnRestart;
         latestRelease.set(readCache());
     }
 
@@ -185,8 +171,7 @@ public final class UpdateChecker implements AutoCloseable {
             public void accept(UpdateInstallResult ignored, Throwable throwable) {
                 clearInstallInFlight(created);
                 if (throwable != null && !closed.get()) {
-                    platform.error("ShitBot update " + (stageOnRestart ? "staging" : "installation")
-                            + " failed", FutureUtil.unwrap(throwable));
+                    platform.error("ShitBot update installation failed", FutureUtil.unwrap(throwable));
                 }
             }
         });
@@ -423,8 +408,7 @@ public final class UpdateChecker implements AutoCloseable {
                                                ReleaseAsset jarAsset,
                                                ReleaseAsset checksumAsset,
                                                ReleaseAsset signatureAsset) throws IOException {
-        Path requestedPluginJar = configuredPluginJar.toAbsolutePath().normalize();
-        Path pluginJar = requestedPluginJar;
+        Path pluginJar = configuredPluginJar.toAbsolutePath().normalize();
         if (!Files.isRegularFile(pluginJar)) {
             throw new IOException("Current plugin JAR does not exist: " + pluginJar);
         }
@@ -436,13 +420,11 @@ public final class UpdateChecker implements AutoCloseable {
             throw new IOException("Release JAR size is invalid: " + jarAsset.getSize());
         }
 
-        Path destination = resolveInstallDestination(requestedPluginJar, pluginJar);
+        Path destination = resolveInstallDestination(updatePlatform, jarAsset, pluginJar);
         UpdateInstallResult previous = lastInstallation.get();
         if (previous != null && !info.isUpdateAvailable(previous.getLatestVersion())
                 && destination.equals(previous.getInstalledPath()) && Files.isRegularFile(destination)) {
-            return previous.isStaged()
-                    ? UpdateInstallResult.alreadyStaged(currentVersion, previous.getLatestVersion(), destination)
-                    : UpdateInstallResult.alreadyInstalled(currentVersion, previous.getLatestVersion(), destination);
+            return UpdateInstallResult.alreadyInstalled(currentVersion, previous.getLatestVersion(), destination);
         }
 
         String expectedSha256 = downloadChecksum(checksumAsset, jarAsset);
@@ -475,7 +457,8 @@ public final class UpdateChecker implements AutoCloseable {
             try {
                 moveReplacing(temporary, destination);
             } catch (IOException installFailure) {
-                if (!stageOnRestart && !Files.isRegularFile(pluginJar) && Files.isRegularFile(backup)) {
+                if (destination.equals(pluginJar)
+                        && !Files.isRegularFile(pluginJar) && Files.isRegularFile(backup)) {
                     try {
                         Files.copy(backup, pluginJar, StandardCopyOption.REPLACE_EXISTING);
                     } catch (IOException restoreFailure) {
@@ -484,11 +467,8 @@ public final class UpdateChecker implements AutoCloseable {
                 }
                 throw installFailure;
             }
-            UpdateInstallResult result = !stageOnRestart
-                    ? UpdateInstallResult.installed(currentVersion, info.getLatestVersion(),
-                            jarAsset.getName(), downloadedSha256, destination, backup)
-                    : UpdateInstallResult.staged(currentVersion, info.getLatestVersion(),
-                            jarAsset.getName(), downloadedSha256, destination, backup);
+            UpdateInstallResult result = UpdateInstallResult.installed(currentVersion, info.getLatestVersion(),
+                    jarAsset.getName(), downloadedSha256, destination, backup);
             lastInstallation.set(result);
             return result;
         } finally {
@@ -496,25 +476,24 @@ public final class UpdateChecker implements AutoCloseable {
         }
     }
 
-    private Path resolveInstallDestination(Path requestedPluginJar, Path realPluginJar) throws IOException {
-        if (!stageOnRestart) {
-            return realPluginJar;
+    private Path resolveInstallDestination(UpdatePlatform updatePlatform,
+                                           ReleaseAsset jarAsset,
+                                           Path pluginJar) throws IOException {
+        if (updatePlatform != UpdatePlatform.SPIGOT) {
+            return pluginJar;
         }
-        if (stagingDirectory == null) {
-            throw new IOException("Server plugin updates are disabled; set bukkit.yml settings.update-folder "
-                    + "to a separate directory such as update, then restart the server");
+        String assetName = jarAsset.getName();
+        if (assetName.indexOf('/') >= 0 || assetName.indexOf('\\') >= 0 || assetName.indexOf(':') >= 0) {
+            throw new IOException("Release JAR name must be a plain filename: " + assetName);
         }
-        Files.createDirectories(stagingDirectory);
-        Path directory = stagingDirectory.toRealPath();
-        if (directory.equals(requestedPluginJar.getParent().toRealPath())
-                || directory.equals(realPluginJar.getParent())) {
-            throw new IOException("Server update folder must be separate from the plugin directory; "
-                    + "check bukkit.yml settings.update-folder: " + directory);
+        // The data folder remains under plugins even when Paper loads a remapped JAR from its cache.
+        Path directory = platform.getDataDirectory().toAbsolutePath().normalize().getParent();
+        if (directory == null) {
+            throw new IOException("Plugin data directory has no parent directory");
         }
-        // Bukkit matches the update to the loaded plugin's filename, including an old version suffix.
-        Path destination = directory.resolve(requestedPluginJar.getFileName());
-        if (Files.exists(destination) && Files.isSameFile(destination, realPluginJar)) {
-            throw new IOException("Staged update resolves to the running plugin JAR: " + destination);
+        Path destination = directory.toRealPath().resolve(assetName);
+        if (Files.exists(destination) && Files.isSameFile(destination, pluginJar)) {
+            throw new IOException("Release filename resolves to the running plugin JAR: " + destination);
         }
         return destination;
     }
